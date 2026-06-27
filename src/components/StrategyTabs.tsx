@@ -8,7 +8,7 @@ type StrategyTabsProps = {
 export function StrategyTabs({ strategyId, active }: StrategyTabsProps) {
   const tabs = [
     { key: 'detail', label: '상세', href: `/strategies/${strategyId}` },
-    { key: 'plan', label: '오늘 주문 계산', href: `/strategies/${strategyId}/plan` },
+    { key: 'plan', label: '주문 계산', href: `/strategies/${strategyId}/plan` },
     { key: 'execution', label: '체결 입력', href: `/strategies/${strategyId}/executions/new` },
   ] as const;
 

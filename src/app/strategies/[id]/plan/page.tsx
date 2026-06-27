@@ -77,7 +77,9 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
           <div className="stat"><span>현금</span><strong>{usd(state.cashBalance)}</strong></div>
           <div className="stat"><span>보유수량</span><strong>{state.positionQty}주</strong></div>
           <div className="stat"><span>평단</span><strong>{usd(state.avgPrice)}</strong></div>
-          <div className="stat"><span>최근 종가</span><strong>{recentCloses.length}/5개</strong></div>
+          {state.mode === 'reverse' && (
+            <div className="stat"><span>5일평균 데이터</span><strong>{recentCloses.length}/5개</strong></div>
+          )}
         </div>
       </section>
 

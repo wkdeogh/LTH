@@ -52,7 +52,7 @@ export default async function HomePage() {
                 <div className="stat"><span>평단</span><strong>{usd(strategy.avg_price)}</strong></div>
               </div>
               <div className="actions" style={{ marginTop: 16 }}>
-                <Link className="button" href={`/strategies/${strategy.id}/plan`}>오늘 계산</Link>
+                <Link className="button" href={`/strategies/${strategy.id}/plan`}>주문 계산</Link>
                 <Link className="button secondary" href={`/strategies/${strategy.id}`}>상세</Link>
               </div>
             </article>
