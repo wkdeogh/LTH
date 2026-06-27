@@ -14,21 +14,22 @@ function OrderTable({ title, orders }: { title: string; orders: Array<{ label: s
     <section className="panel">
       <h2>{title}</h2>
       {orders.length > 0 ? (
-        <table>
-          <thead><tr><th>구분</th><th>방식</th><th>가격</th><th>수량</th><th>금액</th><th>메모</th></tr></thead>
-          <tbody>
-            {orders.map((order, index) => (
-              <tr key={`${order.label}-${index}`}>
-                <td>{order.label}</td>
-                <td>{order.orderType}</td>
-                <td>{order.price ? usd(order.price) : '-'}</td>
-                <td>{order.quantity}주</td>
-                <td>{order.amount ? usd(order.amount) : '-'}</td>
-                <td>{order.note}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="order-list">
+          {orders.map((order, index) => (
+            <article className="order-card" key={`${order.label}-${index}`}>
+              <div className="order-card-head">
+                <strong>{order.label}</strong>
+                <span className="pill">{order.orderType}</span>
+              </div>
+              <div className="order-fields">
+                <div><span>가격</span><strong>{order.price ? usd(order.price) : '-'}</strong></div>
+                <div><span>수량</span><strong>{order.quantity}주</strong></div>
+                <div><span>금액</span><strong>{order.amount ? usd(order.amount) : '-'}</strong></div>
+              </div>
+              <p>{order.note}</p>
+            </article>
+          ))}
+        </div>
       ) : <p className="muted">해당 주문 없음</p>}
     </section>
   );

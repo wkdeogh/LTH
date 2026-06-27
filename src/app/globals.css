@@ -221,9 +221,6 @@ textarea {
 
 table {
   border-collapse: collapse;
-  display: block;
-  overflow-x: auto;
-  white-space: nowrap;
   width: 100%;
 }
 
@@ -275,6 +272,64 @@ th {
 
 .danger-text {
   color: var(--danger);
+}
+
+.order-list {
+  display: grid;
+  gap: 12px;
+}
+
+.order-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.order-card-head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.order-card-head strong {
+  overflow-wrap: anywhere;
+}
+
+.order-fields {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.order-fields div {
+  background: #fffaf2;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.order-fields span {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+.order-fields strong {
+  overflow-wrap: anywhere;
+}
+
+.order-card p {
+  color: var(--muted);
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 640px) {
@@ -332,6 +387,10 @@ th {
     font-size: 13px;
     min-height: 44px;
     padding: 8px 5px;
+  }
+
+  .order-fields {
+    grid-template-columns: 1fr;
   }
 
   th,
