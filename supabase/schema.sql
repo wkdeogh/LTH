@@ -80,3 +80,12 @@ create index if not exists idx_daily_prices_strategy_date on daily_prices (strat
 create index if not exists idx_trade_plans_strategy_date on trade_plans (strategy_id, plan_date desc);
 create index if not exists idx_executions_strategy_date on executions (strategy_id, executed_at desc);
 create index if not exists idx_snapshots_strategy_date on strategy_snapshots (strategy_id, snapshot_date desc);
+
+grant usage on schema public to service_role;
+grant all privileges on all tables in schema public to service_role;
+grant all privileges on all sequences in schema public to service_role;
+
+alter default privileges in schema public grant all privileges on tables to service_role;
+alter default privileges in schema public grant all privileges on sequences to service_role;
+
+notify pgrst, 'reload schema';

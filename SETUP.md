@@ -16,6 +16,21 @@ Supabase SQL Editor에서 아래 파일 내용을 실행합니다.
 supabase/schema.sql
 ```
 
+`permission denied for table strategies`가 나오면 SQL Editor에서 아래 권한 부여 SQL을 한 번 더 실행합니다.
+
+```sql
+grant usage on schema public to service_role;
+grant all privileges on all tables in schema public to service_role;
+grant all privileges on all sequences in schema public to service_role;
+
+alter default privileges in schema public grant all privileges on tables to service_role;
+alter default privileges in schema public grant all privileges on sequences to service_role;
+
+notify pgrst, 'reload schema';
+```
+
+그리고 `.env.local`의 `SUPABASE_SERVICE_ROLE_KEY`가 `anon public` 키가 아니라 `service_role` 키인지 확인합니다.
+
 ## 3. 환경변수 설정
 
 프로젝트 루트에 `.env.local` 파일을 만들고 아래 값을 넣습니다.
