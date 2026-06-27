@@ -3,7 +3,7 @@ import Link from 'next/link';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '무매 계산 도우미',
+  title: '쏙쓸계산기',
   description: '무한매수법 V4.0 개인용 주문 가이드 앱',
 };
 
@@ -14,7 +14,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <main className="shell">
           <header className="topbar">
             <Link className="brand" href="/">
-              무매 계산 도우미
+              쏙쓸계산기
             </Link>
             <nav className="nav">
               <Link href="/">전략 목록</Link>

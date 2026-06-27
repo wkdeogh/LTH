@@ -3,6 +3,10 @@ export function money(value: number | string | null | undefined, digits = 2) {
   return number.toLocaleString('en-US', { maximumFractionDigits: digits, minimumFractionDigits: digits });
 }
 
+export function usd(value: number | string | null | undefined, digits = 2) {
+  return `$${money(value, digits)}`;
+}
+
 export function compact(value: number | string | null | undefined, digits = 4) {
   const number = typeof value === 'string' ? Number(value) : value ?? 0;
   return number.toLocaleString('en-US', { maximumFractionDigits: digits });

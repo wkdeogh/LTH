@@ -21,6 +21,7 @@ export type Strategy = {
   split_count: SplitCount;
   principal: number | string;
   cash_balance: number | string;
+  exchange_rate?: number | string;
   position_qty: number;
   avg_price: number | string;
   t_value: number | string;

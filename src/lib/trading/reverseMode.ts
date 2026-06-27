@@ -44,6 +44,7 @@ export function calculateReversePlan(state: StrategyState, recentCloses: number[
 
   formulas.push(`리버스 매도수량 = floor(보유수량 / ${state.splitCount === 20 ? 10 : 20})`);
   formulas.push('리버스 매수금 = 현재 현금 × 0.25');
+  formulas.push('매수 수량 = 매수금 / 리버스 기준가');
 
   if (isFirstDay) {
     return {

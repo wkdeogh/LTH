@@ -86,6 +86,7 @@ export function calculateNormalPlan(state: StrategyState, referencePrice?: numbe
     const quantity = price ? floorShares(oneUnitBudget / price) : 0;
 
     formulas.push(`초기 1회 매수금 = 원금 / 분할 수 = ${state.principal} / ${state.splitCount}`);
+    formulas.push('수량 = 매수금 / 주문가격');
 
     return {
       kind: 'normal',
@@ -123,6 +124,7 @@ export function calculateNormalPlan(state: StrategyState, referencePrice?: numbe
   formulas.push(`별% = ${starPercent * 100}%`);
   formulas.push(`별지점 = 평단 × (1 + 별%) = ${state.avgPrice} × ${1 + starPercent}`);
   formulas.push(`1회 매수금 = 현금 / (${state.splitCount} - T) = ${state.cashBalance} / ${state.splitCount - state.tValue}`);
+  formulas.push('매수 수량 = 배정금액 / 주문가격');
 
   if (phase === 'first_half') {
     const halfBudget = roundMoney(oneUnitBudget / 2);

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { SetupNotice } from '@/components/SetupNotice';
-import { compact, money } from '@/components/Format';
+import { compact, usd } from '@/components/Format';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { Strategy } from '@/lib/types';
@@ -30,8 +30,7 @@ export default async function HomePage() {
   return (
     <div className="stack">
       <section className="hero">
-        <h1>오늘 넣을 주문만 빠르게 확인</h1>
-        <p>전략별 상태를 저장하고 원문 무한매수법 V4.0 기준으로 주문 가이드를 계산합니다.</p>
+        <h1>전략 목록</h1>
         <div className="actions">
           <Link className="button" href="/strategies/new">
             전략 추가
@@ -50,9 +49,9 @@ export default async function HomePage() {
               <h2>{strategy.name}</h2>
               <div className="stat-grid">
                 <div className="stat"><span>T</span><strong>{compact(strategy.t_value)}</strong></div>
-                <div className="stat"><span>현금</span><strong>${money(strategy.cash_balance)}</strong></div>
+                <div className="stat"><span>현금</span><strong>{usd(strategy.cash_balance)}</strong></div>
                 <div className="stat"><span>수량</span><strong>{strategy.position_qty}주</strong></div>
-                <div className="stat"><span>평단</span><strong>${money(strategy.avg_price)}</strong></div>
+                <div className="stat"><span>평단</span><strong>{usd(strategy.avg_price)}</strong></div>
               </div>
               <div className="actions" style={{ marginTop: 16 }}>
                 <Link className="button" href={`/strategies/${strategy.id}/plan`}>오늘 계산</Link>

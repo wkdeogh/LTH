@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { saveTradePlan, switchToNormal, switchToReverse } from '@/app/actions';
-import { compact, money } from '@/components/Format';
+import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -21,9 +21,9 @@ function OrderTable({ title, orders }: { title: string; orders: Array<{ label: s
               <tr key={`${order.label}-${index}`}>
                 <td>{order.label}</td>
                 <td>{order.orderType}</td>
-                <td>{order.price ? `$${money(order.price)}` : '-'}</td>
+                <td>{order.price ? usd(order.price) : '-'}</td>
                 <td>{order.quantity}주</td>
-                <td>{order.amount ? `$${money(order.amount)}` : '-'}</td>
+                <td>{order.amount ? usd(order.amount) : '-'}</td>
                 <td>{order.note}</td>
               </tr>
             ))}
@@ -70,7 +70,6 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
     <div className="stack">
       <section className="hero">
         <h1>오늘 주문 계산</h1>
-        <p>{strategy.name} · {modeLabel(strategy.mode)}</p>
         <div className="actions">
           <Link className="button secondary" href={`/strategies/${id}`}>전략 상세</Link>
           <Link className="button secondary" href={`/strategies/${id}/executions/new`}>체결 입력</Link>
@@ -82,9 +81,9 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
         <div className="stat-grid">
           <div className="stat"><span>모드</span><strong>{modeLabel(state.mode)}</strong></div>
           <div className="stat"><span>T값</span><strong>{compact(state.tValue)}</strong></div>
-          <div className="stat"><span>현금</span><strong>${money(state.cashBalance)}</strong></div>
+          <div className="stat"><span>현금</span><strong>{usd(state.cashBalance)}</strong></div>
           <div className="stat"><span>보유수량</span><strong>{state.positionQty}주</strong></div>
-          <div className="stat"><span>평단</span><strong>${money(state.avgPrice)}</strong></div>
+          <div className="stat"><span>평단</span><strong>{usd(state.avgPrice)}</strong></div>
           <div className="stat"><span>최근 종가</span><strong>{recentCloses.length}/5개</strong></div>
         </div>
       </section>
@@ -105,9 +104,9 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
           <h2>일반모드 결과</h2>
           <div className="stat-grid">
             <div className="stat"><span>구간</span><strong>{phaseLabel(plan.phase)}</strong></div>
-            <div className="stat"><span>1회 매수금</span><strong>${money(plan.oneUnitBudget)}</strong></div>
+            <div className="stat"><span>1회 매수금</span><strong>{usd(plan.oneUnitBudget)}</strong></div>
             <div className="stat"><span>별%</span><strong>{plan.starPercent === null ? '-' : `${compact(plan.starPercent * 100)}%`}</strong></div>
-            <div className="stat"><span>별지점</span><strong>{plan.starPrice ? `$${money(plan.starPrice)}` : '-'}</strong></div>
+            <div className="stat"><span>별지점</span><strong>{plan.starPrice ? usd(plan.starPrice) : '-'}</strong></div>
           </div>
         </section>
       )}
@@ -117,8 +116,8 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
           <h2>리버스모드 결과</h2>
           <div className="stat-grid">
             <div className="stat"><span>첫날 여부</span><strong>{plan.isFirstDay ? '첫날' : '둘째 날 이후'}</strong></div>
-            <div className="stat"><span>5일 평균</span><strong>{plan.referencePrice ? `$${money(plan.referencePrice)}` : '-'}</strong></div>
-            <div className="stat"><span>매수금</span><strong>${money(plan.buyBudget)}</strong></div>
+            <div className="stat"><span>5일 평균</span><strong>{plan.referencePrice ? usd(plan.referencePrice) : '-'}</strong></div>
+            <div className="stat"><span>매수금</span><strong>{usd(plan.buyBudget)}</strong></div>
             <div className="stat"><span>복귀 조건</span><strong>{plan.returnToNormal ? '충족' : '미충족'}</strong></div>
           </div>
           {plan.returnToNormal && <form action={switchToNormal} style={{ marginTop: 12 }}><input type="hidden" name="id" value={id} /><button type="submit">일반모드로 복귀 저장</button></form>}

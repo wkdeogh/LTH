@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { recordExecution } from '@/app/actions';
-import { compact, money } from '@/components/Format';
+import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -33,7 +33,6 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
     <div className="stack">
       <section className="hero">
         <h1>체결 결과 입력</h1>
-        <p>{strategy.name} · {modeLabel(strategy.mode)}</p>
         <div className="actions">
           <Link className="button secondary" href={`/strategies/${id}`}>전략 상세</Link>
           <Link className="button secondary" href={`/strategies/${id}/plan`}>오늘 계산</Link>
@@ -44,9 +43,9 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
         <h2>현재 저장 상태</h2>
         <div className="stat-grid">
           <div className="stat"><span>T</span><strong>{compact(state.tValue)}</strong></div>
-          <div className="stat"><span>현금</span><strong>${money(state.cashBalance)}</strong></div>
+          <div className="stat"><span>현금</span><strong>{usd(state.cashBalance)}</strong></div>
           <div className="stat"><span>수량</span><strong>{state.positionQty}주</strong></div>
-          <div className="stat"><span>평단</span><strong>${money(state.avgPrice)}</strong></div>
+          <div className="stat"><span>평단</span><strong>{usd(state.avgPrice)}</strong></div>
         </div>
       </section>
 
@@ -59,7 +58,7 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
             <label>매수/매도<select name="side" defaultValue="buy"><option value="buy">매수</option><option value="sell">매도</option></select></label>
             <label>주문 방식<select name="order_type" defaultValue="LOC"><option value="LOC">LOC</option><option value="MOC">MOC</option><option value="LIMIT">LIMIT</option><option value="MANUAL">MANUAL</option></select></label>
             <label>수량<input name="quantity" type="number" min="1" required /></label>
-            <label>평균 체결가<input name="avg_execution_price" type="number" step="0.0001" required /></label>
+            <label>평균 체결가($)<input name="avg_execution_price" type="number" step="0.0001" required /></label>
             <label>T 반영 방식<select name="t_effect" defaultValue="none">{effectOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
           </div>
 
@@ -75,9 +74,9 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
           <h3>체결 후 최종 상태</h3>
           <p className="muted">증권사 앱 기준 최종값을 입력하세요. 앱 계산보다 이 값이 우선됩니다.</p>
           <div className="form-grid">
-            <label>최종 현금<input name="final_cash_balance" type="number" step="0.0001" defaultValue={state.cashBalance} required /></label>
+            <label>최종 현금($)<input name="final_cash_balance" type="number" step="0.0001" defaultValue={state.cashBalance} required /></label>
             <label>최종 보유수량<input name="final_position_qty" type="number" defaultValue={state.positionQty} required /></label>
-            <label>최종 평단<input name="final_avg_price" type="number" step="0.0001" defaultValue={state.avgPrice} required /></label>
+            <label>최종 평단($)<input name="final_avg_price" type="number" step="0.0001" defaultValue={state.avgPrice} required /></label>
             <label>최종 T값<input name="final_t_value" type="number" step="0.0000000001" placeholder="비우면 T 반영 방식으로 자동 계산" /></label>
             <label>최종 모드<select name="final_mode" defaultValue={state.mode}><option value="normal">일반모드</option><option value="reverse">리버스모드</option></select></label>
           </div>
