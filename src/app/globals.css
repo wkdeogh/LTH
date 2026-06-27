@@ -52,22 +52,9 @@ textarea {
 .brand {
   align-items: center;
   display: inline-flex;
-  gap: 8px;
   font-size: 22px;
   font-weight: 800;
   letter-spacing: -0.03em;
-}
-
-.brand-mark {
-  align-items: center;
-  background: #fff2dc;
-  border: 1px solid #ead2aa;
-  border-radius: 12px;
-  display: inline-flex;
-  font-size: 18px;
-  height: 34px;
-  justify-content: center;
-  width: 34px;
 }
 
 .button,
@@ -86,20 +73,34 @@ button {
 
 .home-button {
   align-items: center;
-  background: #efe4d1;
-  border: 1px solid #ddc8a8;
+  background: transparent;
+  border: 0;
   border-radius: 999px;
-  color: var(--ink);
+  color: var(--accent);
   display: inline-flex;
-  font-size: 17px;
-  height: 44px;
+  font-size: 14px;
+  font-weight: 900;
+  height: 40px;
   justify-content: center;
-  box-shadow: 0 8px 18px rgba(83, 61, 28, 0.08);
-  width: 44px;
+  letter-spacing: -0.02em;
+  padding: 0 4px;
+  position: relative;
 }
 
 .home-button:hover {
-  background: #e6d6bc;
+  color: var(--ink);
+}
+
+.home-button::after {
+  background: currentColor;
+  border-radius: 999px;
+  bottom: 7px;
+  content: "";
+  height: 2px;
+  left: 4px;
+  opacity: 0.25;
+  position: absolute;
+  right: 4px;
 }
 
 .title-row {
@@ -245,6 +246,7 @@ label {
 input,
 select,
 textarea {
+  appearance: none;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -252,6 +254,16 @@ textarea {
   min-width: 0;
   padding: 11px 12px;
   width: 100%;
+}
+
+input[type="date"] {
+  min-inline-size: 0;
+  max-width: 100%;
+}
+
+input[type="date"]::-webkit-date-and-time-value {
+  min-width: 0;
+  text-align: left;
 }
 
 table {

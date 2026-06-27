@@ -14,11 +14,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <main className="shell">
           <header className="topbar">
             <Link className="brand" href="/">
-              <span className="brand-mark">📈</span>
-              <span>쏙쓸계산기</span>
+              📈 쏙쓸계산기
             </Link>
             <Link className="home-button" href="/" aria-label="전략 목록으로 이동" title="전략 목록">
-              🏠
+              홈
             </Link>
           </header>
           {children}
