@@ -198,7 +198,8 @@ button.danger {
 .form-grid {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  min-width: 0;
 }
 
 label {
@@ -207,6 +208,7 @@ label {
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
+  min-width: 0;
 }
 
 input,
@@ -216,7 +218,9 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 12px;
   color: var(--ink);
+  min-width: 0;
   padding: 11px 12px;
+  width: 100%;
 }
 
 table {
