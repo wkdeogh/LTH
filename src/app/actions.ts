@@ -84,7 +84,7 @@ export async function updateStrategy(formData: FormData) {
   redirect(`/strategies/${id}`);
 }
 
-export async function archiveStrategy(formData: FormData) {
+export async function deleteStrategy(formData: FormData) {
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');
 

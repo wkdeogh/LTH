@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { addDailyPrice, archiveStrategy, switchToNormal, switchToReverse, updateStrategy } from '@/app/actions';
+import { addDailyPrice, deleteStrategy, switchToNormal, switchToReverse, updateStrategy } from '@/app/actions';
 import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
@@ -91,7 +91,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
         <div className="actions">
           <form action={switchToReverse}><input type="hidden" name="id" value={id} /><button type="submit" className="secondary">리버스모드로 전환</button></form>
           <form action={switchToNormal}><input type="hidden" name="id" value={id} /><button type="submit" className="secondary">일반모드로 복귀</button></form>
-          <form action={archiveStrategy}><input type="hidden" name="id" value={id} /><button type="submit" className="danger">전략 보관</button></form>
+          <form action={deleteStrategy}><input type="hidden" name="id" value={id} /><button type="submit" className="danger">전략 삭제</button></form>
         </div>
       </section>
     </div>
