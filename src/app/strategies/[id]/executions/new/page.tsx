@@ -54,7 +54,7 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
           <div className="form-grid">
             <label>체결일<input name="executed_at" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></label>
             <label>매수/매도<select name="side" defaultValue="buy"><option value="buy">매수</option><option value="sell">매도</option></select></label>
-            <label>주문 방식<select name="order_type" defaultValue="LOC"><option value="LOC">LOC</option><option value="MOC">MOC</option><option value="LIMIT">LIMIT</option><option value="MANUAL">MANUAL</option></select></label>
+            <input type="hidden" name="order_type" value="MANUAL" />
             <label>수량<input name="quantity" type="number" min="1" required /></label>
             <label>평균 체결가($)<input name="avg_execution_price" type="number" step="0.0001" required /></label>
             <label>T 반영 방식<select name="t_effect" defaultValue="none">{effectOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
