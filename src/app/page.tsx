@@ -31,11 +31,6 @@ export default async function HomePage() {
     <div className="stack">
       <section className="hero">
         <h1>전략 목록</h1>
-        <div className="actions">
-          <Link className="button" href="/strategies/new">
-            전략 추가
-          </Link>
-        </div>
       </section>
 
       {strategies && strategies.length > 0 ? (
