@@ -40,7 +40,6 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
   const { id } = await params;
   const query = await searchParams;
   const referencePrice = query.reference ? Number(query.reference) : undefined;
-  const closePrice = query.close ? Number(query.close) : undefined;
   const supabase = createSupabaseServerClient();
 
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
@@ -56,9 +55,10 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
 
   const state = toStrategyState(strategy);
   const recentCloses = (prices ?? []).map((price) => toNumber(price.close_price));
+  const latestSavedClose = recentCloses[0];
   const plan = state.mode === 'normal'
     ? calculateNormalPlan(state, referencePrice)
-    : calculateReversePlan(state, recentCloses, closePrice);
+    : calculateReversePlan(state, recentCloses, latestSavedClose);
 
   const guidance = {
     plan,
@@ -89,11 +89,10 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
       </section>
 
       <section className="panel">
-        <h2>참고 가격 입력</h2>
+        <h2>첫 매수 참고가</h2>
         <form className="form" action={`/strategies/${id}/plan`}>
           <div className="form-grid">
-            <label>참고가/전일종가<input name="reference" type="number" step="0.0001" defaultValue={referencePrice ?? ''} /></label>
-            <label>오늘 종가<input name="close" type="number" step="0.0001" defaultValue={closePrice ?? ''} /></label>
+            <label>현재가 또는 전일종가($)<input name="reference" type="number" step="0.0001" defaultValue={referencePrice ?? ''} /></label>
           </div>
           <button type="submit">다시 계산</button>
         </form>
@@ -118,6 +117,7 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
             <div className="stat"><span>첫날 여부</span><strong>{plan.isFirstDay ? '첫날' : '둘째 날 이후'}</strong></div>
             <div className="stat"><span>5일 평균</span><strong>{plan.referencePrice ? usd(plan.referencePrice) : '-'}</strong></div>
             <div className="stat"><span>매수금</span><strong>{usd(plan.buyBudget)}</strong></div>
+            <div className="stat"><span>최신 저장 종가</span><strong>{latestSavedClose ? usd(latestSavedClose) : '-'}</strong></div>
             <div className="stat"><span>복귀 조건</span><strong>{plan.returnToNormal ? '충족' : '미충족'}</strong></div>
           </div>
           {plan.returnToNormal && <form action={switchToNormal} style={{ marginTop: 12 }}><input type="hidden" name="id" value={id} /><button type="submit">일반모드로 복귀 저장</button></form>}
