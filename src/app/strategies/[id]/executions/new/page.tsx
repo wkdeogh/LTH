@@ -37,7 +37,7 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
 
       <StrategyTabs strategyId={id} active="execution" />
 
-      <section className="panel">
+      <section className="panel summary-panel">
         <h2>현재 저장 상태</h2>
         <div className="stat-grid">
           <div className="stat"><span>T</span><strong>{compact(state.tValue)}</strong></div>

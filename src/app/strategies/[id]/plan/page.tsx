@@ -69,7 +69,7 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
 
       <StrategyTabs strategyId={id} active="plan" />
 
-      <section className="panel">
+      <section className="panel summary-panel">
         <h2>계산 기준</h2>
         <div className="stat-grid">
           <div className="stat"><span>모드</span><strong>{modeLabel(state.mode)}</strong></div>

@@ -160,6 +160,16 @@ button.danger {
   padding: 18px;
 }
 
+.summary-panel {
+  background: linear-gradient(135deg, #eef7f1, #f8fff9);
+  border-color: #b9d9c7;
+}
+
+.summary-panel .stat {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: #cde5d6;
+}
+
 .card h2,
 .panel h2,
 .panel h3 {

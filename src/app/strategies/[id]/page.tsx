@@ -33,7 +33,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
 
       <StrategyTabs strategyId={id} active="detail" />
 
-      <section className="panel">
+      <section className="panel summary-panel">
         <h2>현재 상태</h2>
         <div className="stat-grid">
           <div className="stat"><span>원금</span><strong>{usd(strategy.principal)}</strong></div>
