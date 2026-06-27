@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { saveTradePlan, switchToNormal, switchToReverse } from '@/app/actions';
+import { switchToNormal, switchToReverse } from '@/app/actions';
 import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
 import { hasSupabaseEnv } from '@/lib/env';
@@ -60,16 +60,11 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
     ? calculateNormalPlan(state, referencePrice)
     : calculateReversePlan(state, recentCloses, latestSavedClose);
 
-  const guidance = {
-    plan,
-    generatedAt: new Date().toISOString(),
-    strategy: { id: state.id, name: state.name, symbol: state.symbol, splitCount: state.splitCount },
-  };
-
   return (
     <div className="stack">
       <section className="hero">
         <h1>오늘 주문 계산</h1>
+        <p className="muted">참고할 주문 방법만 보여줍니다. 실제 상태 반영은 내일 체결 입력에서 합니다.</p>
         <div className="actions">
           <Link className="button secondary" href={`/strategies/${id}`}>전략 상세</Link>
           <Link className="button secondary" href={`/strategies/${id}/executions/new`}>체결 입력</Link>
@@ -140,27 +135,6 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
       <section className="panel">
         <h2>계산 근거</h2>
         <ul>{plan.formulas.map((formula) => <li key={formula}>{formula}</li>)}</ul>
-      </section>
-
-      <section className="panel">
-        <h2>계산 결과 저장</h2>
-        <p className="muted">오늘 생성한 주문 가이드를 히스토리에 저장합니다.</p>
-        <form action={saveTradePlan}>
-          <input type="hidden" name="strategy_id" value={id} />
-          <input type="hidden" name="plan_date" value={new Date().toISOString().slice(0, 10)} />
-          <input type="hidden" name="mode" value={state.mode} />
-          <input type="hidden" name="phase" value={'phase' in plan ? plan.phase : ''} />
-          <input type="hidden" name="t_value" value={state.tValue} />
-          <input type="hidden" name="avg_price" value={state.avgPrice} />
-          <input type="hidden" name="cash_balance" value={state.cashBalance} />
-          <input type="hidden" name="position_qty" value={state.positionQty} />
-          <input type="hidden" name="star_percent" value={'starPercent' in plan && plan.starPercent !== null ? plan.starPercent : ''} />
-          <input type="hidden" name="star_price" value={'starPrice' in plan && plan.starPrice !== null ? plan.starPrice : ''} />
-          <input type="hidden" name="one_unit_budget" value={'oneUnitBudget' in plan ? plan.oneUnitBudget : ''} />
-          <input type="hidden" name="reverse_reference_price" value={'referencePrice' in plan && plan.referencePrice ? plan.referencePrice : ''} />
-          <input type="hidden" name="guidance" value={JSON.stringify(guidance)} />
-          <button type="submit">오늘 계산 저장</button>
-        </form>
       </section>
     </div>
   );
