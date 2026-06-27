@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { recordExecution } from '@/app/actions';
 import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
+import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { Strategy } from '@/lib/types';
@@ -32,12 +32,10 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
   return (
     <div className="stack">
       <section className="hero">
-        <h1>체결 결과 입력</h1>
-        <div className="actions">
-          <Link className="button secondary" href={`/strategies/${id}`}>전략 상세</Link>
-          <Link className="button secondary" href={`/strategies/${id}/plan`}>오늘 계산</Link>
-        </div>
+        <h1>{strategy.name}</h1>
       </section>
+
+      <StrategyTabs strategyId={id} active="execution" />
 
       <section className="panel">
         <h2>현재 저장 상태</h2>

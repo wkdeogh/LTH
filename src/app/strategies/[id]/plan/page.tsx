@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { switchToNormal, switchToReverse } from '@/app/actions';
 import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
+import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { DailyPrice, Strategy } from '@/lib/types';
@@ -63,13 +63,10 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
   return (
     <div className="stack">
       <section className="hero">
-        <h1>오늘 주문 계산</h1>
-        <p className="muted">참고할 주문 방법만 보여줍니다. 실제 상태 반영은 내일 체결 입력에서 합니다.</p>
-        <div className="actions">
-          <Link className="button secondary" href={`/strategies/${id}`}>전략 상세</Link>
-          <Link className="button secondary" href={`/strategies/${id}/executions/new`}>체결 입력</Link>
-        </div>
+        <h1>{strategy.name}</h1>
       </section>
+
+      <StrategyTabs strategyId={id} active="plan" />
 
       <section className="panel">
         <h2>계산 기준</h2>

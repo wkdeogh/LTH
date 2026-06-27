@@ -55,12 +55,6 @@ textarea {
   letter-spacing: -0.03em;
 }
 
-.nav {
-  display: flex;
-  gap: 10px;
-}
-
-.nav a,
 .button,
 button {
   background: var(--ink);
@@ -73,6 +67,54 @@ button {
   justify-content: center;
   min-height: 44px;
   padding: 11px 15px;
+}
+
+.home-button {
+  align-items: center;
+  background: var(--ink);
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 18px;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.title-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.tabs {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 4px;
+}
+
+.tab {
+  align-items: center;
+  border-radius: 14px;
+  color: var(--muted);
+  display: flex;
+  font-size: 14px;
+  font-weight: 800;
+  justify-content: center;
+  min-height: 42px;
+  padding: 9px 8px;
+  text-align: center;
+}
+
+.tab.active {
+  background: var(--ink);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(30, 26, 20, 0.16);
 }
 
 .button.secondary,
@@ -241,9 +283,8 @@ th {
   }
 
   .topbar {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 12px;
+    align-items: center;
+    flex-direction: row;
     margin-bottom: 20px;
   }
 
@@ -267,16 +308,30 @@ th {
     grid-template-columns: 1fr;
   }
 
-  .actions,
-  .nav {
+  .actions {
     width: 100%;
   }
 
   .button,
-  button,
-  .nav a {
+  button {
     flex: 1;
     min-height: 48px;
+  }
+
+  .title-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tabs {
+    border-radius: 16px;
+    gap: 3px;
+  }
+
+  .tab {
+    font-size: 13px;
+    min-height: 44px;
+    padding: 8px 5px;
   }
 
   th,

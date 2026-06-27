@@ -16,10 +16,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <Link className="brand" href="/">
               쏙쓸계산기
             </Link>
-            <nav className="nav">
-              <Link href="/">전략 목록</Link>
-              <Link href="/strategies/new">전략 추가</Link>
-            </nav>
+            <Link className="home-button" href="/" aria-label="전략 목록으로 이동" title="전략 목록">
+              🏠
+            </Link>
           </header>
           {children}
         </main>

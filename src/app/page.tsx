@@ -30,7 +30,10 @@ export default async function HomePage() {
   return (
     <div className="stack">
       <section className="hero">
-        <h1>전략 목록</h1>
+        <div className="title-row">
+          <h1>전략 목록</h1>
+          <Link className="button" href="/strategies/new">전략 추가</Link>
+        </div>
       </section>
 
       {strategies && strategies.length > 0 ? (
@@ -59,7 +62,6 @@ export default async function HomePage() {
         <section className="panel">
           <h2>아직 전략이 없습니다</h2>
           <p className="muted">TQQQ 또는 SOXL 전략을 하나 추가하면 계산을 시작할 수 있습니다.</p>
-          <Link className="button" href="/strategies/new">첫 전략 추가</Link>
         </section>
       )}
     </div>

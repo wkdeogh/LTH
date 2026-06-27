@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { addDailyPrice, archiveStrategy, switchToNormal, switchToReverse, updateStrategy } from '@/app/actions';
 import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
+import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { DailyPrice, Strategy } from '@/lib/types';
@@ -29,11 +29,9 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
     <div className="stack">
       <section className="hero">
         <h1>{strategy.name}</h1>
-        <div className="actions">
-          <Link className="button" href={`/strategies/${id}/plan`}>오늘 주문 계산</Link>
-          <Link className="button secondary" href={`/strategies/${id}/executions/new`}>체결 입력</Link>
-        </div>
       </section>
+
+      <StrategyTabs strategyId={id} active="detail" />
 
       <section className="panel">
         <h2>현재 상태</h2>
