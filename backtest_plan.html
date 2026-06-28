@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>백테스트 구현 계획</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f4ee;
+      --card: #fffaf2;
+      --ink: #1e1a14;
+      --muted: #756b5d;
+      --line: #e3d8c6;
+      --accent: #1c6b4f;
+      --accent-soft: #e1f2ea;
+      --warn: #8a5a00;
+      --warn-soft: #fff1d9;
+      --code: #241f18;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top left, #fff8e9, var(--bg) 34rem);
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      margin: 0 auto;
+      max-width: 1120px;
+      padding: 28px 16px 72px;
+    }
+
+    h1, h2, h3 { letter-spacing: -0.04em; line-height: 1.2; }
+    h1 { font-size: clamp(32px, 6vw, 56px); margin: 0 0 12px; }
+    h2 { font-size: 26px; margin: 0 0 16px; }
+    h3 { font-size: 18px; margin: 0 0 10px; }
+    p { margin: 0 0 12px; }
+    ul, ol { margin: 0; padding-left: 20px; }
+    li + li { margin-top: 6px; }
+    code { background: #f0e6d7; border-radius: 6px; padding: 2px 6px; }
+    pre { background: var(--code); border-radius: 16px; color: #fff7e8; overflow-x: auto; padding: 16px; }
+
+    table {
+      border-collapse: collapse;
+      min-width: 720px;
+      width: 100%;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 12px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #fffaf2, #edf7f1);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: 0 24px 60px rgba(52, 39, 20, 0.08);
+      margin-bottom: 18px;
+      padding: clamp(22px, 5vw, 44px);
+    }
+
+    .hero p {
+      color: var(--muted);
+      font-size: 18px;
+      max-width: 780px;
+    }
+
+    .quick-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 18px 0 0;
+    }
+
+    .quick-nav a {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 800;
+      padding: 8px 12px;
+      text-decoration: none;
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .section, .card, .callout {
+      background: color-mix(in srgb, var(--card), white 32%);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: 0 18px 45px rgba(52, 39, 20, 0.07);
+      padding: 20px;
+    }
+
+    .section { margin-top: 16px; }
+
+    .card strong {
+      display: block;
+      font-size: 22px;
+      margin-bottom: 4px;
+    }
+
+    .muted { color: var(--muted); }
+    .pill {
+      background: var(--accent-soft);
+      border-radius: 999px;
+      color: var(--accent);
+      display: inline-flex;
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      padding: 6px 10px;
+    }
+
+    .callout {
+      background: var(--warn-soft);
+      border-color: #edc77c;
+      color: var(--warn);
+    }
+
+    .table-wrap { overflow-x: auto; }
+
+    .steps {
+      counter-reset: step;
+      display: grid;
+      gap: 10px;
+      padding: 0;
+    }
+
+    .steps li {
+      align-items: start;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 34px 1fr;
+      list-style: none;
+      margin: 0;
+      padding: 12px;
+    }
+
+    .steps li::before {
+      align-items: center;
+      background: var(--ink);
+      border-radius: 999px;
+      color: #fff;
+      content: counter(step);
+      counter-increment: step;
+      display: inline-flex;
+      font-weight: 800;
+      height: 28px;
+      justify-content: center;
+      width: 28px;
+    }
+
+    .two-col {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
+
+    @media (max-width: 640px) {
+      main { padding: 16px 10px 48px; }
+      .section, .card, .callout, .hero { border-radius: 18px; padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <span class="pill">Backtest Plan</span>
+      <h1>백테스트 구현 계획</h1>
+      <p>현재 앱의 무한매수법 V4 계산 로직을 과거 일봉 데이터로 검증하기 위한 데이터 수집, 체결 가정, 시뮬레이션 흐름, 결과 화면 설계입니다.</p>
+      <nav class="quick-nav" aria-label="문서 목차">
+        <a href="#data">데이터</a>
+        <a href="#execution">체결 가정</a>
+        <a href="#simulation">시뮬레이션</a>
+        <a href="#metrics">결과 지표</a>
+        <a href="#ui">UI</a>
+        <a href="#implementation">구현</a>
+        <a href="#mvp">MVP</a>
+      </nav>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <strong>1순위 데이터</strong>
+        <p>Yahoo Finance 일봉 CSV. 먼저 내려받아 고정 파일로 사용합니다.</p>
+      </article>
+      <article class="card">
+        <strong>핵심 가정</strong>
+        <p>LOC/LIMIT 체결은 당일 OHLC 범위로 판정합니다.</p>
+      </article>
+      <article class="card">
+        <strong>초기 상태</strong>
+        <p>첫 거래일 종가로 1회분을 이미 매수한 상태에서 시작합니다.</p>
+      </article>
+      <article class="card">
+        <strong>우선 구현</strong>
+        <p>TQQQ/SOXL 단일 전략, 수수료 없는 라운드별 결과부터 만듭니다.</p>
+      </article>
+    </section>
+
+    <section class="section" id="goal">
+      <h2>목표</h2>
+      <ul>
+        <li>현재 앱의 무한매수법 V4 계산 로직이 과거 일봉 데이터에서 어떻게 동작했는지 검증합니다.</li>
+        <li>라운드별 수익률, 누적 수익률, 최대 낙폭, 현금 소진/리버스모드 기간, 체결 내역을 확인합니다.</li>
+        <li>실제 주문 자동화가 아니라 전략 검증용 도구로만 사용합니다.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="data">
+      <h2>데이터 소스</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>우선순위</th><th>소스</th><th>장점</th><th>주의점</th><th>사용 방침</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1순위</td>
+              <td>Yahoo Finance</td>
+              <td>무료, 긴 기간 일봉, 분할 조정 데이터 확보 가능</td>
+              <td>무료 API 안정성이 보장되지 않음</td>
+              <td>앱에서 매번 호출하지 말고 CSV로 내려받아 사용</td>
+            </tr>
+            <tr>
+              <td>2순위</td>
+              <td>Stooq CSV</td>
+              <td>로그인 없이 CSV 다운로드가 단순함</td>
+              <td>분할 조정 여부를 직접 검증해야 함</td>
+              <td>Yahoo와 분할일 전후 가격을 비교한 뒤 보조 소스로 사용</td>
+            </tr>
+            <tr>
+              <td>3순위</td>
+              <td>Polygon, Tiingo, Nasdaq Data Link</td>
+              <td>API 안정성, 조정 가격 옵션, 대량 다운로드 관리 우수</td>
+              <td>키와 비용 필요</td>
+              <td>무료 데이터 품질이 부족할 때만 검토</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>가격 데이터 형식</h2>
+      <p>파일은 먼저 고정 CSV로 관리합니다.</p>
+      <pre><code>data/prices/TQQQ.csv
+data/prices/SOXL.csv</code></pre>
+      <p>CSV 컬럼은 다음처럼 둡니다.</p>
+      <pre><code>date,open,high,low,close,adj_close,volume
+2024-06-27,73.12,74.40,72.80,73.95,73.95,123456789</code></pre>
+      <ul>
+        <li>날짜는 미국 장 기준 <code>YYYY-MM-DD</code>입니다.</li>
+        <li>가격은 split-adjusted 값이어야 합니다.</li>
+        <li>누락 거래일은 채우지 않고 실제 거래일 행만 사용합니다.</li>
+        <li>로딩 시 날짜 오름차순 정렬, 중복 날짜는 실패 처리합니다.</li>
+      </ul>
+    </section>
+
+    <section class="callout">
+      <h2>RAM 데이터 처리</h2>
+      <p>앱 계산에서 <code>RAM</code>은 <code>SOXL</code>과 같은 20% 기준을 쓰지만, 백테스트 가격 데이터는 별개입니다.</p>
+      <ul>
+        <li>RAM이 실제 거래 티커라면 별도 가격 CSV가 필요합니다.</li>
+        <li>공개 일봉 데이터 출처가 불명확하면 MVP에서는 RAM 직접 백테스트를 제외합니다.</li>
+        <li>SOXL 가격 데이터에 매핑하는 옵션을 둘 수 있지만, 결과에 <code>RAM 계산식 + SOXL 가격 데이터 사용</code>이라고 명확히 표시해야 합니다.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="execution">
+      <h2>체결 가정</h2>
+      <p class="muted">LOC/MOC 체결을 완벽히 재현할 수 없으므로 MVP에서는 보수적인 OHLC 규칙을 고정합니다.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>주문</th><th>체결 조건</th><th>체결가</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>LOC 매수</td><td><code>low <= orderPrice <= high</code></td><td>주문 가격</td></tr>
+            <tr><td>LOC 매도</td><td><code>low <= orderPrice <= high</code></td><td>주문 가격</td></tr>
+            <tr><td>LIMIT 매도</td><td><code>high >= limitPrice</code></td><td>limitPrice</td></tr>
+            <tr><td>MOC 매도</td><td>당일 장 종료</td><td>종가 <code>close</code></td></tr>
+            <tr><td>리버스 MANUAL 매수</td><td>종가가 5일 평균보다 낮음</td><td>종가 <code>close</code></td></tr>
+            <tr><td>리버스 MANUAL 매도</td><td>종가가 5일 평균보다 높음</td><td>종가 <code>close</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>초기 상태 가정</h2>
+      <p>백테스트는 사용자가 이미 첫 매수를 하고 전략을 시작한다는 현재 앱 사용 흐름에 맞춥니다.</p>
+      <pre><code>cash_balance = principal - 첫 매수 금액
+position_qty = floor((principal / split_count) / startClose)
+avg_price = startClose
+t_value = 1
+mode = normal</code></pre>
+      <p>첫 매수 수량이 0이면 원금 부족으로 백테스트 시작을 실패 처리합니다.</p>
+    </section>
+
+    <section class="section" id="simulation">
+      <h2>시뮬레이션 흐름</h2>
+      <ol class="steps">
+        <li><span>CSV 가격 데이터를 로드합니다.</span></li>
+        <li><span>시작일과 종료일 사이 거래일만 남깁니다.</span></li>
+        <li><span>첫 거래일 종가로 초기 매수를 만듭니다.</span></li>
+        <li><span>다음 거래일부터 매일 반복합니다.</span></li>
+        <li><span>현재 <code>StrategyState</code>로 <code>calculateNormalPlan</code> 또는 <code>calculateReversePlan</code>을 호출합니다.</span></li>
+        <li><span>생성된 주문 가이드를 당일 OHLC 체결 가정으로 평가합니다.</span></li>
+        <li><span>체결된 주문만 상태에 반영합니다.</span></li>
+        <li><span>T값은 현재 <code>applyTEffect</code> 규칙을 사용합니다.</span></li>
+        <li><span>보유수량이 0이면 라운드를 종료하고 결과를 저장합니다.</span></li>
+        <li><span>복리/단리 설정에 따라 새 라운드 상태를 초기화합니다.</span></li>
+        <li><span>종료일까지 반복합니다.</span></li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <h2>상태 반영 규칙</h2>
+      <div class="two-col">
+        <article class="card">
+          <h3>매수 체결</h3>
+          <ul>
+            <li><code>cash_balance -= quantity * price</code></li>
+            <li><code>position_qty += quantity</code></li>
+            <li><code>avg_price = 총 매입 원가 / position_qty</code></li>
+            <li>T값은 <code>buy_full</code> 또는 <code>buy_half</code>를 적용합니다.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>매도 체결</h3>
+          <ul>
+            <li><code>cash_balance += quantity * price</code></li>
+            <li><code>position_qty -= quantity</code></li>
+            <li>남은 수량이 있으면 평단은 유지합니다.</li>
+            <li>남은 수량이 0이면 새 라운드를 시작합니다.</li>
+          </ul>
+        </article>
+      </div>
+      <p class="muted">같은 날 여러 주문이 체결되면 MVP에서는 매도 주문을 먼저 반영하고 매수 주문을 반영합니다.</p>
+    </section>
+
+    <section class="section" id="metrics">
+      <h2>결과 지표</h2>
+      <div class="two-col">
+        <article class="card">
+          <h3>필수 지표</h3>
+          <ul>
+            <li>시작 원금</li>
+            <li>종료 평가액</li>
+            <li>총 수익금과 총 수익률</li>
+            <li>라운드별 수익금/수익률</li>
+            <li>라운드별 시작일/종료일/기간</li>
+            <li>총 체결 수, 매수 횟수, 매도 횟수</li>
+            <li>리버스모드 진입 횟수와 총 거래일 수</li>
+            <li>최대 낙폭 MDD</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>추가 지표</h3>
+          <ul>
+            <li>연환산 수익률 CAGR</li>
+            <li>승리 라운드 비율</li>
+            <li>평균 라운드 기간</li>
+            <li>최대 라운드 손실</li>
+            <li>현금 최저점</li>
+            <li>T값 최대치</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="ui">
+      <h2>UI 구성</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>화면</th><th>내용</th><th>입력/표시 항목</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>백테스트 입력</td>
+              <td><code>/backtests/new</code> 또는 <code>/strategies/[id]/backtest</code></td>
+              <td>종목, 분할 수, 원금, 시작일, 종료일, 복리/단리, 가격 CSV</td>
+            </tr>
+            <tr>
+              <td>결과 요약</td>
+              <td>상단 핵심 카드</td>
+              <td>총 수익률, 총 수익금, 종료 평가액, MDD, 완료 라운드 수, 리버스모드 일수</td>
+            </tr>
+            <tr>
+              <td>라운드 표</td>
+              <td>완료 라운드 목록</td>
+              <td>라운드 번호, 기간, 시작 원금, 종료 현금/평가액, 수익금, 수익률, 체결 수</td>
+            </tr>
+            <tr>
+              <td>체결 내역</td>
+              <td>라운드별 상세</td>
+              <td>날짜, 매수/매도, 주문 방식, 가격, 수량, 금액, T 반영, 체결 가정 메모</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" id="implementation">
+      <h2>구현 위치</h2>
+      <pre><code>src/lib/backtest/loadPrices.ts
+src/lib/backtest/simulate.ts
+src/lib/backtest/types.ts
+src/app/backtests/new/page.tsx
+src/app/backtests/results/page.tsx</code></pre>
+      <ul>
+        <li>기존 <code>src/lib/trading/*</code> 함수를 그대로 사용합니다.</li>
+        <li>백테스트 전용 계산식을 새로 만들지 않습니다.</li>
+        <li>체결 판정과 상태 업데이트만 <code>src/lib/backtest/*</code>에 둡니다.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>데이터 다운로드 스크립트</h2>
+      <p>MVP에서는 앱 안에서 외부 API를 호출하지 말고 스크립트로 CSV를 만듭니다.</p>
+      <pre><code>scripts/download-prices.ts
+
+npm run prices -- TQQQ 2010-01-01 2026-12-31
+npm run prices -- SOXL 2010-01-01 2026-12-31</code></pre>
+      <p>현재 repo는 npm 기반이므로 앱 코드와 통합하려면 Node 스크립트가 가장 단순합니다.</p>
+    </section>
+
+    <section class="section">
+      <h2>Yahoo Chart API 예시</h2>
+      <pre><code>https://query1.finance.yahoo.com/v8/finance/chart/TQQQ?period1=1262304000&period2=1798675200&interval=1d&events=history%7Csplit%7Cdiv</code></pre>
+      <ul>
+        <li><code>period1</code>, <code>period2</code>는 Unix timestamp 초 단위입니다.</li>
+        <li>응답의 <code>adjclose</code>와 split 이벤트를 확인합니다.</li>
+        <li>OHLC 조정은 <code>adj_close / close</code> 비율을 각 날짜의 <code>open/high/low/close</code>에 곱합니다.</li>
+        <li><code>close</code>가 0이거나 누락된 날짜는 제거합니다.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>검증 방법</h2>
+      <ol>
+        <li>10거래일짜리 작은 CSV fixture를 손으로 만듭니다.</li>
+        <li>첫 매수, 전반전 매수, 후반전 매수, 쿼터매도, 최종매도, 리버스모드 진입을 각각 강제로 발생시키는 fixture를 만듭니다.</li>
+        <li>각 fixture에서 체결 수량, 현금, 보유수량, T값이 예상과 같은지 확인합니다.</li>
+        <li>실제 TQQQ 1년 구간으로 smoke test를 돌려 결과가 음수/NaN 없이 생성되는지 확인합니다.</li>
+        <li>같은 입력을 두 번 실행했을 때 결과가 완전히 동일해야 합니다.</li>
+      </ol>
+    </section>
+
+    <section class="callout">
+      <h2>주요 리스크</h2>
+      <ul>
+        <li>LOC 주문은 실제 체결 규칙이 복잡해서 OHLC만으로 정확히 재현할 수 없습니다.</li>
+        <li>무료 데이터는 분할/배당 조정 방식이 바뀔 수 있습니다.</li>
+        <li>SOXL/TQQQ 같은 레버리지 ETF는 장기 데이터에서 분할이 많아 조정 가격 검증이 중요합니다.</li>
+        <li>리버스모드의 수동 판단은 앱 사용자의 실제 행동과 달라질 수 있습니다.</li>
+        <li>세금, 수수료, 슬리피지는 MVP에서 제외하면 실제 수익보다 낙관적으로 나옵니다.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="mvp">
+      <h2>MVP 범위</h2>
+      <div class="two-col">
+        <article class="card">
+          <h3>먼저 구현</h3>
+          <ol>
+            <li>Yahoo CSV 다운로드 스크립트</li>
+            <li>CSV 로더와 데이터 검증</li>
+            <li>TQQQ/SOXL 단일 전략 백테스트</li>
+            <li>완료 라운드 요약과 체결 내역 출력</li>
+            <li>수수료/세금/슬리피지 없는 결과</li>
+          </ol>
+        </article>
+        <article class="card">
+          <h3>나중에 구현</h3>
+          <ol>
+            <li>RAM 실제 데이터 연결 또는 명시적 SOXL 데이터 매핑</li>
+            <li>수수료/슬리피지 옵션</li>
+            <li>여러 체결 순서 시나리오 비교</li>
+            <li>결과를 DB에 저장</li>
+            <li>차트와 CSV 내보내기</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
