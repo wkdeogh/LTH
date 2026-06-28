@@ -7,10 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
-    "backtest:download": "node BackTest/download-prices.mjs",
-    "backtest:run": "node BackTest/backtest.mjs",
-    "backtest:py": "python3 BackTest/backtest.py"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",
