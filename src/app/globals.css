@@ -100,7 +100,7 @@ button {
   border-radius: 18px;
   display: grid;
   gap: 4px;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   padding: 4px;
 }
 
@@ -255,6 +255,11 @@ table {
   width: 100%;
 }
 
+.table-wrap {
+  overflow-x: auto;
+  width: 100%;
+}
+
 th,
 td {
   border-bottom: 1px solid var(--line);
@@ -303,6 +308,24 @@ th {
 
 .danger-text {
   color: var(--danger);
+}
+
+.profit-positive {
+  color: var(--buy);
+}
+
+.profit-negative {
+  color: var(--danger);
+}
+
+.round-details {
+  margin-top: 14px;
+}
+
+.round-details summary {
+  cursor: pointer;
+  font-weight: 800;
+  margin-bottom: 10px;
 }
 
 .order-list {

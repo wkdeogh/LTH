@@ -1,7 +1,7 @@
 create table if not exists strategies (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  symbol text not null check (symbol in ('TQQQ', 'SOXL')),
+  symbol text not null check (symbol in ('TQQQ', 'SOXL', 'RAM')),
   split_count integer not null check (split_count in (20, 40)),
   principal numeric(18, 4) not null,
   cash_balance numeric(18, 4) not null,
@@ -51,6 +51,7 @@ create table if not exists executions (
   id uuid primary key default gen_random_uuid(),
   strategy_id uuid not null references strategies(id) on delete cascade,
   trade_plan_id uuid references trade_plans(id) on delete set null,
+  round_id uuid,
   executed_at date not null,
   side text not null check (side in ('buy', 'sell')),
   order_type text not null check (order_type in ('LOC', 'MOC', 'LIMIT', 'MANUAL')),
@@ -61,6 +62,41 @@ create table if not exists executions (
   memo text,
   created_at timestamptz not null default now()
 );
+
+create table if not exists completed_rounds (
+  id uuid primary key default gen_random_uuid(),
+  strategy_id uuid not null references strategies(id) on delete cascade,
+  round_number integer not null,
+  symbol text not null check (symbol in ('TQQQ', 'SOXL', 'RAM')),
+  split_count integer not null check (split_count in (20, 40)),
+  started_at date not null,
+  ended_at date not null,
+  started_principal numeric(18, 4) not null,
+  ending_cash_balance numeric(18, 4) not null,
+  profit_amount numeric(18, 4) not null,
+  profit_rate numeric(18, 8) not null,
+  execution_count integer not null,
+  buy_count integer not null,
+  sell_count integer not null,
+  total_buy_amount numeric(18, 4) not null,
+  total_sell_amount numeric(18, 4) not null,
+  ending_t_value numeric(18, 10) not null,
+  created_at timestamptz not null default now(),
+  unique(strategy_id, round_number)
+);
+
+alter table strategies drop constraint if exists strategies_symbol_check;
+alter table strategies add constraint strategies_symbol_check check (symbol in ('TQQQ', 'SOXL', 'RAM'));
+
+alter table executions add column if not exists round_id uuid;
+do $$
+begin
+  alter table executions
+    add constraint executions_round_id_fkey
+    foreign key (round_id) references completed_rounds(id) on delete set null;
+exception
+  when duplicate_object then null;
+end $$;
 
 create table if not exists strategy_snapshots (
   id uuid primary key default gen_random_uuid(),
@@ -79,7 +115,9 @@ create index if not exists idx_strategies_active on strategies (is_archived, sor
 create index if not exists idx_daily_prices_strategy_date on daily_prices (strategy_id, trade_date desc);
 create index if not exists idx_trade_plans_strategy_date on trade_plans (strategy_id, plan_date desc);
 create index if not exists idx_executions_strategy_date on executions (strategy_id, executed_at desc);
+create index if not exists idx_executions_round on executions (round_id, executed_at desc);
 create index if not exists idx_snapshots_strategy_date on strategy_snapshots (strategy_id, snapshot_date desc);
+create index if not exists idx_completed_rounds_strategy on completed_rounds (strategy_id, round_number desc);
 
 grant usage on schema public to service_role;
 grant all privileges on all tables in schema public to service_role;

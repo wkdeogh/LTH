@@ -1,4 +1,4 @@
-export type SymbolCode = 'TQQQ' | 'SOXL';
+export type SymbolCode = 'TQQQ' | 'SOXL' | 'RAM';
 export type SplitCount = 20 | 40;
 export type TradeMode = 'normal' | 'reverse';
 export type CompoundingType = 'simple' | 'compound';
@@ -41,6 +41,43 @@ export type DailyPrice = {
   strategy_id: string;
   trade_date: string;
   close_price: number | string;
+  created_at: string;
+};
+
+export type Execution = {
+  id: string;
+  strategy_id: string;
+  trade_plan_id: string | null;
+  round_id: string | null;
+  executed_at: string;
+  side: TradeSide;
+  order_type: OrderType;
+  quantity: number;
+  avg_execution_price: number | string;
+  total_amount: number | string;
+  t_effect: TEffect | null;
+  memo: string | null;
+  created_at: string;
+};
+
+export type CompletedRound = {
+  id: string;
+  strategy_id: string;
+  round_number: number;
+  symbol: SymbolCode;
+  split_count: SplitCount;
+  started_at: string;
+  ended_at: string;
+  started_principal: number | string;
+  ending_cash_balance: number | string;
+  profit_amount: number | string;
+  profit_rate: number | string;
+  execution_count: number;
+  buy_count: number;
+  sell_count: number;
+  total_buy_amount: number | string;
+  total_sell_amount: number | string;
+  ending_t_value: number | string;
   created_at: string;
 };
 

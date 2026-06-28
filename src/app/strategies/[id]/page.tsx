@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { addDailyPrice, deleteStrategy, switchToNormal, switchToReverse, updateStrategy } from '@/app/actions';
 import { compact, usd } from '@/components/Format';
@@ -5,8 +6,13 @@ import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { DailyPrice, Strategy } from '@/lib/types';
+import type { CompletedRound, DailyPrice, Strategy } from '@/lib/types';
 import { modeLabel } from '@/lib/trading';
+
+function signedUsd(value: number | string) {
+  const number = typeof value === 'string' ? Number(value) : value;
+  return `${number >= 0 ? '+' : '-'}${usd(Math.abs(number))}`;
+}
 
 export default async function StrategyPage({ params }: { params: Promise<{ id: string }> }) {
   if (!hasSupabaseEnv()) return <SetupNotice />;
@@ -24,6 +30,14 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
     .order('trade_date', { ascending: false })
     .limit(7)
     .returns<DailyPrice[]>();
+
+  const { data: rounds } = await supabase!
+    .from('completed_rounds')
+    .select('*')
+    .eq('strategy_id', id)
+    .order('round_number', { ascending: false })
+    .limit(3)
+    .returns<CompletedRound[]>();
 
   return (
     <div className="stack">
@@ -46,12 +60,37 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
       </section>
 
       <section className="panel">
+        <div className="title-row">
+          <h2>전략 기록</h2>
+          <Link className="button secondary" href={`/strategies/${id}/rounds`}>전체 보기</Link>
+        </div>
+        {rounds && rounds.length > 0 ? (
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>라운드</th><th>기간</th><th>수익률</th><th>수익금</th><th>체결</th></tr></thead>
+              <tbody>
+                {rounds.map((round) => (
+                  <tr key={round.id}>
+                    <td>{round.round_number}라운드</td>
+                    <td>{round.started_at} ~ {round.ended_at}</td>
+                    <td>{Number(round.profit_rate) >= 0 ? '+' : ''}{compact(round.profit_rate, 2)}%</td>
+                    <td className={Number(round.profit_amount) >= 0 ? 'profit-positive' : 'profit-negative'}>{signedUsd(round.profit_amount)}</td>
+                    <td>{round.execution_count}건</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="muted">전량 매도로 종료된 라운드가 아직 없습니다.</p>}
+      </section>
+
+      <section className="panel">
         <h2>현재 상태 직접 수정</h2>
         <form className="form" action={updateStrategy}>
           <input type="hidden" name="id" value={strategy.id} />
           <div className="form-grid">
             <label>전략명<input name="name" defaultValue={strategy.name} required /></label>
-            <label>종목<select name="symbol" defaultValue={strategy.symbol}><option>TQQQ</option><option>SOXL</option></select></label>
+            <label>종목<select name="symbol" defaultValue={strategy.symbol}><option>TQQQ</option><option>SOXL</option><option>RAM</option></select></label>
             <label>분할 수<select name="split_count" defaultValue={strategy.split_count}><option value="20">20</option><option value="40">40</option></select></label>
             <label>원금($)<input name="principal" type="number" step="0.0001" defaultValue={String(strategy.principal)} required /></label>
             <label>현금($)<input name="cash_balance" type="number" step="0.0001" defaultValue={String(strategy.cash_balance)} required /></label>

@@ -3,8 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { SplitCount, Strategy, TEffect } from '@/lib/types';
-import { toStrategyState } from '@/lib/types';
+import type { Execution, SplitCount, Strategy, TEffect } from '@/lib/types';
+import { toNumber, toStrategyState } from '@/lib/types';
 import { applyTEffect } from '@/lib/trading';
 
 function supabaseOrThrow() {
@@ -183,6 +183,8 @@ export async function saveTradePlan(formData: FormData) {
 export async function recordExecution(formData: FormData) {
   const supabase = supabaseOrThrow();
   const strategyId = stringValue(formData, 'strategy_id');
+  const executedAt = stringValue(formData, 'executed_at', new Date().toISOString().slice(0, 10));
+  const side = stringValue(formData, 'side');
   const { data: strategy, error: strategyError } = await supabase
     .from('strategies')
     .select('*')
@@ -196,6 +198,10 @@ export async function recordExecution(formData: FormData) {
   const computedT = applyTEffect(state.tValue, effect, state.splitCount);
   const finalT = stringValue(formData, 'final_t_value') ? numberValue(formData, 'final_t_value') : computedT;
   const finalMode = stringValue(formData, 'final_mode', state.mode);
+  const finalCashBalance = numberValue(formData, 'final_cash_balance');
+  const finalPositionQty = intValue(formData, 'final_position_qty');
+  const finalAvgPrice = numberValue(formData, 'final_avg_price');
+  const isCompletedRound = side === 'sell' && state.positionQty > 0 && finalPositionQty === 0;
 
   await supabase.from('strategy_snapshots').insert({
     strategy_id: strategyId,
@@ -213,8 +219,8 @@ export async function recordExecution(formData: FormData) {
 
   const { error: executionError } = await supabase.from('executions').insert({
     strategy_id: strategyId,
-    executed_at: stringValue(formData, 'executed_at', new Date().toISOString().slice(0, 10)),
-    side: stringValue(formData, 'side'),
+    executed_at: executedAt,
+    side,
     order_type: stringValue(formData, 'order_type'),
     quantity,
     avg_execution_price: avgExecutionPrice,
@@ -225,19 +231,91 @@ export async function recordExecution(formData: FormData) {
 
   if (executionError) throw executionError;
 
+  if (isCompletedRound) {
+    const roundStartedAt = strategy.started_at ?? executedAt;
+    const { data: activeExecutions, error: activeExecutionsError } = await supabase
+      .from('executions')
+      .select('*')
+      .eq('strategy_id', strategyId)
+      .is('round_id', null)
+      .gte('executed_at', roundStartedAt)
+      .lte('executed_at', executedAt)
+      .returns<Execution[]>();
+
+    if (activeExecutionsError) throw activeExecutionsError;
+
+    const executions = activeExecutions ?? [];
+    const buyExecutions = executions.filter((execution) => execution.side === 'buy');
+    const sellExecutions = executions.filter((execution) => execution.side === 'sell');
+    const totalBuyAmount = buyExecutions.reduce((sum, execution) => sum + toNumber(execution.total_amount), 0);
+    const totalSellAmount = sellExecutions.reduce((sum, execution) => sum + toNumber(execution.total_amount), 0);
+    const startedPrincipal = state.principal;
+    const profitAmount = finalCashBalance - startedPrincipal;
+    const profitRate = startedPrincipal > 0 ? (profitAmount / startedPrincipal) * 100 : 0;
+
+    const { data: lastRound, error: lastRoundError } = await supabase
+      .from('completed_rounds')
+      .select('round_number')
+      .eq('strategy_id', strategyId)
+      .order('round_number', { ascending: false })
+      .limit(1)
+      .maybeSingle<{ round_number: number }>();
+
+    if (lastRoundError) throw lastRoundError;
+
+    const { data: completedRound, error: completedRoundError } = await supabase
+      .from('completed_rounds')
+      .insert({
+        strategy_id: strategyId,
+        round_number: (lastRound?.round_number ?? 0) + 1,
+        symbol: state.symbol,
+        split_count: state.splitCount,
+        started_at: roundStartedAt,
+        ended_at: executedAt,
+        started_principal: startedPrincipal,
+        ending_cash_balance: finalCashBalance,
+        profit_amount: profitAmount,
+        profit_rate: profitRate,
+        execution_count: executions.length,
+        buy_count: buyExecutions.length,
+        sell_count: sellExecutions.length,
+        total_buy_amount: totalBuyAmount,
+        total_sell_amount: totalSellAmount,
+        ending_t_value: finalT,
+      })
+      .select('id')
+      .single<{ id: string }>();
+
+    if (completedRoundError) throw completedRoundError;
+
+    const executionIds = executions.map((execution) => execution.id);
+    if (executionIds.length > 0) {
+      const { error: roundLinkError } = await supabase
+        .from('executions')
+        .update({ round_id: completedRound.id })
+        .in('id', executionIds);
+
+      if (roundLinkError) throw roundLinkError;
+    }
+  }
+
   const reverseFirstSellDone =
     state.mode === 'reverse' && effect === 'reverse_sell' ? true : state.reverseFirstSellDone;
+
+  const nextPrincipal = isCompletedRound && strategy.compounding_type === 'compound' ? finalCashBalance : state.principal;
 
   const { error: updateError } = await supabase
     .from('strategies')
     .update({
-      cash_balance: numberValue(formData, 'final_cash_balance'),
-      position_qty: intValue(formData, 'final_position_qty'),
-      avg_price: numberValue(formData, 'final_avg_price'),
-      t_value: finalT,
-      mode: finalMode,
-      reverse_first_sell_done: finalMode === 'reverse' ? reverseFirstSellDone : false,
-      reverse_started_at: finalMode === 'reverse' ? state.reverseStartedAt ?? new Date().toISOString().slice(0, 10) : null,
+      principal: nextPrincipal,
+      cash_balance: finalCashBalance,
+      position_qty: isCompletedRound ? 0 : finalPositionQty,
+      avg_price: isCompletedRound ? 0 : finalAvgPrice,
+      t_value: isCompletedRound ? 0 : finalT,
+      mode: isCompletedRound ? 'normal' : finalMode,
+      reverse_first_sell_done: isCompletedRound ? false : finalMode === 'reverse' ? reverseFirstSellDone : false,
+      reverse_started_at: isCompletedRound ? null : finalMode === 'reverse' ? state.reverseStartedAt ?? new Date().toISOString().slice(0, 10) : null,
+      started_at: isCompletedRound ? executedAt : strategy.started_at,
       updated_at: new Date().toISOString(),
     })
     .eq('id', strategyId);
@@ -246,5 +324,6 @@ export async function recordExecution(formData: FormData) {
 
   revalidatePath('/');
   revalidatePath(`/strategies/${strategyId}`);
+  revalidatePath(`/strategies/${strategyId}/rounds`);
   redirect(`/strategies/${strategyId}`);
 }

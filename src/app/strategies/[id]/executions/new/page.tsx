@@ -71,6 +71,7 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
 
           <h3>체결 후 최종 상태</h3>
           <p className="muted">증권사 앱 기준 최종값을 입력하세요. 앱 계산보다 이 값이 우선됩니다.</p>
+          <p className="muted">매도 체결 후 최종 보유수량을 0으로 저장하면 해당 라운드는 자동 종료되고 전략 기록에 남습니다.</p>
           <div className="form-grid">
             <label>최종 현금($)<input name="final_cash_balance" type="number" step="0.0001" defaultValue={state.cashBalance} required /></label>
             <label>최종 보유수량<input name="final_position_qty" type="number" defaultValue={state.positionQty} required /></label>

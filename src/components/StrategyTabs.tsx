@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 type StrategyTabsProps = {
   strategyId: string;
-  active: 'detail' | 'plan' | 'execution';
+  active: 'detail' | 'plan' | 'execution' | 'rounds';
 };
 
 export function StrategyTabs({ strategyId, active }: StrategyTabsProps) {
@@ -10,6 +10,7 @@ export function StrategyTabs({ strategyId, active }: StrategyTabsProps) {
     { key: 'detail', label: '상세', href: `/strategies/${strategyId}` },
     { key: 'plan', label: '주문 계산', href: `/strategies/${strategyId}/plan` },
     { key: 'execution', label: '체결 입력', href: `/strategies/${strategyId}/executions/new` },
+    { key: 'rounds', label: '전략 기록', href: `/strategies/${strategyId}/rounds` },
   ] as const;
 
   return (

@@ -10,7 +10,7 @@ export default function NewStrategyPage() {
       <form className="panel form" action={createStrategy}>
         <div className="form-grid">
           <label>전략명<input name="name" defaultValue="TQQQ 40분할" required /></label>
-          <label>종목<select name="symbol" defaultValue="TQQQ"><option>TQQQ</option><option>SOXL</option></select></label>
+          <label>종목<select name="symbol" defaultValue="TQQQ"><option>TQQQ</option><option>SOXL</option><option>RAM</option></select></label>
           <label>분할 수<select name="split_count" defaultValue="40"><option value="20">20</option><option value="40">40</option></select></label>
           <label>복리/단리<select name="compounding_type" defaultValue="compound"><option value="compound">복리</option><option value="simple">단리</option></select></label>
           <label>원금($)<input name="principal" type="number" step="0.0001" defaultValue="20000" required /></label>

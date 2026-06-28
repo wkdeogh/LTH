@@ -30,7 +30,7 @@ export type NormalPlan = {
 export function calculateStarPercent(symbol: SymbolCode, splitCount: 20 | 40, tValue: number) {
   if (symbol === 'TQQQ' && splitCount === 20) return (15 - 1.5 * tValue) / 100;
   if (symbol === 'TQQQ' && splitCount === 40) return (15 - 0.75 * tValue) / 100;
-  if (symbol === 'SOXL' && splitCount === 20) return (20 - 2 * tValue) / 100;
+  if (splitCount === 20) return (20 - 2 * tValue) / 100;
   return (20 - tValue) / 100;
 }
 
@@ -182,7 +182,7 @@ export function calculateNormalPlan(state: StrategyState, referencePrice?: numbe
         orderType: 'LIMIT',
         price: targetSellPrice,
         quantity: finalSellQty,
-        note: state.symbol === 'TQQQ' ? '평단 +15% 지정가 매도입니다.' : '평단 +20% 지정가 매도입니다.',
+        note: state.symbol === 'TQQQ' ? '평단 +15% 지정가 매도입니다.' : 'SOXL/RAM 기준 평단 +20% 지정가 매도입니다.',
       },
     ],
     warnings,
