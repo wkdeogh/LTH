@@ -80,7 +80,6 @@ export default async function StrategyRoundsPage({ params }: { params: Promise<{
     <div className="stack">
       <section className="hero">
         <h1>{strategy.name} 전략 기록</h1>
-        <p className="muted">전량 매도로 종료된 라운드의 수익과 체결 흐름을 모아봅니다.</p>
       </section>
 
       <StrategyTabs strategyId={id} active="rounds" />
