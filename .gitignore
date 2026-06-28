@@ -6,4 +6,9 @@ node_modules
 tsconfig.tsbuildinfo
 .vercel
 수파베이스프로젝트비번.txt
-BackTest/
+__pycache__/
+*.pyc
+BackTest/data/*
+!BackTest/data/.gitkeep
+BackTest/results/
+BackTest/__pycache__/
