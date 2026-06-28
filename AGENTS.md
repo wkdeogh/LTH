@@ -17,7 +17,7 @@
 
 ## App Shape
 
-- This is a Next App Router app under `src/app`; routes include `/`, `/strategies/new`, `/strategies/[id]`, `/strategies/[id]/plan`, and `/strategies/[id]/executions/new`.
+- This is a Next App Router app under `src/app`; routes include `/`, `/strategies/new`, `/strategies/[id]`, `/strategies/[id]/plan`, `/strategies/[id]/executions/new`, and `/strategies/[id]/rounds`.
 - Mutations live in server actions in `src/app/actions.ts`, then call `revalidatePath` and usually `redirect`.
 - Trading calculations live in `src/lib/trading/*`; keep formulas there rather than duplicating them in page components.
 - Supabase rows are snake_case and numeric fields may come back as strings; convert through `toStrategyState` / `toNumber` in `src/lib/types.ts` before calculations.
@@ -27,8 +27,8 @@
 
 - Supported strategy symbols are `TQQQ`, `SOXL`, and `RAM`; `RAM` uses the same calculations as `SOXL`. Supported split counts are only `20` and `40`, enforced in both types and schema.
 - The implemented engine uses original-style V4 concepts: `t_value`, star percent/price, normal mode, and reverse mode.
-- Do not treat `Trade.md` as implementation truth by itself; it is a simplified human memo and conflicts with the app plan/code by saying T values are unused.
-- `plan.md` plus `src/lib/trading/*` describe the current intended calculation behavior.
+- Do not treat `Trade.md` as implementation truth by itself; it is a simplified human memo and conflicts with the app code by saying T values are unused.
+- `src/lib/trading/*` is the current source of truth for calculation behavior.
 - The product is a personal order guide only: no login, brokerage API, automatic trading, or realtime quote fetching.
 
 ## Style
