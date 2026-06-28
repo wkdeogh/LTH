@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { FormSubmitFeedback } from '@/components/FormSubmitFeedback';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -11,6 +12,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="ko">
       <body>
+        <FormSubmitFeedback />
         <main className="shell">
           <header className="topbar">
             <Link className="brand" href="/">
