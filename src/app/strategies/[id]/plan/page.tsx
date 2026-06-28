@@ -35,13 +35,10 @@ function OrderTable({ title, orders }: { title: string; orders: Array<{ label: s
   );
 }
 
-export default async function PlanPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
+export default async function PlanPage({ params }: { params: Promise<{ id: string }> }) {
   if (!hasSupabaseEnv()) return <SetupNotice />;
 
   const { id } = await params;
-  const query = await searchParams;
-  const referenceInput = query.reference ? Number(query.reference) : undefined;
-  const referencePrice = Number.isFinite(referenceInput) ? referenceInput : undefined;
   const supabase = createSupabaseServerClient();
 
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
@@ -58,16 +55,8 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
   const state = toStrategyState(strategy);
   const recentCloses = (prices ?? []).map((price) => toNumber(price.close_price));
   const latestSavedClose = recentCloses[0];
-  const latestSavedCloseDate = prices?.[0]?.trade_date;
-  const hasReferenceOverride = referencePrice !== undefined;
-  const referenceTitle = hasReferenceOverride
-    ? '설정된 매수 참고가'
-    : latestSavedCloseDate
-      ? `전일 종가 (${latestSavedCloseDate.slice(5).replace('-', '/')})`
-      : '전일 종가';
-  const buyReferencePrice = referencePrice ?? latestSavedClose;
   const plan = state.mode === 'normal'
-    ? calculateNormalPlan(state, buyReferencePrice)
+    ? calculateNormalPlan(state)
     : calculateReversePlan(state, recentCloses, latestSavedClose);
 
   return (
@@ -90,19 +79,6 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
             <div className="stat"><span>5일평균 데이터</span><strong>{recentCloses.length}/5개</strong></div>
           )}
         </div>
-      </section>
-
-      <section className="panel">
-        <h2>전일 종가</h2>
-        <div className="stat-grid" style={{ marginBottom: 12 }}>
-          <div className="stat"><span>{referenceTitle}</span><strong>{buyReferencePrice !== undefined ? usd(buyReferencePrice) : '-'}</strong></div>
-        </div>
-        <form className="form" action={`/strategies/${id}/plan`}>
-          <div className="form-grid">
-            <label>매수 참고가 변경<input name="reference" type="number" step="0.0001" defaultValue={referencePrice ?? ''} placeholder={latestSavedClose ? String(latestSavedClose) : ''} /></label>
-          </div>
-          <button type="submit">다시 계산</button>
-        </form>
       </section>
 
       {'phase' in plan && (
