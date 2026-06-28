@@ -40,7 +40,8 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
 
   const { id } = await params;
   const query = await searchParams;
-  const referencePrice = query.reference ? Number(query.reference) : undefined;
+  const referenceInput = query.reference ? Number(query.reference) : undefined;
+  const referencePrice = Number.isFinite(referenceInput) ? referenceInput : undefined;
   const supabase = createSupabaseServerClient();
 
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
@@ -57,8 +58,9 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
   const state = toStrategyState(strategy);
   const recentCloses = (prices ?? []).map((price) => toNumber(price.close_price));
   const latestSavedClose = recentCloses[0];
+  const buyReferencePrice = referencePrice ?? latestSavedClose;
   const plan = state.mode === 'normal'
-    ? calculateNormalPlan(state, referencePrice)
+    ? calculateNormalPlan(state, buyReferencePrice)
     : calculateReversePlan(state, recentCloses, latestSavedClose);
 
   return (
@@ -84,10 +86,14 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
       </section>
 
       <section className="panel">
-        <h2>첫 매수 참고가</h2>
+        <h2>전일 종가</h2>
+        <div className="stat-grid" style={{ marginBottom: 12 }}>
+          <div className="stat"><span>저장된 전일 종가</span><strong>{latestSavedClose ? usd(latestSavedClose) : '-'}</strong></div>
+          <div className="stat"><span>현재 매수 참고가</span><strong>{buyReferencePrice ? usd(buyReferencePrice) : '-'}</strong></div>
+        </div>
         <form className="form" action={`/strategies/${id}/plan`}>
           <div className="form-grid">
-            <label>현재가 또는 전일종가($)<input name="reference" type="number" step="0.0001" defaultValue={referencePrice ?? ''} /></label>
+            <label>매수 참고가 변경<input name="reference" type="number" step="0.0001" defaultValue={referencePrice ?? ''} placeholder={latestSavedClose ? String(latestSavedClose) : ''} /></label>
           </div>
           <button type="submit">다시 계산</button>
         </form>
