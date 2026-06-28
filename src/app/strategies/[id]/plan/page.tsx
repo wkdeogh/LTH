@@ -58,6 +58,13 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
   const state = toStrategyState(strategy);
   const recentCloses = (prices ?? []).map((price) => toNumber(price.close_price));
   const latestSavedClose = recentCloses[0];
+  const latestSavedCloseDate = prices?.[0]?.trade_date;
+  const hasReferenceOverride = referencePrice !== undefined;
+  const referenceTitle = hasReferenceOverride
+    ? '설정된 매수 참고가'
+    : latestSavedCloseDate
+      ? `전일 종가 (${latestSavedCloseDate.slice(5).replace('-', '/')})`
+      : '전일 종가';
   const buyReferencePrice = referencePrice ?? latestSavedClose;
   const plan = state.mode === 'normal'
     ? calculateNormalPlan(state, buyReferencePrice)
@@ -88,8 +95,7 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
       <section className="panel">
         <h2>전일 종가</h2>
         <div className="stat-grid" style={{ marginBottom: 12 }}>
-          <div className="stat"><span>저장된 전일 종가</span><strong>{latestSavedClose ? usd(latestSavedClose) : '-'}</strong></div>
-          <div className="stat"><span>현재 매수 참고가</span><strong>{buyReferencePrice ? usd(buyReferencePrice) : '-'}</strong></div>
+          <div className="stat"><span>{referenceTitle}</span><strong>{buyReferencePrice !== undefined ? usd(buyReferencePrice) : '-'}</strong></div>
         </div>
         <form className="form" action={`/strategies/${id}/plan`}>
           <div className="form-grid">
