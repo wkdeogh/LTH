@@ -18,6 +18,8 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent
 VALID_SYMBOLS = {"TQQQ", "SOXL"}
+VALID_PRICE_SYMBOLS = VALID_SYMBOLS | {"QLD"}
+BENCHMARK_SYMBOL = "QLD"
 VALID_SPLITS = {20, 30, 40}
 
 
@@ -116,8 +118,8 @@ def default_csv_path(symbol: str) -> Path:
 
 def download_prices(symbol: str, start_date: str, end_date: str, out_path: Path) -> Path:
     symbol = symbol.upper()
-    if symbol not in VALID_SYMBOLS:
-        raise ValueError("Only TQQQ and SOXL are supported")
+    if symbol not in VALID_PRICE_SYMBOLS:
+        raise ValueError("Only TQQQ, SOXL, and QLD are supported")
 
     parse_yyyy_mm_dd(start_date, "start_date")
     parse_yyyy_mm_dd(end_date, "end_date")
@@ -555,7 +557,7 @@ def print_result(result: dict) -> None:
 def validate_common(symbol: str, split_count: int | None = None, principal: float | None = None) -> str:
     symbol = symbol.upper()
     if symbol not in VALID_SYMBOLS:
-        raise ValueError("Only TQQQ and SOXL are supported")
+        raise ValueError("Only TQQQ and SOXL are supported for strategy backtests")
     if split_count is not None and split_count not in VALID_SPLITS:
         raise ValueError("split_count must be 20, 30, or 40")
     if principal is not None and principal <= 0:
@@ -563,8 +565,15 @@ def validate_common(symbol: str, split_count: int | None = None, principal: floa
     return symbol
 
 
+def validate_price_symbol(symbol: str) -> str:
+    symbol = symbol.upper()
+    if symbol not in VALID_PRICE_SYMBOLS:
+        raise ValueError("Only TQQQ, SOXL, and QLD are supported for price downloads")
+    return symbol
+
+
 def command_download(args: argparse.Namespace) -> None:
-    symbol = validate_common(args.symbol)
+    symbol = validate_price_symbol(args.symbol)
     out_path = Path(args.out) if args.out else default_csv_path(symbol)
     saved_path = download_prices(symbol, args.start_date, args.end_date, out_path)
     print(f"Saved prices to {saved_path}")
@@ -591,6 +600,10 @@ def command_all(args: argparse.Namespace) -> None:
     print(f"Downloading {symbol} prices...")
     saved_path = download_prices(symbol, args.start_date, args.end_date, csv_path)
     print(f"Saved prices to {saved_path}")
+    if symbol != BENCHMARK_SYMBOL:
+        print(f"Downloading {BENCHMARK_SYMBOL} prices...")
+        qld_path = download_prices(BENCHMARK_SYMBOL, args.start_date, args.end_date, default_csv_path(BENCHMARK_SYMBOL))
+        print(f"Saved prices to {qld_path}")
     time.sleep(0.2)
     command_run(args)
 
@@ -606,6 +619,32 @@ def buy_and_hold_result(principal: float, prices: list[Price]) -> dict:
         "profit_amount": profit_amount,
         "profit_rate": profit_rate,
     }
+
+
+def buy_and_hold_curve(principal: float, prices: list[Price]) -> list[dict]:
+    if not prices:
+        return []
+    start_price = prices[0].close
+    return [
+        {
+            "date": price.date,
+            "equity": round_money(principal * (price.close / start_price)),
+        }
+        for price in prices
+    ]
+
+
+def filter_prices(prices: list[Price], start_date: str, end_date: str) -> list[Price]:
+    return [price for price in prices if start_date <= price.date <= end_date]
+
+
+def ensure_price_csv(symbol: str, start_date: str, end_date: str, csv_dir: Path) -> Path:
+    symbol = validate_price_symbol(symbol)
+    csv_path = csv_dir / f"{symbol}.csv"
+    if not csv_path.exists():
+        print(f"Downloading {symbol} prices...")
+        download_prices(symbol, start_date, end_date, csv_path)
+    return csv_path
 
 
 def random_periods(prices: list[Price], count: int, min_days: int, max_days: int | None, seed: int | None) -> list[tuple[int, int]]:
@@ -639,24 +678,31 @@ def print_random_comparison(result: dict) -> None:
     print(f"Min/Max trading days: {config['min_days']} / {config['max_days'] or 'full range'}")
 
     print("\nDetails")
-    print("symbol | split | sample | start      | end        | days | strategy | hold    | diff")
-    print("-------|-------|--------|------------|------------|------|----------|---------|--------")
+    print("symbol | split | sample | start      | end        | days | strategy | hold    | diff   | QLD     | QLD diff")
+    print("-------|-------|--------|------------|------------|------|----------|---------|--------|---------|---------")
     for row in result["rows"]:
         print(
             f"{row['symbol']:<6} | {row['split_count']:>5} | {row['sample']:>6} | "
             f"{row['start_date']} | {row['end_date']} | {row['trading_days']:>4} | "
             f"{percent(row['strategy_profit_rate']):>8} | {percent(row['hold_profit_rate']):>7} | "
-            f"{percent(row['diff_profit_rate']):>6}"
+            f"{percent(row['diff_profit_rate']):>6} | {percent(row['qld_hold_profit_rate']):>7} | "
+            f"{percent(row['qld_diff_profit_rate']):>8}"
         )
 
     print("\nSummary")
-    print("symbol | split | avg strategy | avg hold | avg diff | wins | samples")
-    print("-------|-------|--------------|----------|----------|------|--------")
+    print("symbol | split | avg strategy | avg hold | avg diff | hold wins | samples")
+    print("-------|-------|--------------|----------|----------|-----------|--------")
     for item in result["summary"]:
         print(
             f"{item['symbol']:<6} | {item['split_count']:>5} | "
             f"{percent(item['avg_strategy_profit_rate']):>12} | {percent(item['avg_hold_profit_rate']):>8} | "
-            f"{percent(item['avg_diff_profit_rate']):>8} | {item['strategy_win_count']:>4} | {item['sample_count']:>6}"
+            f"{percent(item['avg_diff_profit_rate']):>8} | {item['strategy_win_count']:>9} | {item['sample_count']:>6}"
+        )
+    benchmark = result.get("benchmark_summary")
+    if benchmark:
+        print(
+            f"{benchmark['symbol']:<6} | {'hold':>5} | {'-':>12} | "
+            f"{percent(benchmark['avg_hold_profit_rate']):>8} | {'-':>8} | {'-':>9} | {benchmark['sample_count']:>6}"
         )
 
 
@@ -705,6 +751,21 @@ def render_random_comparison_html(result: dict) -> str:
             </tr>
             """
         )
+    benchmark = result.get("benchmark_summary")
+    if benchmark:
+        summary_rows.append(
+            f"""
+            <tr class="benchmark">
+              <td>{html.escape(benchmark['symbol'])}</td>
+              <td>hold</td>
+              <td>-</td>
+              <td class="{html_class(benchmark['avg_hold_profit_rate'])}">{percent(benchmark['avg_hold_profit_rate'])}</td>
+              <td>-</td>
+              <td>-</td>
+              <td>-</td>
+            </tr>
+            """
+        )
 
     detail_rows = []
     for row in result["rows"]:
@@ -720,8 +781,11 @@ def render_random_comparison_html(result: dict) -> str:
               <td class="{html_class(row['strategy_profit_rate'])}">{percent(row['strategy_profit_rate'])}</td>
               <td class="{html_class(row['hold_profit_rate'])}">{percent(row['hold_profit_rate'])}</td>
               <td class="{html_class(row['diff_profit_rate'])}">{signed_percent(row['diff_profit_rate'])}</td>
+              <td class="{html_class(row['qld_hold_profit_rate'])}">{percent(row['qld_hold_profit_rate'])}</td>
+              <td class="{html_class(row['qld_diff_profit_rate'])}">{signed_percent(row['qld_diff_profit_rate'])}</td>
               <td>{money(row['strategy_ending_equity'])}</td>
               <td>{money(row['hold_ending_equity'])}</td>
+              <td>{money(row['qld_hold_ending_equity'])}</td>
               <td>{row['completed_rounds']}</td>
               <td>{row['execution_count']}</td>
             </tr>
@@ -796,6 +860,7 @@ def render_random_comparison_html(result: dict) -> str:
     th {{ background: #f3efe7; color: #334155; }}
     td:first-child, th:first-child {{ text-align: left; }}
     tr:hover td {{ background: #faf7f0; }}
+    tr.benchmark td {{ background: #f8fafc; font-weight: 700; }}
     .positive {{ color: var(--positive); font-weight: 700; }}
     .negative {{ color: var(--negative); font-weight: 700; }}
   </style>
@@ -830,7 +895,7 @@ def render_random_comparison_html(result: dict) -> str:
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Symbol</th><th>Split</th><th>Sample</th><th>Start</th><th>End</th><th>Days</th><th>Strategy</th><th>Hold</th><th>Diff</th><th>Strategy Equity</th><th>Hold Equity</th><th>Rounds</th><th>Executions</th></tr>
+            <tr><th>Symbol</th><th>Split</th><th>Sample</th><th>Start</th><th>End</th><th>Days</th><th>Strategy</th><th>Hold</th><th>Diff</th><th>QLD</th><th>QLD Diff</th><th>Strategy Equity</th><th>Hold Equity</th><th>QLD Equity</th><th>Rounds</th><th>Executions</th></tr>
           </thead>
           <tbody>{''.join(detail_rows)}</tbody>
         </table>
@@ -872,6 +937,24 @@ def command_random(args: argparse.Namespace) -> dict:
 
     compounding_type = "simple" if args.simple else "compound"
     csv_dir = Path(args.csv_dir) if args.csv_dir else ROOT / "data"
+    qld_csv_path = ensure_price_csv(BENCHMARK_SYMBOL, args.start_date, args.end_date, csv_dir)
+    qld_prices = load_prices(qld_csv_path, args.start_date, args.end_date)
+    periods = random_periods(qld_prices, args.count, args.min_days, args.max_days, args.seed)
+    period_ranges = []
+    for sample_index, (start_index, end_index) in enumerate(periods, start=1):
+        qld_period_prices = qld_prices[start_index : end_index + 1]
+        qld_hold_result = buy_and_hold_result(args.principal, qld_period_prices)
+        period_ranges.append(
+            {
+                "sample": sample_index,
+                "start_date": qld_period_prices[0].date,
+                "end_date": qld_period_prices[-1].date,
+                "trading_days": len(qld_period_prices),
+                "qld_hold_profit_rate": qld_hold_result["profit_rate"],
+                "qld_hold_ending_equity": qld_hold_result["ending_equity"],
+            }
+        )
+
     rows = []
     total_runs = len(symbols) * len(splits) * args.count
     completed_runs = 0
@@ -882,28 +965,33 @@ def command_random(args: argparse.Namespace) -> dict:
 
     for symbol in symbols:
         prices = load_prices(csv_dir / f"{symbol}.csv", args.start_date, args.end_date)
-        periods = random_periods(prices, args.count, args.min_days, args.max_days, args.seed)
 
         for split_count in splits:
-            for sample_index, (start_index, end_index) in enumerate(periods, start=1):
-                period_prices = prices[start_index : end_index + 1]
+            for period in period_ranges:
+                period_prices = filter_prices(prices, period["start_date"], period["end_date"])
+                if len(period_prices) < 6:
+                    raise RuntimeError(f"Not enough {symbol} rows for {period['start_date']} ~ {period['end_date']}")
                 strategy_result = simulate(symbol, split_count, args.principal, compounding_type, period_prices)
                 hold_result = buy_and_hold_result(args.principal, period_prices)
                 strategy_rate = strategy_result["summary"]["profit_rate"]
                 hold_rate = hold_result["profit_rate"]
+                qld_hold_rate = period["qld_hold_profit_rate"]
                 rows.append(
                     {
                         "symbol": symbol,
                         "split_count": split_count,
-                        "sample": sample_index,
-                        "start_date": period_prices[0].date,
-                        "end_date": period_prices[-1].date,
+                        "sample": period["sample"],
+                        "start_date": period["start_date"],
+                        "end_date": period["end_date"],
                         "trading_days": len(period_prices),
                         "strategy_profit_rate": strategy_rate,
                         "hold_profit_rate": hold_rate,
                         "diff_profit_rate": strategy_rate - hold_rate,
+                        "qld_hold_profit_rate": qld_hold_rate,
+                        "qld_diff_profit_rate": strategy_rate - qld_hold_rate,
                         "strategy_ending_equity": strategy_result["summary"]["ending_equity"],
                         "hold_ending_equity": hold_result["ending_equity"],
+                        "qld_hold_ending_equity": period["qld_hold_ending_equity"],
                         "completed_rounds": strategy_result["summary"]["completed_rounds"],
                         "execution_count": strategy_result["summary"]["execution_count"],
                     }
@@ -934,6 +1022,13 @@ def command_random(args: argparse.Namespace) -> dict:
                 }
             )
 
+    benchmark_summary = {
+        "symbol": BENCHMARK_SYMBOL,
+        "sample_count": len(period_ranges),
+        "avg_hold_profit_rate": sum(period["qld_hold_profit_rate"] for period in period_ranges) / len(period_ranges),
+        "avg_ending_equity": sum(period["qld_hold_ending_equity"] for period in period_ranges) / len(period_ranges),
+    }
+
     result = {
         "config": {
             "symbols": symbols,
@@ -947,8 +1042,10 @@ def command_random(args: argparse.Namespace) -> dict:
             "seed": args.seed,
             "compounding_type": compounding_type,
             "csv_dir": str(csv_dir),
+            "benchmark_symbol": BENCHMARK_SYMBOL,
         },
         "summary": summary,
+        "benchmark_summary": benchmark_summary,
         "rows": rows,
     }
 
@@ -977,12 +1074,296 @@ def command_random(args: argparse.Namespace) -> dict:
     return result
 
 
+def prompt_text(label: str, default: str | None = None, required: bool = True) -> str:
+    suffix = f" [{default}]" if default not in (None, "") else ""
+    while True:
+        value = input(f"{label}{suffix}: ").strip()
+        if not value and default is not None:
+            return default
+        if value or not required:
+            return value
+        print("값을 입력해 주세요.")
+
+
+def prompt_choice(title: str, choices: list[tuple[str, str]]) -> str:
+    print(f"\n{title}")
+    for key, label in choices:
+        print(f"  {key}. {label}")
+    valid_keys = {key for key, _ in choices}
+    while True:
+        value = input("선택: ").strip()
+        if value in valid_keys:
+            return value
+        print("목록에 있는 번호를 입력해 주세요.")
+
+
+def prompt_yes_no(label: str, default: bool = False) -> bool:
+    hint = "Y/n" if default else "y/N"
+    while True:
+        value = input(f"{label} [{hint}]: ").strip().lower()
+        if not value:
+            return default
+        if value in {"y", "yes"}:
+            return True
+        if value in {"n", "no"}:
+            return False
+        print("y 또는 n으로 입력해 주세요.")
+
+
+def prompt_int(label: str, default: int | None = None, allowed: set[int] | None = None, minimum: int | None = None) -> int:
+    while True:
+        raw = prompt_text(label, str(default) if default is not None else None)
+        try:
+            value = int(raw)
+        except ValueError:
+            print("숫자로 입력해 주세요.")
+            continue
+        if allowed is not None and value not in allowed:
+            print(f"가능한 값: {', '.join(str(item) for item in sorted(allowed))}")
+            continue
+        if minimum is not None and value < minimum:
+            print(f"{minimum} 이상으로 입력해 주세요.")
+            continue
+        return value
+
+
+def prompt_float(label: str, default: float | None = None, minimum: float | None = None) -> float:
+    while True:
+        raw = prompt_text(label, str(default) if default is not None else None)
+        try:
+            value = float(raw)
+        except ValueError:
+            print("숫자로 입력해 주세요.")
+            continue
+        if minimum is not None and value < minimum:
+            print(f"{minimum:g} 이상으로 입력해 주세요.")
+            continue
+        return value
+
+
+def prompt_date(label: str, default: str) -> str:
+    while True:
+        value = prompt_text(label, default)
+        try:
+            return parse_yyyy_mm_dd(value, label)
+        except ValueError as error:
+            print(error)
+
+
+def prompt_symbol(default: str = "SOXL") -> str:
+    choice = prompt_choice(
+        "종목 선택",
+        [
+            ("1", "SOXL"),
+            ("2", "TQQQ"),
+        ],
+    )
+    return "SOXL" if choice == "1" else "TQQQ"
+
+
+def prompt_price_symbol() -> str:
+    choice = prompt_choice(
+        "가격 다운로드 종목",
+        [
+            ("1", "SOXL"),
+            ("2", "TQQQ"),
+            ("3", "QLD"),
+        ],
+    )
+    return {"1": "SOXL", "2": "TQQQ", "3": "QLD"}[choice]
+
+
+def prompt_symbols(default_both: bool = True) -> list[str]:
+    choice = prompt_choice(
+        "비교할 종목",
+        [
+            ("1", "TQQQ + SOXL"),
+            ("2", "SOXL만"),
+            ("3", "TQQQ만"),
+        ],
+    )
+    if choice == "2":
+        return ["SOXL"]
+    if choice == "3":
+        return ["TQQQ"]
+    return ["TQQQ", "SOXL"] if default_both else ["SOXL"]
+
+
+def prompt_splits(single: bool) -> int | list[int]:
+    if single:
+        choice = prompt_choice(
+            "분할 수",
+            [
+                ("1", "40분할"),
+                ("2", "30분할"),
+                ("3", "20분할"),
+            ],
+        )
+        return {"1": 40, "2": 30, "3": 20}[choice]
+
+    choice = prompt_choice(
+        "비교할 분할 수",
+        [
+            ("1", "40, 30, 20 전체"),
+            ("2", "40분할만"),
+            ("3", "30분할만"),
+            ("4", "20분할만"),
+        ],
+    )
+    return {"1": [40, 30, 20], "2": [40], "3": [30], "4": [20]}[choice]
+
+
+def prompt_common_run_args(mode: str) -> argparse.Namespace:
+    symbol = prompt_symbol()
+    split_count = prompt_splits(single=True)
+    principal = prompt_float("원금($)", 20000, minimum=0.01)
+    start_date = prompt_date("시작일", "2020-01-01")
+    end_date = prompt_date("종료일", datetime.now().strftime("%Y-%m-%d"))
+    simple = prompt_yes_no("단리로 실행할까요?", False)
+    default_csv = str(default_csv_path(symbol))
+    csv = prompt_text("가격 CSV 경로", default_csv, required=False)
+    json_out = prompt_text("결과 JSON 저장 경로(엔터=저장 안 함)", "", required=False)
+    return argparse.Namespace(
+        command=mode,
+        symbol=symbol,
+        split_count=split_count,
+        principal=principal,
+        start_date=start_date,
+        end_date=end_date,
+        simple=simple,
+        csv=csv or None,
+        json_out=json_out or None,
+    )
+
+
+def prompt_download_args() -> argparse.Namespace:
+    symbol = prompt_price_symbol()
+    start_date = prompt_date("시작일", "2020-01-01")
+    end_date = prompt_date("종료일", datetime.now().strftime("%Y-%m-%d"))
+    out = prompt_text("저장할 CSV 경로", str(default_csv_path(symbol)), required=False)
+    return argparse.Namespace(command="download", symbol=symbol, start_date=start_date, end_date=end_date, out=out or None)
+
+
+def prompt_random_args(report_mode: bool) -> argparse.Namespace:
+    symbols = prompt_symbols()
+    splits = prompt_splits(single=False)
+    count = prompt_int("종목/분할별 랜덤 샘플 수", 100, minimum=1)
+    principal = prompt_float("원금($)", 20000, minimum=0.01)
+    start_date = prompt_date("랜덤 기간 검색 시작일", "2020-01-01")
+    end_date = prompt_date("랜덤 기간 검색 종료일", datetime.now().strftime("%Y-%m-%d"))
+    min_days = prompt_int("최소 거래일 수", 60, minimum=6)
+    max_days_text = prompt_text("최대 거래일 수(엔터=전체 범위)", "", required=False)
+    while True:
+        try:
+            max_days = int(max_days_text) if max_days_text else None
+        except ValueError:
+            print("숫자로 입력해 주세요.")
+            max_days_text = prompt_text("최대 거래일 수(엔터=전체 범위)", "", required=False)
+            continue
+        if max_days is not None and max_days < min_days:
+            print("최대 거래일 수는 최소 거래일 수보다 크거나 같아야 합니다.")
+            max_days_text = prompt_text("최대 거래일 수(엔터=전체 범위)", "", required=False)
+            continue
+        break
+
+    seed_text = prompt_text("랜덤 시드(엔터=매번 랜덤)", "", required=False)
+    while True:
+        try:
+            seed = int(seed_text) if seed_text else None
+            break
+        except ValueError:
+            print("숫자로 입력해 주세요.")
+            seed_text = prompt_text("랜덤 시드(엔터=매번 랜덤)", "", required=False)
+
+    simple = prompt_yes_no("단리로 실행할까요?", False)
+    csv_dir = prompt_text("가격 CSV 폴더", str(ROOT / "data"), required=False)
+    json_out = prompt_text("결과 JSON 저장 경로(엔터=저장 안 함)", "", required=False)
+
+    if report_mode:
+        html_out = "auto"
+        open_html = prompt_yes_no("HTML 리포트를 자동으로 열까요?", True)
+        no_console = True
+        print_console = False
+    else:
+        save_html = prompt_yes_no("HTML 리포트도 저장할까요?", False)
+        html_out = "auto" if save_html else None
+        open_html = save_html and prompt_yes_no("HTML 리포트를 자동으로 열까요?", True)
+        no_console = not prompt_yes_no("상세 표를 터미널에 출력할까요?", count <= 20)
+        print_console = not no_console
+
+    return argparse.Namespace(
+        command="report" if report_mode else "rand",
+        symbols=symbols,
+        splits=splits,
+        count=count,
+        principal=principal,
+        start_date=start_date,
+        end_date=end_date,
+        min_days=min_days,
+        max_days=max_days,
+        seed=seed,
+        csv_dir=csv_dir or None,
+        simple=simple,
+        json_out=json_out or None,
+        html_out=html_out,
+        open_html=open_html,
+        no_open_html=not open_html,
+        no_console=no_console,
+        no_progress=False,
+        print_console=print_console,
+    )
+
+
+def run_interactive() -> None:
+    print("\nTQQQ/SOXL BackTest TUI")
+    print("======================")
+    while True:
+        choice = prompt_choice(
+            "실행할 작업",
+            [
+                ("1", "다운로드 + 백테스트 실행"),
+                ("2", "CSV로 백테스트 실행"),
+                ("3", "가격 다운로드만"),
+                ("4", "랜덤 기간 비교"),
+                ("5", "HTML 랜덤 비교 리포트"),
+                ("6", "명령어 도움말 보기"),
+                ("0", "종료"),
+            ],
+        )
+
+        if choice == "0":
+            print("종료합니다.")
+            return
+        if choice == "6":
+            build_parser().print_help()
+        else:
+            try:
+                if choice == "1":
+                    command_all(prompt_common_run_args("all"))
+                elif choice == "2":
+                    command_run(prompt_common_run_args("run"))
+                elif choice == "3":
+                    command_download(prompt_download_args())
+                elif choice == "4":
+                    command_random(prompt_random_args(report_mode=False))
+                elif choice == "5":
+                    command_random(prompt_random_args(report_mode=True))
+            except KeyboardInterrupt:
+                print("\n작업을 취소했습니다.")
+            except Exception as error:
+                print(f"\nError: {error}", file=sys.stderr)
+
+        if not prompt_yes_no("\n다른 작업을 계속할까요?", False):
+            print("종료합니다.")
+            return
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="TQQQ/SOXL backtest helper")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     download = subparsers.add_parser("download", help="download Yahoo daily prices to CSV")
-    download.add_argument("symbol", help="TQQQ or SOXL")
+    download.add_argument("symbol", help="TQQQ, SOXL, or QLD")
     download.add_argument("start_date", type=lambda value: parse_yyyy_mm_dd(value, "start_date"))
     download.add_argument("end_date", type=lambda value: parse_yyyy_mm_dd(value, "end_date"))
     download.add_argument("--out", help="output CSV path")
@@ -1039,6 +1420,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    if len(sys.argv) == 1:
+        try:
+            run_interactive()
+        except KeyboardInterrupt:
+            print("\n종료합니다.")
+        return
+
     parser = build_parser()
     args = parser.parse_args()
     try:

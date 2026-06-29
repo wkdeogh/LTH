@@ -35,7 +35,7 @@ except ImportError:
     print("python3 -m pip install PyQt6")
     raise
 
-from backtest import default_csv_path, download_prices, load_prices, print_result, simulate
+from backtest import BENCHMARK_SYMBOL, buy_and_hold_curve, default_csv_path, download_prices, filter_prices, load_prices, print_result, simulate
 
 
 @dataclass
@@ -62,7 +62,7 @@ class BacktestWorker(QObject):
     def run(self) -> None:
         try:
             output = io.StringIO()
-            chart_payload = {"close_points": [], "equity_points": []}
+            chart_payload = {"series": []}
             with contextlib.redirect_stdout(output):
                 if self.job.mode in {"download", "all"}:
                     print(f"Downloading {self.job.symbol} prices...")
@@ -73,10 +73,18 @@ class BacktestWorker(QObject):
                         self.job.csv_path,
                     )
                     print(f"Saved prices to {saved_path}\n")
+                    if self.job.symbol != BENCHMARK_SYMBOL:
+                        print(f"Downloading {BENCHMARK_SYMBOL} prices...")
+                        qld_path = download_prices(
+                            BENCHMARK_SYMBOL,
+                            self.job.start_date,
+                            self.job.end_date,
+                            default_csv_path(BENCHMARK_SYMBOL),
+                        )
+                        print(f"Saved prices to {qld_path}\n")
 
                 if self.job.mode in {"run", "all"}:
                     prices = load_prices(self.job.csv_path, self.job.start_date, self.job.end_date)
-                    chart_payload["close_points"] = [(price.date, price.close) for price in prices]
                     result = simulate(
                         self.job.symbol,
                         self.job.split_count,
@@ -84,9 +92,31 @@ class BacktestWorker(QObject):
                         self.job.compounding_type,
                         prices,
                     )
-                    chart_payload["equity_points"] = [
+                    strategy_points = [
                         (point["date"], point["equity"]) for point in result.get("equity_curve", [])
                     ]
+                    hold_points = [
+                        (point["date"], point["equity"]) for point in buy_and_hold_curve(self.job.principal, prices)
+                    ]
+                    chart_payload["series"] = [
+                        {"label": f"{self.job.symbol} 전략", "color": "#2563eb", "points": strategy_points},
+                        {"label": f"{self.job.symbol} 거치식", "color": "#0f766e", "points": hold_points},
+                    ]
+
+                    qld_csv_path = default_csv_path(BENCHMARK_SYMBOL)
+                    if not qld_csv_path.exists():
+                        print(f"Downloading {BENCHMARK_SYMBOL} prices...")
+                        qld_csv_path = download_prices(BENCHMARK_SYMBOL, self.job.start_date, self.job.end_date, qld_csv_path)
+                        print(f"Saved prices to {qld_csv_path}\n")
+                    qld_prices = filter_prices(load_prices(qld_csv_path, self.job.start_date, self.job.end_date), prices[0].date, prices[-1].date)
+                    if len(qld_prices) >= 2:
+                        qld_points = [
+                            (point["date"], point["equity"]) for point in buy_and_hold_curve(self.job.principal, qld_prices)
+                        ]
+                        chart_payload["series"].append({"label": f"{BENCHMARK_SYMBOL} 거치식", "color": "#c2410c", "points": qld_points})
+                    else:
+                        print(f"{BENCHMARK_SYMBOL} 가격 데이터가 부족해서 거치식 그래프는 생략했습니다.\n")
+
                     print_result(result)
 
                     if self.job.json_path:
@@ -111,10 +141,17 @@ class CloseChartWidget(QWidget):
         self.empty_text = empty_text
         self.line_color = line_color
         self.points: list[tuple[str, float]] = []
-        self.setMinimumHeight(190)
+        self.series: list[dict] = []
+        self.setMinimumHeight(360)
 
     def set_points(self, points: list[tuple[str, float]]) -> None:
         self.points = points
+        self.series = [{"label": self.title, "color": self.line_color, "points": points}]
+        self.update()
+
+    def set_series(self, series: list[dict]) -> None:
+        self.series = series
+        self.points = series[0].get("points", []) if series else []
         self.update()
 
     def paintEvent(self, event) -> None:
@@ -126,47 +163,60 @@ class CloseChartWidget(QWidget):
         painter.setPen(QPen(QColor("#e3d8c6"), 1))
         painter.drawRoundedRect(rect, 14, 14)
 
-        if not self.points:
+        non_empty_series = [item for item in self.series if item.get("points")]
+        if not non_empty_series:
             painter.setPen(QColor("#756b5d"))
             painter.setFont(QFont("Arial", 12))
-            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "백테스트를 실행하면 종가 차트가 표시됩니다.")
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, self.empty_text)
             return
 
-        prices = [price for _, price in self.points]
+        prices = [price for item in non_empty_series for _, price in item.get("points", [])]
         min_price = min(prices)
         max_price = max(prices)
         if min_price == max_price:
             min_price *= 0.99
             max_price *= 1.01
 
-        chart = rect.adjusted(56, 28, -18, -42)
+        chart = rect.adjusted(72, 54, -18, -48)
         painter.setPen(QPen(QColor("#e3d8c6"), 1))
         for index in range(5):
             y = chart.top() + chart.height() * index / 4
             painter.drawLine(chart.left(), int(y), chart.right(), int(y))
 
-        polygon = QPolygonF()
-        for index, (_, price) in enumerate(self.points):
-            x = chart.left() if len(self.points) == 1 else chart.left() + chart.width() * index / (len(self.points) - 1)
-            y = chart.bottom() - (price - min_price) / (max_price - min_price) * chart.height()
-            polygon.append(QPointF(x, y))
+        for item in non_empty_series:
+            points = item.get("points", [])
+            polygon = QPolygonF()
+            for index, (_, price) in enumerate(points):
+                x = chart.left() if len(points) == 1 else chart.left() + chart.width() * index / (len(points) - 1)
+                y = chart.bottom() - (price - min_price) / (max_price - min_price) * chart.height()
+                polygon.append(QPointF(x, y))
 
-        painter.setPen(QPen(QColor(self.line_color), 2.4))
-        painter.drawPolyline(polygon)
+            painter.setPen(QPen(QColor(item.get("color", self.line_color)), 2.4))
+            painter.drawPolyline(polygon)
 
-        first_date = self.points[0][0]
-        last_date = self.points[-1][0]
-        start_price = self.points[0][1]
-        end_price = self.points[-1][1]
-        change_rate = ((end_price - start_price) / start_price) * 100 if start_price else 0
+        first_points = non_empty_series[0].get("points", [])
+        first_date = first_points[0][0]
+        last_date = first_points[-1][0]
 
         painter.setPen(QColor("#1e1a14"))
         painter.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        painter.drawText(rect.adjusted(16, 8, -16, -8), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, "종가 차트")
-
-        painter.fillRect(rect.left() + 12, rect.top() + 4, 180, 28, QColor("#fffaf2"))
-        painter.setPen(QColor("#1e1a14"))
         painter.drawText(rect.adjusted(16, 8, -16, -8), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, self.title)
+
+        legend_x = rect.left() + 16
+        legend_y = rect.top() + 34
+        painter.setFont(QFont("Arial", 10))
+        for item in non_empty_series:
+            points = item.get("points", [])
+            if not points:
+                continue
+            start_value = points[0][1]
+            end_value = points[-1][1]
+            change_rate = ((end_value - start_value) / start_value) * 100 if start_value else 0
+            painter.setPen(QPen(QColor(item.get("color", self.line_color)), 3))
+            painter.drawLine(legend_x, legend_y + 6, legend_x + 18, legend_y + 6)
+            painter.setPen(QColor("#1e1a14"))
+            painter.drawText(legend_x + 24, legend_y + 11, f"{item.get('label', '')} {end_value:,.2f} ({change_rate:+.2f}%)")
+            legend_x += 230
 
         painter.setPen(QColor("#756b5d"))
         painter.setFont(QFont("Arial", 10))
@@ -174,12 +224,9 @@ class CloseChartWidget(QWidget):
         painter.drawText(chart.left(), chart.bottom() + 24, 80, 20, Qt.AlignmentFlag.AlignLeft.value, first_date[5:])
         painter.drawText(chart.right() - 80, chart.bottom() + 24, 80, 20, Qt.AlignmentFlag.AlignRight.value, last_date[5:])
 
-        painter.setPen(QColor("#1e1a14"))
-        painter.drawText(rect.adjusted(16, rect.height() - 30, -16, -8), Qt.AlignmentFlag.AlignRight, f"{end_price:,.2f} ({change_rate:+.2f}%)")
-
         painter.setPen(QColor("#756b5d"))
-        painter.drawText(18, chart.top() + 5, f"{max_price:,.2f}")
-        painter.drawText(18, chart.bottom(), f"{min_price:,.2f}")
+        painter.drawText(18, chart.top() + 5, f"{max_price:,.0f}")
+        painter.drawText(18, chart.bottom(), f"{min_price:,.0f}")
 
 
 class BacktestWindow(QMainWindow):
@@ -271,10 +318,8 @@ class BacktestWindow(QMainWindow):
         button_grid.addWidget(self.clear_button, 0, 3)
         left_layout.addLayout(button_grid)
 
-        self.chart = CloseChartWidget("종가 차트", line_color="#1c6b4f")
-        left_layout.addWidget(self.chart, 1)
-        self.equity_chart = CloseChartWidget("백테스트 평가금액", line_color="#2563eb")
-        left_layout.addWidget(self.equity_chart, 1)
+        self.chart = CloseChartWidget("평가금액 비교", "백테스트를 실행하면 전략/거치식 비교 그래프가 표시됩니다.", line_color="#2563eb")
+        left_layout.addWidget(self.chart, 2)
 
         self.output = QTextEdit()
         self.output.setReadOnly(True)
@@ -358,12 +403,9 @@ class BacktestWindow(QMainWindow):
 
     def handle_success(self, text: str, chart_payload: dict) -> None:
         self.output.append(text)
-        close_points = chart_payload.get("close_points", []) if isinstance(chart_payload, dict) else []
-        equity_points = chart_payload.get("equity_points", []) if isinstance(chart_payload, dict) else []
-        if close_points:
-            self.chart.set_points(close_points)
-        if equity_points:
-            self.equity_chart.set_points(equity_points)
+        series = chart_payload.get("series", []) if isinstance(chart_payload, dict) else []
+        if series:
+            self.chart.set_series(series)
         self.output.append(">>> 완료\n")
 
     def handle_failure(self, text: str) -> None:
