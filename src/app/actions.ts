@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { Execution, SplitCount, Strategy, TEffect } from '@/lib/types';
 import { toNumber, toStrategyState } from '@/lib/types';
 import { applyTEffect } from '@/lib/trading';
+import { roundMoney, roundPrice } from '@/lib/trading/rounding';
 
 function supabaseOrThrow() {
   const supabase = createSupabaseServerClient();
@@ -198,9 +199,24 @@ export async function recordExecution(formData: FormData) {
   const computedT = applyTEffect(state.tValue, effect, state.splitCount);
   const finalT = stringValue(formData, 'final_t_value') ? numberValue(formData, 'final_t_value') : computedT;
   const finalMode = stringValue(formData, 'final_mode', state.mode);
-  const finalCashBalance = numberValue(formData, 'final_cash_balance');
-  const finalPositionQty = intValue(formData, 'final_position_qty');
-  const finalAvgPrice = numberValue(formData, 'final_avg_price');
+  const quantity = intValue(formData, 'quantity');
+  const avgExecutionPrice = numberValue(formData, 'avg_execution_price');
+  const totalAmount = roundMoney(quantity * avgExecutionPrice);
+  const autoCashBalance = side === 'buy'
+    ? roundMoney(state.cashBalance - totalAmount)
+    : roundMoney(state.cashBalance + totalAmount);
+  const autoPositionQty = side === 'buy'
+    ? state.positionQty + quantity
+    : Math.max(state.positionQty - quantity, 0);
+  const autoAvgPrice = side === 'buy' && autoPositionQty > 0
+    ? roundPrice((state.avgPrice * state.positionQty + totalAmount) / autoPositionQty)
+    : autoPositionQty > 0
+      ? state.avgPrice
+      : 0;
+  const useFinalState = formData.get('use_final_state') === 'on';
+  const finalCashBalance = useFinalState ? numberValue(formData, 'final_cash_balance') : autoCashBalance;
+  const finalPositionQty = useFinalState ? intValue(formData, 'final_position_qty') : autoPositionQty;
+  const finalAvgPrice = useFinalState ? numberValue(formData, 'final_avg_price') : autoAvgPrice;
   const isCompletedRound = side === 'sell' && state.positionQty > 0 && finalPositionQty === 0;
 
   await supabase.from('strategy_snapshots').insert({
@@ -214,9 +230,6 @@ export async function recordExecution(formData: FormData) {
     note: '체결 입력 전 상태',
   });
 
-  const quantity = intValue(formData, 'quantity');
-  const avgExecutionPrice = numberValue(formData, 'avg_execution_price');
-
   const { error: executionError } = await supabase.from('executions').insert({
     strategy_id: strategyId,
     executed_at: executedAt,
@@ -224,7 +237,7 @@ export async function recordExecution(formData: FormData) {
     order_type: stringValue(formData, 'order_type'),
     quantity,
     avg_execution_price: avgExecutionPrice,
-    total_amount: quantity * avgExecutionPrice,
+    total_amount: totalAmount,
     t_effect: effect,
     memo: stringValue(formData, 'memo') || null,
   });

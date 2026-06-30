@@ -252,6 +252,21 @@ label {
   min-width: 0;
 }
 
+.checkbox-label {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  justify-self: start;
+}
+
+.checkbox-label input[type="checkbox"] {
+  appearance: auto;
+  accent-color: var(--accent);
+  height: 16px;
+  padding: 0;
+  width: 16px;
+}
+
 input,
 select,
 textarea {
