@@ -30,6 +30,8 @@ function effectLabel(effect: TEffect | null) {
       return '절반 매수';
     case 'quarter_sell':
       return '쿼터매도';
+    case 'full_sell':
+      return '전량매도';
     case 'limit_sell_then_full_buy':
       return '지정가매도+1회매수';
     case 'limit_sell_then_half_buy':

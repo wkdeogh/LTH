@@ -58,7 +58,7 @@ create table if not exists executions (
   quantity integer not null check (quantity > 0),
   avg_execution_price numeric(18, 4) not null,
   total_amount numeric(18, 4) not null,
-  t_effect text check (t_effect in ('buy_full', 'buy_half', 'quarter_sell', 'limit_sell_then_full_buy', 'limit_sell_then_half_buy', 'reverse_buy', 'reverse_sell', 'none')),
+  t_effect text check (t_effect in ('buy_full', 'buy_half', 'quarter_sell', 'full_sell', 'limit_sell_then_full_buy', 'limit_sell_then_half_buy', 'reverse_buy', 'reverse_sell', 'none')),
   memo text,
   created_at timestamptz not null default now()
 );
@@ -87,6 +87,9 @@ create table if not exists completed_rounds (
 
 alter table strategies drop constraint if exists strategies_symbol_check;
 alter table strategies add constraint strategies_symbol_check check (symbol in ('TQQQ', 'SOXL', 'RAM'));
+
+alter table executions drop constraint if exists executions_t_effect_check;
+alter table executions add constraint executions_t_effect_check check (t_effect in ('buy_full', 'buy_half', 'quarter_sell', 'full_sell', 'limit_sell_then_full_buy', 'limit_sell_then_half_buy', 'reverse_buy', 'reverse_sell', 'none'));
 
 alter table executions add column if not exists round_id uuid;
 do $$

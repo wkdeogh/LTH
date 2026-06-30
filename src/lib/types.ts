@@ -8,6 +8,7 @@ export type TEffect =
   | 'buy_full'
   | 'buy_half'
   | 'quarter_sell'
+  | 'full_sell'
   | 'limit_sell_then_full_buy'
   | 'limit_sell_then_half_buy'
   | 'reverse_buy'

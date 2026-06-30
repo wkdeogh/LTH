@@ -22,6 +22,7 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
     ['buy_full', '일반모드 1회 매수: T + 1'],
     ['buy_half', '일반모드 절반 매수: T + 0.5'],
     ['quarter_sell', '쿼터매도: T × 0.75'],
+    ['full_sell', '전량매도: T = 0'],
     ['limit_sell_then_full_buy', '지정가매도 후 LOC 1회 매수: T × 0.25 + 1'],
     ['limit_sell_then_half_buy', '지정가매도 후 LOC 절반 매수: T × 0.25 + 0.5'],
     ['reverse_sell', '리버스 매도'],

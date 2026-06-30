@@ -9,6 +9,8 @@ export function applyTEffect(tValue: number, effect: TEffect, splitCount: SplitC
       return roundT(tValue + 0.5);
     case 'quarter_sell':
       return roundT(tValue * 0.75);
+    case 'full_sell':
+      return 0;
     case 'limit_sell_then_full_buy':
       return roundT(tValue * 0.25 + 1);
     case 'limit_sell_then_half_buy':
