@@ -197,8 +197,6 @@ export async function recordExecution(formData: FormData) {
   const state = toStrategyState(strategy);
   const effect = stringValue(formData, 't_effect', 'none') as TEffect;
   const computedT = applyTEffect(state.tValue, effect, state.splitCount);
-  const finalT = stringValue(formData, 'final_t_value') ? numberValue(formData, 'final_t_value') : computedT;
-  const finalMode = stringValue(formData, 'final_mode', state.mode);
   const quantity = intValue(formData, 'quantity');
   const avgExecutionPrice = numberValue(formData, 'avg_execution_price');
   const totalAmount = roundMoney(quantity * avgExecutionPrice);
@@ -214,9 +212,15 @@ export async function recordExecution(formData: FormData) {
       ? state.avgPrice
       : 0;
   const useFinalState = formData.get('use_final_state') === 'on';
-  const finalCashBalance = useFinalState ? numberValue(formData, 'final_cash_balance') : autoCashBalance;
-  const finalPositionQty = useFinalState ? intValue(formData, 'final_position_qty') : autoPositionQty;
-  const finalAvgPrice = useFinalState ? numberValue(formData, 'final_avg_price') : autoAvgPrice;
+  const finalT = useFinalState && stringValue(formData, 'final_t_value') ? numberValue(formData, 'final_t_value') : computedT;
+  const finalMode = useFinalState ? stringValue(formData, 'final_mode', state.mode) : state.mode;
+  const finalCashBalance = autoCashBalance;
+  const finalPositionQty = useFinalState && stringValue(formData, 'final_position_qty')
+    ? intValue(formData, 'final_position_qty')
+    : autoPositionQty;
+  const finalAvgPrice = useFinalState && stringValue(formData, 'final_avg_price')
+    ? numberValue(formData, 'final_avg_price')
+    : autoAvgPrice;
   const isCompletedRound = side === 'sell' && state.positionQty > 0 && finalPositionQty === 0;
 
   await supabase.from('strategy_snapshots').insert({

@@ -71,12 +71,11 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
 
           <h3>체결 후 최종 상태</h3>
           <label className="checkbox-label"><input name="use_final_state" type="checkbox" /> 최종 상태를 직접 수정해서 반영</label>
-          <p className="muted">체크하지 않으면 위 체결 수량과 평균 체결가만으로 현금, 보유수량, 평단을 자동 계산합니다.</p>
+          <p className="muted">현금은 위 체결 수량과 평균 체결가만으로 자동 계산합니다. 체크 후 빈칸으로 둔 항목도 자동 계산값을 유지합니다.</p>
           <p className="muted">매도 체결 후 최종 보유수량을 0으로 저장하면 해당 라운드는 자동 종료되고 전략 기록에 남습니다.</p>
           <div className="form-grid">
-            <label>최종 현금($)<input name="final_cash_balance" type="number" step="0.0001" defaultValue={state.cashBalance} /></label>
-            <label>최종 보유수량<input name="final_position_qty" type="number" defaultValue={state.positionQty} /></label>
-            <label>최종 평단($)<input name="final_avg_price" type="number" step="0.0001" defaultValue={state.avgPrice} /></label>
+            <label>최종 보유수량<input name="final_position_qty" type="number" placeholder="비우면 자동 계산" /></label>
+            <label>최종 평단($)<input name="final_avg_price" type="number" step="0.0001" placeholder="비우면 자동 계산" /></label>
             <label>최종 T값<input name="final_t_value" type="number" step="0.0000000001" placeholder="비우면 T 반영 방식으로 자동 계산" /></label>
             <label>최종 모드<select name="final_mode" defaultValue={state.mode}><option value="normal">일반모드</option><option value="reverse">리버스모드</option></select></label>
           </div>
