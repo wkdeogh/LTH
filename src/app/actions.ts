@@ -5,8 +5,8 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { Execution, SplitCount, Strategy, TEffect } from '@/lib/types';
 import { toNumber, toStrategyState } from '@/lib/types';
-import { applyTEffect } from '@/lib/trading';
-import { roundMoney, roundPrice } from '@/lib/trading/rounding';
+import { applyTEffect, calculateRoundPerformance } from '@/lib/trading';
+import { roundMoney } from '@/lib/trading/rounding';
 
 function supabaseOrThrow() {
   const supabase = createSupabaseServerClient();
@@ -30,10 +30,35 @@ function intValue(formData: FormData, key: string, fallback = 0) {
   return Math.trunc(numberValue(formData, key, fallback));
 }
 
+function internalReturnPath(formData: FormData) {
+  const path = stringValue(formData, 'return_to', '/rounds');
+  return path.startsWith('/') && !path.startsWith('//') ? path : '/rounds';
+}
+
 export async function createStrategy(formData: FormData) {
   const supabase = supabaseOrThrow();
   const principal = numberValue(formData, 'principal');
   const cashBalance = numberValue(formData, 'cash_balance', principal);
+  const positionQty = intValue(formData, 'position_qty');
+  const avgPrice = numberValue(formData, 'avg_price');
+  const tValue = numberValue(formData, 't_value');
+
+  if (principal <= 0) throw new Error('원금은 0보다 커야 합니다.');
+  if (cashBalance < 0 || positionQty < 0 || avgPrice < 0 || tValue < 0) {
+    throw new Error('현금, 보유수량, 평단, T값은 음수일 수 없습니다.');
+  }
+  if (positionQty > 0 && avgPrice <= 0) throw new Error('보유수량이 있으면 평단을 입력해야 합니다.');
+
+  const { data: lastStrategy, error: sortError } = await supabase
+    .from('strategies')
+    .select('sort_order')
+    .eq('is_archived', false)
+    .order('sort_order', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<{ sort_order: number }>();
+
+  if (sortError) throw sortError;
 
   const { data, error } = await supabase
     .from('strategies')
@@ -43,11 +68,12 @@ export async function createStrategy(formData: FormData) {
       split_count: intValue(formData, 'split_count', 40),
       principal,
       cash_balance: cashBalance,
-      position_qty: intValue(formData, 'position_qty'),
-      avg_price: numberValue(formData, 'avg_price'),
-      t_value: numberValue(formData, 't_value'),
+      position_qty: positionQty,
+      avg_price: avgPrice,
+      t_value: tValue,
       mode: stringValue(formData, 'mode', 'normal'),
       compounding_type: stringValue(formData, 'compounding_type', 'compound'),
+      sort_order: (lastStrategy?.sort_order ?? -1) + 1,
     })
     .select('id')
     .single();
@@ -61,6 +87,17 @@ export async function createStrategy(formData: FormData) {
 export async function updateStrategy(formData: FormData) {
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');
+  const principal = numberValue(formData, 'principal');
+  const cashBalance = numberValue(formData, 'cash_balance');
+  const positionQty = intValue(formData, 'position_qty');
+  const avgPrice = numberValue(formData, 'avg_price');
+  const tValue = numberValue(formData, 't_value');
+
+  if (principal <= 0) throw new Error('원금은 0보다 커야 합니다.');
+  if (cashBalance < 0 || positionQty < 0 || avgPrice < 0 || tValue < 0) {
+    throw new Error('현금, 보유수량, 평단, T값은 음수일 수 없습니다.');
+  }
+  if (positionQty > 0 && avgPrice <= 0) throw new Error('보유수량이 있으면 평단을 입력해야 합니다.');
 
   const { error } = await supabase
     .from('strategies')
@@ -68,11 +105,11 @@ export async function updateStrategy(formData: FormData) {
       name: stringValue(formData, 'name'),
       symbol: stringValue(formData, 'symbol'),
       split_count: intValue(formData, 'split_count') as SplitCount,
-      principal: numberValue(formData, 'principal'),
-      cash_balance: numberValue(formData, 'cash_balance'),
-      position_qty: intValue(formData, 'position_qty'),
-      avg_price: numberValue(formData, 'avg_price'),
-      t_value: numberValue(formData, 't_value'),
+      principal,
+      cash_balance: cashBalance,
+      position_qty: positionQty,
+      avg_price: avgPrice,
+      t_value: tValue,
       mode: stringValue(formData, 'mode'),
       updated_at: new Date().toISOString(),
     })
@@ -101,6 +138,8 @@ export async function addDailyPrice(formData: FormData) {
   const strategyId = stringValue(formData, 'strategy_id');
   const tradeDate = stringValue(formData, 'trade_date', new Date().toISOString().slice(0, 10));
   const closePrice = numberValue(formData, 'close_price');
+
+  if (closePrice <= 0) throw new Error('종가는 0보다 커야 합니다.');
 
   const { error } = await supabase.from('daily_prices').upsert({
     strategy_id: strategyId,
@@ -199,7 +238,17 @@ export async function recordExecution(formData: FormData) {
   const computedT = applyTEffect(state.tValue, effect, state.splitCount);
   const quantity = intValue(formData, 'quantity');
   const avgExecutionPrice = numberValue(formData, 'avg_execution_price');
+
+  if (quantity <= 0) throw new Error('체결 수량은 1주 이상이어야 합니다.');
+  if (avgExecutionPrice <= 0) throw new Error('평균 체결가는 0보다 커야 합니다.');
+  if (side === 'sell' && quantity > state.positionQty) {
+    throw new Error(`매도 수량(${quantity}주)이 현재 보유수량(${state.positionQty}주)을 초과합니다.`);
+  }
+
   const totalAmount = roundMoney(quantity * avgExecutionPrice);
+  if (side === 'buy' && totalAmount > state.cashBalance) {
+    throw new Error(`매수금액(${totalAmount})이 현재 현금(${state.cashBalance})을 초과합니다.`);
+  }
   const autoCashBalance = side === 'buy'
     ? roundMoney(state.cashBalance - totalAmount)
     : roundMoney(state.cashBalance + totalAmount);
@@ -207,7 +256,7 @@ export async function recordExecution(formData: FormData) {
     ? state.positionQty + quantity
     : Math.max(state.positionQty - quantity, 0);
   const autoAvgPrice = side === 'buy' && autoPositionQty > 0
-    ? roundPrice((state.avgPrice * state.positionQty + totalAmount) / autoPositionQty)
+    ? roundMoney((state.avgPrice * state.positionQty + totalAmount) / autoPositionQty)
     : autoPositionQty > 0
       ? state.avgPrice
       : 0;
@@ -221,6 +270,14 @@ export async function recordExecution(formData: FormData) {
   const finalAvgPrice = useFinalState && stringValue(formData, 'final_avg_price')
     ? numberValue(formData, 'final_avg_price')
     : autoAvgPrice;
+
+  if (finalPositionQty < 0 || finalAvgPrice < 0 || finalT < 0) {
+    throw new Error('체결 후 보유수량, 평단, T값은 음수일 수 없습니다.');
+  }
+  if (finalPositionQty > 0 && finalAvgPrice <= 0) {
+    throw new Error('체결 후 보유수량이 있으면 평단은 0보다 커야 합니다.');
+  }
+
   const isCompletedRound = side === 'sell' && state.positionQty > 0 && finalPositionQty === 0;
 
   await supabase.from('strategy_snapshots').insert({
@@ -264,11 +321,10 @@ export async function recordExecution(formData: FormData) {
     const executions = activeExecutions ?? [];
     const buyExecutions = executions.filter((execution) => execution.side === 'buy');
     const sellExecutions = executions.filter((execution) => execution.side === 'sell');
-    const totalBuyAmount = buyExecutions.reduce((sum, execution) => sum + toNumber(execution.total_amount), 0);
-    const totalSellAmount = sellExecutions.reduce((sum, execution) => sum + toNumber(execution.total_amount), 0);
+    const totalBuyAmount = roundMoney(buyExecutions.reduce((sum, execution) => sum + toNumber(execution.total_amount), 0));
+    const totalSellAmount = roundMoney(sellExecutions.reduce((sum, execution) => sum + toNumber(execution.total_amount), 0));
     const startedPrincipal = state.principal;
-    const profitAmount = finalCashBalance - startedPrincipal;
-    const profitRate = startedPrincipal > 0 ? (profitAmount / startedPrincipal) * 100 : 0;
+    const { profitAmount, profitRate } = calculateRoundPerformance(startedPrincipal, finalCashBalance);
 
     const { data: lastRound, error: lastRoundError } = await supabase
       .from('completed_rounds')
@@ -343,4 +399,78 @@ export async function recordExecution(formData: FormData) {
   revalidatePath(`/strategies/${strategyId}`);
   revalidatePath(`/strategies/${strategyId}/rounds`);
   redirect(`/strategies/${strategyId}`);
+}
+
+export async function updateCompletedRound(formData: FormData) {
+  const supabase = supabaseOrThrow();
+  const id = stringValue(formData, 'id');
+  const strategyId = stringValue(formData, 'strategy_id');
+  const startedAt = stringValue(formData, 'started_at');
+  const endedAt = stringValue(formData, 'ended_at');
+  const startedPrincipal = numberValue(formData, 'started_principal');
+  const endingCashBalance = numberValue(formData, 'ending_cash_balance');
+  const totalBuyAmount = numberValue(formData, 'total_buy_amount');
+  const totalSellAmount = numberValue(formData, 'total_sell_amount');
+  const endingTValue = numberValue(formData, 'ending_t_value');
+
+  if (!id || !strategyId) throw new Error('수정할 완료 기록을 찾을 수 없습니다.');
+  if (!startedAt || !endedAt || startedAt > endedAt) {
+    throw new Error('종료일은 시작일과 같거나 이후여야 합니다.');
+  }
+  if (totalBuyAmount < 0 || totalSellAmount < 0 || endingTValue < 0) {
+    throw new Error('매수·매도 합계와 종료 T값은 음수일 수 없습니다.');
+  }
+
+  const { profitAmount, profitRate } = calculateRoundPerformance(startedPrincipal, endingCashBalance);
+  const { error } = await supabase
+    .from('completed_rounds')
+    .update({
+      started_at: startedAt,
+      ended_at: endedAt,
+      started_principal: roundMoney(startedPrincipal),
+      ending_cash_balance: roundMoney(endingCashBalance),
+      profit_amount: profitAmount,
+      profit_rate: profitRate,
+      total_buy_amount: roundMoney(totalBuyAmount),
+      total_sell_amount: roundMoney(totalSellAmount),
+      ending_t_value: endingTValue,
+    })
+    .eq('id', id)
+    .eq('strategy_id', strategyId);
+
+  if (error) throw error;
+
+  revalidatePath('/');
+  revalidatePath('/rounds');
+  revalidatePath(`/strategies/${strategyId}/rounds`);
+  redirect(internalReturnPath(formData));
+}
+
+export async function deleteCompletedRound(formData: FormData) {
+  const supabase = supabaseOrThrow();
+  const id = stringValue(formData, 'id');
+  const strategyId = stringValue(formData, 'strategy_id');
+
+  if (!id || !strategyId) throw new Error('삭제할 완료 기록을 찾을 수 없습니다.');
+
+  const { error: executionError } = await supabase
+    .from('executions')
+    .delete()
+    .eq('round_id', id)
+    .eq('strategy_id', strategyId);
+
+  if (executionError) throw executionError;
+
+  const { error: roundError } = await supabase
+    .from('completed_rounds')
+    .delete()
+    .eq('id', id)
+    .eq('strategy_id', strategyId);
+
+  if (roundError) throw roundError;
+
+  revalidatePath('/');
+  revalidatePath('/rounds');
+  revalidatePath(`/strategies/${strategyId}/rounds`);
+  redirect(internalReturnPath(formData));
 }

@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test:calculations": "tsx --test src/lib/trading/calculations.test.ts",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },
@@ -19,6 +20,7 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "tsx": "^4.23.1",
     "typescript": "latest"
   }
 }

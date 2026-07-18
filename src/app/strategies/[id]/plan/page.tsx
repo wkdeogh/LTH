@@ -5,9 +5,17 @@ import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { DailyPrice, Strategy } from '@/lib/types';
-import { toNumber, toStrategyState } from '@/lib/types';
-import { calculateNormalPlan, calculateReversePlan, modeLabel, phaseLabel } from '@/lib/trading';
+import type { DailyPrice, Execution, Strategy } from '@/lib/types';
+import { toStrategyState } from '@/lib/types';
+import {
+  buildMarketReferenceHistory,
+  calculateNormalPlan,
+  calculatePositionPerformance,
+  calculateReversePlan,
+  modeLabel,
+  phaseLabel,
+  referenceSourceLabel,
+} from '@/lib/trading';
 
 function OrderTable({ title, orders }: { title: string; orders: Array<{ label: string; orderType: string; price: number | null; quantity: number; amount?: number; note: string }> }) {
   return (
@@ -44,39 +52,58 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();
 
-  const { data: prices } = await supabase!
-    .from('daily_prices')
-    .select('*')
-    .eq('strategy_id', id)
-    .order('trade_date', { ascending: false })
-    .limit(5)
-    .returns<DailyPrice[]>();
+  const [priceResult, executionResult] = await Promise.all([
+    supabase!
+      .from('daily_prices')
+      .select('*')
+      .eq('strategy_id', id)
+      .order('trade_date', { ascending: false })
+      .limit(7)
+      .returns<DailyPrice[]>(),
+    supabase!
+      .from('executions')
+      .select('*')
+      .eq('strategy_id', id)
+      .order('executed_at', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .returns<Execution[]>(),
+  ]);
 
   const state = toStrategyState(strategy);
-  const recentCloses = (prices ?? []).map((price) => toNumber(price.close_price));
-  const latestSavedClose = recentCloses[0];
+  const references = buildMarketReferenceHistory(priceResult.data ?? [], executionResult.data ?? []);
+  const recentCloses = references.slice(0, 5).map((reference) => reference.price);
+  const currentReference = references[0];
+  const performance = calculatePositionPerformance(state.positionQty, state.avgPrice, currentReference?.price);
   const plan = state.mode === 'normal'
-    ? calculateNormalPlan(state)
-    : calculateReversePlan(state, recentCloses, latestSavedClose);
+    ? calculateNormalPlan(state, currentReference?.price)
+    : calculateReversePlan(state, recentCloses, currentReference?.price);
 
   return (
-    <div className="stack">
-      <section className="hero">
+    <div className="stack page-stack">
+      <section className="hero compact-hero">
+        <span className="eyebrow">TODAY&apos;S ORDER</span>
         <h1>{strategy.name}</h1>
+        <p>저장된 현재 상태를 기준으로 주문 수량과 가격을 계산했습니다.</p>
       </section>
 
       <StrategyTabs strategyId={id} active="plan" />
 
       <section className="panel summary-panel">
-        <h2>계산 기준</h2>
-        <div className="stat-grid">
+        <div className="section-head">
+          <div><span className="eyebrow">CALCULATION BASE</span><h2>계산 기준</h2></div>
+          <span className="subtle-label">{modeLabel(state.mode)}</span>
+        </div>
+        <div className="metric-grid">
           <div className="stat"><span>모드</span><strong>{modeLabel(state.mode)}</strong></div>
           <div className="stat"><span>T값</span><strong>{compact(state.tValue)}</strong></div>
           <div className="stat"><span>현금</span><strong>{usd(state.cashBalance)}</strong></div>
           <div className="stat"><span>보유수량</span><strong>{state.positionQty}주</strong></div>
           <div className="stat"><span>평단</span><strong>{usd(state.avgPrice)}</strong></div>
+          <div className="stat"><span>현재 기준가</span><strong>{currentReference ? usd(currentReference.price) : '-'}</strong><small>{referenceSourceLabel(currentReference?.source)}</small></div>
+          <div className="stat"><span>현재 수익률</span><strong className={performance.profitRate !== null && performance.profitRate < 0 ? 'profit-negative' : 'profit-positive'}>{performance.profitRate === null ? '-' : `${performance.profitRate >= 0 ? '+' : ''}${compact(performance.profitRate, 2)}%`}</strong></div>
           {state.mode === 'reverse' && (
-            <div className="stat"><span>5일평균 데이터</span><strong>{recentCloses.length}/5개</strong></div>
+            <div className="stat"><span>5일 기준가 데이터</span><strong>{recentCloses.length}/5개</strong></div>
           )}
         </div>
       </section>
@@ -100,7 +127,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
             <div className="stat"><span>첫날 여부</span><strong>{plan.isFirstDay ? '첫날' : '둘째 날 이후'}</strong></div>
             <div className="stat"><span>5일 평균</span><strong>{plan.referencePrice ? usd(plan.referencePrice) : '-'}</strong></div>
             <div className="stat"><span>매수금</span><strong>{usd(plan.buyBudget)}</strong></div>
-            <div className="stat"><span>최신 저장 종가</span><strong>{latestSavedClose ? usd(latestSavedClose) : '-'}</strong></div>
+            <div className="stat"><span>현재 기준가</span><strong>{currentReference ? usd(currentReference.price) : '-'}</strong></div>
             <div className="stat"><span>복귀 조건</span><strong>{plan.returnToNormal ? '충족' : '미충족'}</strong></div>
           </div>
           {plan.returnToNormal && <form action={switchToNormal} style={{ marginTop: 12 }}><input type="hidden" name="id" value={id} /><button type="submit">일반모드로 복귀 저장</button></form>}

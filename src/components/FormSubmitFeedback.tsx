@@ -29,7 +29,8 @@ export function FormSubmitFeedback() {
       if (!(submitter instanceof HTMLButtonElement)) return;
 
       if (submitter.classList.contains('danger')) {
-        const ok = window.confirm('정말 이 전략을 삭제할까요? 삭제한 전략은 목록에서 숨겨집니다.');
+        const message = submitter.dataset.confirm ?? '정말 이 전략을 삭제할까요? 삭제한 전략은 목록에서 숨겨집니다.';
+        const ok = window.confirm(message);
         if (!ok) {
           event.preventDefault();
           return;

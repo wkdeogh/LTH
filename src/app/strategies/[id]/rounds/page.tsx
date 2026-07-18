@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { compact, usd } from '@/components/Format';
+import { CompletedRoundEditor } from '@/components/CompletedRoundEditor';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
@@ -79,9 +80,11 @@ export default async function StrategyRoundsPage({ params }: { params: Promise<{
   }
 
   return (
-    <div className="stack">
-      <section className="hero">
+    <div className="stack page-stack">
+      <section className="hero compact-hero">
+        <span className="eyebrow">ROUND HISTORY</span>
         <h1>{strategy.name} 전략 기록</h1>
+        <p>완료된 라운드의 수익과 체결 내역을 확인할 수 있습니다.</p>
       </section>
 
       <StrategyTabs strategyId={id} active="rounds" />
@@ -95,6 +98,7 @@ export default async function StrategyRoundsPage({ params }: { params: Promise<{
           <section className="panel" key={round.id}>
             <div className="title-row">
               <div>
+                <span className="eyebrow">COMPLETED</span>
                 <h2>{round.round_number}라운드</h2>
                 <p className="muted">{round.started_at} ~ {round.ended_at} · {daysBetween(round.started_at, round.ended_at)}일 · {round.symbol} {round.split_count}분할</p>
               </div>
@@ -134,6 +138,8 @@ export default async function StrategyRoundsPage({ params }: { params: Promise<{
                 </div>
               ) : <p className="muted">연결된 체결 내역이 없습니다.</p>}
             </details>
+
+            <CompletedRoundEditor round={round} returnPath={`/strategies/${id}/rounds`} />
           </section>
         );
       }) : (

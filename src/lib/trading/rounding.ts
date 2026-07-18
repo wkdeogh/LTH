@@ -3,17 +3,24 @@ export function floorShares(value: number) {
   return Math.floor(value);
 }
 
-export function roundPrice(value: number) {
+function roundTo(value: number, digits: number) {
   if (!Number.isFinite(value)) return 0;
-  return Math.round(value * 100) / 100;
+  const factor = 10 ** digits;
+  return Math.round((value + Number.EPSILON) * factor) / factor;
+}
+
+export function roundPrice(value: number) {
+  return roundTo(value, 2);
 }
 
 export function roundMoney(value: number) {
-  if (!Number.isFinite(value)) return 0;
-  return Math.round(value * 10000) / 10000;
+  return roundTo(value, 4);
+}
+
+export function roundRate(value: number) {
+  return roundTo(value, 8);
 }
 
 export function roundT(value: number) {
-  if (!Number.isFinite(value)) return 0;
-  return Math.round(value * 10000000000) / 10000000000;
+  return roundTo(value, 10);
 }

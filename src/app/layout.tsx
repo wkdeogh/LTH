@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { FormSubmitFeedback } from '@/components/FormSubmitFeedback';
 import './globals.css';
@@ -6,6 +6,13 @@ import './globals.css';
 export const metadata: Metadata = {
   title: '쏙쓸계산기',
   description: '무한매수법 V4.0 개인용 주문 가이드 앱',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#f4f6f8',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -16,13 +23,20 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <main className="shell">
           <header className="topbar">
             <Link className="brand" href="/">
-              📈 쏙쓸계산기
+              <span className="brand-mark" aria-hidden="true">L</span>
+              <span>쏙쓸계산기</span>
             </Link>
-            <Link className="home-button" href="/" aria-label="전략 목록으로 이동" title="전략 목록">
-              🏠
-            </Link>
+            <nav className="global-nav" aria-label="주요 메뉴">
+              <Link href="/">전략</Link>
+              <Link href="/rounds">기록</Link>
+              <Link href="/guide">사용법</Link>
+            </nav>
           </header>
           {children}
+          <footer className="footer">
+            <p>개인용 무한매수법 V4.0 주문 가이드</p>
+            <Link href="/guide">전략 사용법</Link>
+          </footer>
         </main>
       </body>
     </html>
