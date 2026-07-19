@@ -90,8 +90,8 @@ export default async function HomePage() {
       <section className="hero home-hero">
         <div>
           <span className="eyebrow">MY STRATEGIES</span>
-          <h1>오늘의 주문을<br />한눈에 확인하세요</h1>
-          <p>체결만 기록하면 T값, 주문 기준과 현재 수익률을 이어서 계산합니다.</p>
+          <h1>마이 빠우라!</h1>
+          <p>원칙대로 ㄱㄱ</p>
         </div>
         <Link className="text-link" href="/guide">무한매수법 사용법 보기 <span aria-hidden="true">→</span></Link>
       </section>
