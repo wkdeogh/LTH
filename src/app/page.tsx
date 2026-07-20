@@ -91,7 +91,7 @@ export default async function HomePage() {
         <div>
           <span className="eyebrow">MY STRATEGIES</span>
           <h1>마이 빠우라!</h1>
-          <p>두려워하지마라 원칙대로가자!</p>
+          <p>원칙대로 ㄱㄱ</p>
         </div>
         <Link className="text-link" href="/guide">무한매수법 사용법 보기 <span aria-hidden="true">→</span></Link>
       </section>
