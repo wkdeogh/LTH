@@ -45,11 +45,13 @@ function subtractRange(dateText: string, range: RangeKey) {
 export function SoxlChart({
   candles,
   executions,
+  averagePrice,
   starPrice,
   fullSellPrice,
 }: {
   candles: MarketCandle[];
   executions: Execution[];
+  averagePrice: number;
   starPrice: number | null;
   fullSellPrice: number | null;
 }) {
@@ -125,6 +127,16 @@ export function SoxlChart({
       }));
     createSeriesMarkers(series, markers);
 
+    if (averagePrice > 0) {
+      series.createPriceLine({
+        price: averagePrice,
+        color: '#155eef',
+        lineWidth: 2,
+        lineStyle: LineStyle.Solid,
+        axisLabelVisible: true,
+        title: '평균단가',
+      });
+    }
     if (starPrice && starPrice > 0) {
       series.createPriceLine({
         price: starPrice,
@@ -186,7 +198,7 @@ export function SoxlChart({
       chart.unsubscribeCrosshairMove(handleCrosshairMove);
       chart.remove();
     };
-  }, [candles, chartData, executions, executionsByDate, fullSellPrice, range, starPrice]);
+  }, [averagePrice, candles, chartData, executions, executionsByDate, fullSellPrice, range, starPrice]);
 
   const latest = candles.at(-1);
   const displayed = hover ?? (latest ? {
@@ -245,6 +257,7 @@ export function SoxlChart({
       <div className="chart-key">
         <span><i className="buy-dot" />매수 체결</span>
         <span><i className="sell-dot" />매도 체결</span>
+        {averagePrice > 0 && <span><i className="average-price-line" />평균단가 {averagePrice.toFixed(2)}</span>}
         {starPrice && <span><i className="star-line" />별지점 {starPrice.toFixed(2)}</span>}
         {fullSellPrice && <span><i className="full-sell-line" />전량매도 {fullSellPrice.toFixed(2)}</span>}
       </div>

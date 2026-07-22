@@ -213,6 +213,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
         <SoxlChart
           candles={candleResult.data ?? []}
           executions={chartExecutionResult.data ?? []}
+          averagePrice={toNumber(strategy.avg_price)}
           starPrice={chartPlan?.starPrice ?? null}
           fullSellPrice={chartPlan?.targetSellPrice ?? null}
         />

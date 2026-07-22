@@ -903,10 +903,16 @@ button[aria-busy="true"] {
 .buy-dot { background: var(--accent); }
 .sell-dot { background: var(--negative); }
 
+.average-price-line,
 .star-line,
 .full-sell-line {
   border-top: 2px dashed var(--warning);
   width: 16px;
+}
+
+.average-price-line {
+  border-top-color: var(--accent);
+  border-top-style: solid;
 }
 
 .full-sell-line {
