@@ -911,7 +911,7 @@ button[aria-busy="true"] {
 }
 
 .average-price-line {
-  border-top-color: var(--accent);
+  border-top-color: #0f766e;
   border-top-style: solid;
 }
 

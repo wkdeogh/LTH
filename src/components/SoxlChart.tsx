@@ -104,12 +104,12 @@ export function SoxlChart({
     });
 
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: '#087a55',
-      downColor: '#c33b4a',
-      borderUpColor: '#087a55',
-      borderDownColor: '#c33b4a',
-      wickUpColor: '#087a55',
-      wickDownColor: '#c33b4a',
+      upColor: '#c33b4a',
+      downColor: '#155eef',
+      borderUpColor: '#c33b4a',
+      borderDownColor: '#155eef',
+      wickUpColor: '#c33b4a',
+      wickDownColor: '#155eef',
       priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
     });
     series.setData(chartData);
@@ -130,7 +130,7 @@ export function SoxlChart({
     if (averagePrice > 0) {
       series.createPriceLine({
         price: averagePrice,
-        color: '#155eef',
+        color: '#0f766e',
         lineWidth: 2,
         lineStyle: LineStyle.Solid,
         axisLabelVisible: true,
