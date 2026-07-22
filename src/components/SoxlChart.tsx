@@ -121,7 +121,6 @@ export function SoxlChart({
         position: execution.side === 'buy' ? 'belowBar' : 'aboveBar',
         color: execution.side === 'buy' ? '#155eef' : '#c33b4a',
         shape: execution.side === 'buy' ? 'arrowUp' : 'arrowDown',
-        text: `${execution.side === 'buy' ? '매수' : '매도'} ${execution.quantity}주`,
         size: 1,
       }));
     createSeriesMarkers(series, markers);
