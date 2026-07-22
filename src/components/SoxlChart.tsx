@@ -56,7 +56,7 @@ export function SoxlChart({
   fullSellPrice: number | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [range, setRange] = useState<RangeKey>('6M');
+  const [range, setRange] = useState<RangeKey>('3M');
   const [hover, setHover] = useState<HoverData | null>(null);
 
   const chartData = useMemo(() => candles.map((candle) => ({
