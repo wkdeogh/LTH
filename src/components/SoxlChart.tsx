@@ -110,6 +110,7 @@ export function SoxlChart({
       borderDownColor: '#155eef',
       wickUpColor: '#c33b4a',
       wickDownColor: '#155eef',
+      priceLineVisible: false,
       priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
     });
     series.setData(chartData);
