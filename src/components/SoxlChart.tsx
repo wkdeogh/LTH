@@ -121,7 +121,7 @@ export function SoxlChart({
       .map((execution) => ({
         time: execution.executed_at as Time,
         position: execution.side === 'buy' ? 'belowBar' : 'aboveBar',
-        color: execution.side === 'buy' ? '#155eef' : '#c33b4a',
+        color: execution.side === 'buy' ? '#087a55' : '#be185d',
         shape: execution.side === 'buy' ? 'arrowUp' : 'arrowDown',
         size: 1,
       }));

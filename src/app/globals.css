@@ -828,12 +828,12 @@ button[aria-busy="true"] {
 }
 
 .chart-legend .chart-buy {
-  color: var(--accent);
+  color: var(--positive);
   font-weight: 800;
 }
 
 .chart-legend .chart-sell {
-  color: var(--negative);
+  color: #be185d;
   font-weight: 800;
 }
 
@@ -900,8 +900,8 @@ button[aria-busy="true"] {
   width: 8px;
 }
 
-.buy-dot { background: var(--accent); }
-.sell-dot { background: var(--negative); }
+.buy-dot { background: var(--positive); }
+.sell-dot { background: #be185d; }
 
 .average-price-line,
 .star-line,
