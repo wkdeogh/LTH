@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
+import { syncSoxlMarketData } from '@/lib/marketData/soxl';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { Execution, SplitCount, Strategy, TEffect } from '@/lib/types';
 import { toNumber, toStrategyState } from '@/lib/types';
@@ -394,6 +396,15 @@ export async function recordExecution(formData: FormData) {
     .eq('id', strategyId);
 
   if (updateError) throw updateError;
+
+  after(async () => {
+    try {
+      await syncSoxlMarketData();
+      revalidatePath(`/strategies/${strategyId}`);
+    } catch (error) {
+      console.error('SOXL OHLC 백그라운드 갱신 실패', error);
+    }
+  });
 
   revalidatePath('/');
   revalidatePath(`/strategies/${strategyId}`);

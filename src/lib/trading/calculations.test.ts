@@ -4,10 +4,12 @@ import type { StrategyState } from '@/lib/types';
 import {
   applyTEffect,
   buildMarketReferenceHistory,
+  calculateAccountPerformance,
   calculateFiveDayAverage,
   calculateNormalPlan,
   calculateOneUnitBudget,
   calculatePositionPerformance,
+  calculateReferenceAverage,
   calculateRoundPerformance,
   calculateStarPercent,
   detectNormalPhase,
@@ -123,6 +125,30 @@ test('현재 수익률과 평가손익은 평단 기준으로 계산한다', () 
     profitRate: -10,
   });
   assert.equal(calculatePositionPerformance(0, 100, 110).profitRate, null);
+});
+
+test('현금과 보유분 평가액을 합쳐 현재 라운드 계좌 전체 수익률을 계산한다', () => {
+  assert.deepEqual(calculateAccountPerformance(20_000, 9_000, 100, 120), {
+    accountValue: 21_000,
+    profitAmount: 1_000,
+    profitRate: 5,
+  });
+  assert.deepEqual(calculateAccountPerformance(20_000, 19_000, 0), {
+    accountValue: 19_000,
+    profitAmount: -1_000,
+    profitRate: -5,
+  });
+  assert.equal(calculateAccountPerformance(20_000, 9_000, 100).profitRate, null);
+});
+
+test('최근 계산 기준가 5개만 평균에 사용한다', () => {
+  const references = [110, 105, 100, 95, 90, 10].map((price, index) => ({
+    date: `2026-07-${20 - index}`,
+    price,
+    source: 'saved_close' as const,
+  }));
+  assert.equal(calculateReferenceAverage(references), 100);
+  assert.equal(calculateReferenceAverage([]), null);
 });
 
 test('완료 기록 수정 시 수익금과 수익률을 시작 원금 기준으로 다시 계산한다', () => {

@@ -722,6 +722,10 @@ button[aria-busy="true"] {
   grid-template-columns: repeat(2, 1fr);
 }
 
+.performance-details.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .performance-details > div {
   background: rgba(255, 255, 255, 0.1);
   min-width: 0;
@@ -734,6 +738,10 @@ button[aria-busy="true"] {
 
 .performance-details > div:last-child {
   border-radius: 0 16px 16px 0;
+}
+
+.performance-details.three > div:nth-child(2) {
+  border-radius: 0;
 }
 
 .performance-details span {
@@ -774,6 +782,144 @@ button[aria-busy="true"] {
   display: block;
   font-size: 10px;
   margin-top: 3px;
+}
+
+.chart-panel {
+  overflow: hidden;
+}
+
+.chart-section-head {
+  margin-bottom: 10px;
+}
+
+.soxl-chart-shell {
+  margin-top: 16px;
+}
+
+.chart-toolbar {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.chart-legend {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  min-height: 32px;
+}
+
+.chart-legend strong {
+  font-size: 12px;
+}
+
+.chart-legend span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.chart-legend .chart-buy {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.chart-legend .chart-sell {
+  color: var(--negative);
+  font-weight: 800;
+}
+
+.chart-ranges {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 3px;
+}
+
+.chart-ranges button {
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 11px;
+  min-height: 30px;
+  padding: 5px 9px;
+}
+
+.chart-ranges button:hover,
+.chart-ranges button.active {
+  background: var(--ink);
+  color: #fff;
+  transform: none;
+}
+
+.soxl-chart {
+  height: 420px;
+  margin: 0 -8px;
+  touch-action: pan-y;
+}
+
+.chart-key {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 8px;
+  padding-top: 12px;
+}
+
+.chart-key span {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 11px;
+  gap: 6px;
+}
+
+.chart-key i {
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.buy-dot,
+.sell-dot {
+  border-radius: 999px;
+  height: 8px;
+  width: 8px;
+}
+
+.buy-dot { background: var(--accent); }
+.sell-dot { background: var(--negative); }
+
+.star-line,
+.full-sell-line {
+  border-top: 2px dashed var(--warning);
+  width: 16px;
+}
+
+.full-sell-line {
+  border-top-color: #6538a6;
+}
+
+.chart-empty {
+  background: var(--surface-soft);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+  margin-top: 16px;
+  padding: 34px 20px;
+  text-align: center;
+}
+
+.chart-empty p {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 5px 0 0;
 }
 
 .two-column-grid,
@@ -1796,6 +1942,39 @@ td {
 
   .performance-details strong {
     font-size: 14px;
+  }
+
+  .performance-details.three {
+    grid-template-columns: 1fr;
+  }
+
+  .performance-details.three > div,
+  .performance-details.three > div:first-child,
+  .performance-details.three > div:nth-child(2),
+  .performance-details.three > div:last-child {
+    border-radius: 12px;
+  }
+
+  .chart-toolbar {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .chart-ranges {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .chart-ranges button {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .soxl-chart {
+    height: 360px;
+    margin-left: -15px;
+    margin-right: -15px;
   }
 
   .metric-grid,

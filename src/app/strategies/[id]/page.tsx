@@ -3,13 +3,17 @@ import { addDailyPrice, deleteStrategy, switchToNormal, switchToReverse, updateS
 import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
+import { SoxlChart } from '@/components/SoxlChart';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { DailyPrice, Execution, Strategy } from '@/lib/types';
+import type { DailyPrice, Execution, MarketCandle, Strategy } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 import {
   buildMarketReferenceHistory,
+  calculateAccountPerformance,
+  calculateNormalPlan,
   calculatePositionPerformance,
+  calculateReferenceAverage,
   modeLabel,
   referenceSourceLabel,
 } from '@/lib/trading';
@@ -26,7 +30,11 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();
 
-  const [priceResult, executionResult] = await Promise.all([
+  const chartStart = new Date();
+  chartStart.setUTCFullYear(chartStart.getUTCFullYear() - 3);
+  chartStart.setUTCDate(chartStart.getUTCDate() - 14);
+
+  const [priceResult, executionResult, candleResult, chartExecutionResult] = await Promise.all([
     supabase!
       .from('daily_prices')
       .select('*')
@@ -42,18 +50,58 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
       .order('created_at', { ascending: false })
       .limit(10)
       .returns<Execution[]>(),
+    supabase!
+      .from('market_candles')
+      .select('*')
+      .eq('symbol', 'SOXL')
+      .gte('trade_date', chartStart.toISOString().slice(0, 10))
+      .order('trade_date', { ascending: true })
+      .limit(900)
+      .returns<MarketCandle[]>(),
+    supabase!
+      .from('executions')
+      .select('*')
+      .eq('strategy_id', id)
+      .gte('executed_at', chartStart.toISOString().slice(0, 10))
+      .order('executed_at', { ascending: true })
+      .order('created_at', { ascending: true })
+      .limit(1000)
+      .returns<Execution[]>(),
   ]);
 
   const prices = priceResult.data ?? [];
   const executions = executionResult.data ?? [];
   const references = buildMarketReferenceHistory(prices, executions);
   const reference = references[0];
-  const performance = calculatePositionPerformance(
+  const positionPerformance = calculatePositionPerformance(
     strategy.position_qty,
     toNumber(strategy.avg_price),
     reference?.price,
   );
-  const isNegative = performance.profitRate !== null && performance.profitRate < 0;
+  const accountPerformance = calculateAccountPerformance(
+    toNumber(strategy.principal),
+    toNumber(strategy.cash_balance),
+    strategy.position_qty,
+    reference?.price,
+  );
+  const referenceAverage = calculateReferenceAverage(references);
+  const isNegative = accountPerformance.profitRate !== null && accountPerformance.profitRate < 0;
+  const chartPlan = strategy.mode === 'normal'
+    ? calculateNormalPlan({
+      id: strategy.id,
+      name: strategy.name,
+      symbol: strategy.symbol,
+      splitCount: strategy.split_count,
+      principal: toNumber(strategy.principal),
+      cashBalance: toNumber(strategy.cash_balance),
+      positionQty: strategy.position_qty,
+      avgPrice: toNumber(strategy.avg_price),
+      tValue: toNumber(strategy.t_value),
+      mode: strategy.mode,
+      reverseStartedAt: strategy.reverse_started_at,
+      reverseFirstSellDone: strategy.reverse_first_sell_done,
+    }, reference?.price)
+    : null;
 
   return (
     <div className="stack page-stack">
@@ -72,8 +120,8 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
 
       <section className={`performance-panel ${isNegative ? 'negative' : ''}`}>
         <div className="performance-main">
-          <span>평단 대비 현재 수익률</span>
-          <strong>{performance.profitRate === null ? '-' : signedValue(performance.profitRate, '%')}</strong>
+          <span>현재 라운드 원금 대비 계좌 전체 수익률</span>
+          <strong>{accountPerformance.profitRate === null ? '-' : signedValue(accountPerformance.profitRate, '%')}</strong>
           <p>
             {reference
               ? `${referenceSourceLabel(reference.source)} ${usd(reference.price)} · ${reference.date}`
@@ -82,9 +130,10 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
                 : '보유 중인 수량이 없습니다.'}
           </p>
         </div>
-        <div className="performance-details">
-          <div><span>평가금액</span><strong>{performance.marketValue === null ? '-' : usd(performance.marketValue)}</strong></div>
-          <div><span>평가손익</span><strong>{performance.profitAmount === null ? '-' : `${performance.profitAmount >= 0 ? '+' : '-'}${usd(Math.abs(performance.profitAmount))}`}</strong></div>
+        <div className="performance-details three">
+          <div><span>계좌 평가액</span><strong>{accountPerformance.accountValue === null ? '-' : usd(accountPerformance.accountValue)}</strong></div>
+          <div><span>계좌 평가손익</span><strong>{accountPerformance.profitAmount === null ? '-' : `${accountPerformance.profitAmount >= 0 ? '+' : '-'}${usd(Math.abs(accountPerformance.profitAmount))}`}</strong></div>
+          <div><span>보유분 평단 대비</span><strong>{positionPerformance.profitRate === null ? '-' : signedValue(positionPerformance.profitRate, '%')}</strong></div>
         </div>
       </section>
 
@@ -97,7 +146,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
           <span className="subtle-label">T {compact(strategy.t_value)}</span>
         </div>
         <div className="metric-grid">
-          <div><span>원금</span><strong>{usd(strategy.principal)}</strong></div>
+          <div><span>현재 라운드 원금</span><strong>{usd(strategy.principal)}</strong><small>{strategy.compounding_type === 'compound' ? '전량매도 시 종료 현금으로 갱신' : '단리형 · 다음 라운드에도 유지'}</small></div>
           <div><span>현금</span><strong>{usd(strategy.cash_balance)}</strong></div>
           <div><span>보유수량</span><strong>{strategy.position_qty}주</strong></div>
           <div><span>평단</span><strong>{usd(strategy.avg_price)}</strong></div>
@@ -131,6 +180,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
               <span className="eyebrow">PRICE HISTORY</span>
               <h2>최근 계산 기준가</h2>
             </div>
+            <span className="subtle-label">5일 평균 ({Math.min(references.length, 5)}/5) {referenceAverage === null ? '-' : usd(referenceAverage)}</span>
           </div>
           {references.length > 0 ? (
             <div className="reference-list">
@@ -143,6 +193,23 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
             </div>
           ) : <p className="muted empty-copy">아직 종가나 체결 기록이 없습니다.</p>}
         </div>
+      </section>
+
+      <section className="panel chart-panel">
+        <div className="section-head chart-section-head">
+          <div>
+            <span className="eyebrow">SOXL MARKET</span>
+            <h2>SOXL 차트와 체결 지점</h2>
+          </div>
+          <span className="subtle-label">일봉 · 최근 3년</span>
+        </div>
+        <p className="helper-copy">차트를 움직이거나 확대할 수 있습니다. 마우스를 올리거나 모바일에서 길게 터치하면 해당 일자의 OHLC와 체결 정보를 확인할 수 있습니다.</p>
+        <SoxlChart
+          candles={candleResult.data ?? []}
+          executions={chartExecutionResult.data ?? []}
+          starPrice={chartPlan?.starPrice ?? null}
+          fullSellPrice={chartPlan?.targetSellPrice ?? null}
+        />
       </section>
 
       <details className="panel disclosure">

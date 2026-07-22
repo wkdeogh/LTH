@@ -11,6 +11,7 @@ import {
   buildMarketReferenceHistory,
   calculateNormalPlan,
   calculatePositionPerformance,
+  calculateReferenceAverage,
   calculateReversePlan,
   modeLabel,
   phaseLabel,
@@ -73,6 +74,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
   const state = toStrategyState(strategy);
   const references = buildMarketReferenceHistory(priceResult.data ?? [], executionResult.data ?? []);
   const recentCloses = references.slice(0, 5).map((reference) => reference.price);
+  const recentAverage = calculateReferenceAverage(references);
   const currentReference = references[0];
   const performance = calculatePositionPerformance(state.positionQty, state.avgPrice, currentReference?.price);
   const plan = state.mode === 'normal'
@@ -101,6 +103,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
           <div className="stat"><span>보유수량</span><strong>{state.positionQty}주</strong></div>
           <div className="stat"><span>평단</span><strong>{usd(state.avgPrice)}</strong></div>
           <div className="stat"><span>현재 기준가</span><strong>{currentReference ? usd(currentReference.price) : '-'}</strong><small>{referenceSourceLabel(currentReference?.source)}</small></div>
+          <div className="stat"><span>최근 기준가 5일 평균</span><strong>{recentAverage === null ? '-' : usd(recentAverage)}</strong><small>{recentCloses.length}/5개 기준</small></div>
           <div className="stat"><span>현재 수익률</span><strong className={performance.profitRate !== null && performance.profitRate < 0 ? 'profit-negative' : 'profit-positive'}>{performance.profitRate === null ? '-' : `${performance.profitRate >= 0 ? '+' : ''}${compact(performance.profitRate, 2)}%`}</strong></div>
           {state.mode === 'reverse' && (
             <div className="stat"><span>5일 기준가 데이터</span><strong>{recentCloses.length}/5개</strong></div>

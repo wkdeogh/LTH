@@ -45,6 +45,19 @@ export type DailyPrice = {
   created_at: string;
 };
 
+export type MarketCandle = {
+  id?: string;
+  symbol: 'SOXL';
+  trade_date: string;
+  open_price: number | string;
+  high_price: number | string;
+  low_price: number | string;
+  close_price: number | string;
+  adjusted_close: number | string | null;
+  volume: number | string;
+  fetched_at?: string;
+};
+
 export type Execution = {
   id: string;
   strategy_id: string;

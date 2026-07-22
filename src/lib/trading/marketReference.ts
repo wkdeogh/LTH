@@ -64,6 +64,32 @@ export function calculatePositionPerformance(positionQty: number, avgPrice: numb
   return { marketValue, profitAmount, profitRate };
 }
 
+export function calculateAccountPerformance(
+  principal: number,
+  cashBalance: number,
+  positionQty: number,
+  currentPrice?: number | null,
+) {
+  if (principal <= 0 || cashBalance < 0 || positionQty < 0) {
+    return { accountValue: null, profitAmount: null, profitRate: null };
+  }
+  if (positionQty > 0 && (!currentPrice || currentPrice <= 0)) {
+    return { accountValue: null, profitAmount: null, profitRate: null };
+  }
+
+  const accountValue = cashBalance + positionQty * (currentPrice ?? 0);
+  const profitAmount = accountValue - principal;
+  const profitRate = (profitAmount / principal) * 100;
+
+  return { accountValue, profitAmount, profitRate };
+}
+
+export function calculateReferenceAverage(references: MarketReference[], count = 5) {
+  const prices = references.slice(0, count).map((reference) => reference.price).filter((price) => price > 0);
+  if (prices.length === 0) return null;
+  return prices.reduce((sum, price) => sum + price, 0) / prices.length;
+}
+
 export function calculateRoundPerformance(startedPrincipal: number, endingCashBalance: number) {
   if (startedPrincipal <= 0 || endingCashBalance < 0) {
     throw new Error('시작 원금은 0보다 커야 하고 종료 현금은 음수일 수 없습니다.');
