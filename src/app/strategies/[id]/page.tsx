@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { addDailyPrice, deleteStrategy, switchToNormal, switchToReverse, updateStrategy } from '@/app/actions';
+import { addDailyPrice, deleteStrategy, refreshSoxlChart, switchToNormal, switchToReverse, updateStrategy } from '@/app/actions';
 import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
@@ -195,13 +195,19 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
         </div>
       </section>
 
-      <section className="panel chart-panel">
+      <section className="panel chart-panel" id="soxl-chart">
         <div className="section-head chart-section-head">
           <div>
             <span className="eyebrow">SOXL MARKET</span>
             <h2>SOXL 차트와 체결 지점</h2>
           </div>
-          <span className="subtle-label">일봉 · 최근 3년</span>
+          <div className="section-head-actions">
+            <span className="subtle-label">일봉 · 최근 3년</span>
+            <form action={refreshSoxlChart}>
+              <input name="strategy_id" type="hidden" value={strategy.id} />
+              <button className="button ghost chart-refresh-button" type="submit">캔들 즉시 갱신</button>
+            </form>
+          </div>
         </div>
         <p className="helper-copy">차트를 움직이거나 확대할 수 있습니다. 마우스를 올리거나 모바일에서 길게 터치하면 해당 일자의 OHLC와 체결 정보를 확인할 수 있습니다.</p>
         <SoxlChart

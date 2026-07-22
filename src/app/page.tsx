@@ -7,7 +7,7 @@ import type { CompletedRound, DailyPrice, Execution, Strategy } from '@/lib/type
 import { toNumber } from '@/lib/types';
 import {
   buildMarketReferenceHistory,
-  calculatePositionPerformance,
+  calculateAccountPerformance,
   modeLabel,
   referenceSourceLabel,
 } from '@/lib/trading';
@@ -104,9 +104,10 @@ export default async function HomePage() {
               executionsByStrategy.get(strategy.id) ?? [],
             );
             const reference = history[0];
-            const performance = calculatePositionPerformance(
+            const performance = calculateAccountPerformance(
+              toNumber(strategy.principal),
+              toNumber(strategy.cash_balance),
               strategy.position_qty,
-              toNumber(strategy.avg_price),
               reference?.price,
             );
             const progress = Math.min(Math.max((toNumber(strategy.t_value) / strategy.split_count) * 100, 0), 100);
@@ -122,7 +123,7 @@ export default async function HomePage() {
                     <h2>{strategy.name}</h2>
                   </div>
                   <div className={`return-block ${performance.profitRate !== null && performance.profitRate < 0 ? 'negative' : ''}`}>
-                    <span>현재 수익률</span>
+                    <span>원금 대비 수익률</span>
                     <strong>{performance.profitRate === null ? '-' : signedPercent(performance.profitRate)}</strong>
                   </div>
                 </div>
@@ -146,7 +147,7 @@ export default async function HomePage() {
                 <div className="strategy-mini-stats">
                   <div><span>보유</span><strong>{strategy.position_qty}주</strong></div>
                   <div><span>현금</span><strong>{usd(strategy.cash_balance)}</strong></div>
-                  <div><span>평가손익</span><strong className={performance.profitAmount !== null && performance.profitAmount < 0 ? 'profit-negative' : 'profit-positive'}>{performance.profitAmount === null ? '-' : signedUsd(performance.profitAmount)}</strong></div>
+                  <div><span>계좌손익</span><strong className={performance.profitAmount !== null && performance.profitAmount < 0 ? 'profit-negative' : 'profit-positive'}>{performance.profitAmount === null ? '-' : signedUsd(performance.profitAmount)}</strong></div>
                 </div>
 
                 <div className="card-actions">

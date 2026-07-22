@@ -8,6 +8,7 @@ function buttonLabel(button: HTMLButtonElement) {
   if (text.includes('저장')) return '저장 중...';
   if (text.includes('전환')) return '전환 중...';
   if (text.includes('복귀')) return '복귀 중...';
+  if (text.includes('갱신')) return '갱신 중...';
   return '처리 중...';
 }
 

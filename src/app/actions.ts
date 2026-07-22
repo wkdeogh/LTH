@@ -155,6 +155,15 @@ export async function addDailyPrice(formData: FormData) {
   revalidatePath(`/strategies/${strategyId}/plan`);
 }
 
+export async function refreshSoxlChart(formData: FormData) {
+  const strategyId = stringValue(formData, 'strategy_id');
+  if (!strategyId) throw new Error('차트를 갱신할 전략을 찾을 수 없습니다.');
+
+  await syncSoxlMarketData();
+  revalidatePath(`/strategies/${strategyId}`);
+  redirect(`/strategies/${strategyId}#soxl-chart`);
+}
+
 export async function switchToReverse(formData: FormData) {
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');

@@ -792,6 +792,12 @@ button[aria-busy="true"] {
   margin-bottom: 10px;
 }
 
+.chart-refresh-button {
+  font-size: 12px;
+  min-height: 34px;
+  padding: 6px 11px;
+}
+
 .soxl-chart-shell {
   margin-top: 16px;
 }
