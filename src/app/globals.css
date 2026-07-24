@@ -1370,6 +1370,106 @@ td {
   gap: 16px;
 }
 
+.record-view-tabs {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 5px;
+}
+
+.record-view-tab {
+  align-items: center;
+  border-radius: 11px;
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: center;
+  min-height: 44px;
+  padding: 9px 14px;
+}
+
+.record-view-tab strong {
+  background: var(--surface-soft);
+  border-radius: 999px;
+  font-size: 10px;
+  min-width: 22px;
+  padding: 3px 6px;
+  text-align: center;
+}
+
+.record-view-tab.active {
+  background: var(--ink);
+  color: #fff;
+}
+
+.record-view-tab.active strong {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.execution-side-badge {
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 850;
+  padding: 5px 9px;
+}
+
+.execution-side-badge.buy {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+
+.execution-side-badge.sell {
+  background: #f5ebff;
+  color: #7e22ce;
+}
+
+.execution-record-total {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.execution-record-total span {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.execution-record-total strong {
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+
+.execution-record-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.execution-record-memo {
+  align-items: flex-start;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  display: flex;
+  font-size: 12px;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 11px 13px;
+}
+
+.execution-record-memo strong {
+  flex: 0 0 auto;
+}
+
+.execution-record-memo span {
+  color: var(--muted);
+}
+
 .record-card-head {
   align-items: flex-start;
   display: flex;
@@ -2059,6 +2159,14 @@ td {
 
   .record-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .execution-record-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .execution-record-total strong {
+    font-size: 18px;
   }
 
   .record-delete-row {
