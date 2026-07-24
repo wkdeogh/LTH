@@ -110,29 +110,34 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
         </form>
       </section>
 
-      <section className="panel">
-        <div className="section-head">
-          <div><span className="eyebrow">UNDO</span><h2>최근 체결 취소</h2></div>
-          <span className="subtle-label">최근 입력 1건만</span>
-        </div>
-        {latestExecution ? (
-          <div className="record-delete-row execution-cancel-row">
-            <div>
-              <strong>{latestExecution.executed_at} · {latestExecution.side === 'buy' ? '매수' : '매도'} {latestExecution.quantity}주</strong>
-              <p>평균 체결가 {usd(latestExecution.avg_execution_price)} · 취소하면 체결 직전의 현금·수량·평단·T값으로 복원됩니다.</p>
+      <details className="panel disclosure">
+        <summary>
+          <span>
+            <strong>최근 체결 취소</strong>
+            <small>{latestExecution ? '최근 입력 1건만 취소할 수 있습니다' : '취소할 체결 기록이 없습니다'}</small>
+          </span>
+          <span aria-hidden="true">＋</span>
+        </summary>
+        <div className="disclosure-body">
+          {latestExecution ? (
+            <div className="record-delete-row execution-cancel-row">
+              <div>
+                <strong>{latestExecution.executed_at} · {latestExecution.side === 'buy' ? '매수' : '매도'} {latestExecution.quantity}주</strong>
+                <p>평균 체결가 {usd(latestExecution.avg_execution_price)} · 취소하면 체결 직전의 현금·수량·평단·T값으로 복원됩니다.</p>
+              </div>
+              <form action={cancelLatestExecution}>
+                <input name="strategy_id" type="hidden" value={id} />
+                <input name="execution_id" type="hidden" value={latestExecution.id} />
+                <button
+                  className="danger"
+                  data-confirm={`${latestExecution.executed_at} ${latestExecution.side === 'buy' ? '매수' : '매도'} ${latestExecution.quantity}주 체결을 취소하고 직전 상태로 되돌릴까요?`}
+                  type="submit"
+                >최근 체결 취소</button>
+              </form>
             </div>
-            <form action={cancelLatestExecution}>
-              <input name="strategy_id" type="hidden" value={id} />
-              <input name="execution_id" type="hidden" value={latestExecution.id} />
-              <button
-                className="danger"
-                data-confirm={`${latestExecution.executed_at} ${latestExecution.side === 'buy' ? '매수' : '매도'} ${latestExecution.quantity}주 체결을 취소하고 직전 상태로 되돌릴까요?`}
-                type="submit"
-              >최근 체결 취소</button>
-            </form>
-          </div>
-        ) : <p className="muted empty-copy">취소할 체결 기록이 없습니다.</p>}
-      </section>
+          ) : <p className="muted empty-copy">취소할 체결 기록이 없습니다.</p>}
+        </div>
+      </details>
     </div>
   );
 }
