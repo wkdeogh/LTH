@@ -81,7 +81,6 @@ function ExecutionRecords({
                   <span className="archived-badge">{roundNumber ? `${roundNumber}라운드` : '현재 라운드'}</span>
                 </div>
                 <h2>{execution.executed_at} 체결</h2>
-                <p>{effectLabel(execution.t_effect)}</p>
               </div>
               <div className="execution-record-total">
                 <span>체결금액</span>
@@ -93,7 +92,7 @@ function ExecutionRecords({
               <div><span>구분</span><strong>{sideLabel(execution.side)}</strong></div>
               <div><span>수량</span><strong>{execution.quantity}주</strong></div>
               <div><span>평균 체결가</span><strong>{usd(execution.avg_execution_price)}</strong></div>
-              <div><span>주문 유형</span><strong>{execution.order_type}</strong></div>
+              <div><span>T 반영</span><strong>{effectLabel(execution.t_effect)}</strong></div>
             </div>
 
             {execution.memo && (
@@ -157,13 +156,12 @@ function RoundRecords({
           {roundExecutions.length > 0 ? (
             <div className="table-wrap">
               <table>
-                <thead><tr><th>날짜</th><th>구분</th><th>방식</th><th>수량</th><th>평균가</th><th>금액</th><th>T 반영</th><th>메모</th></tr></thead>
+                <thead><tr><th>날짜</th><th>구분</th><th>수량</th><th>평균가</th><th>금액</th><th>T 반영</th><th>메모</th></tr></thead>
                 <tbody>
                   {roundExecutions.map((execution) => (
                     <tr key={execution.id}>
                       <td>{execution.executed_at}</td>
                       <td>{sideLabel(execution.side)}</td>
-                      <td>{execution.order_type}</td>
                       <td>{execution.quantity}주</td>
                       <td>{usd(execution.avg_execution_price)}</td>
                       <td>{usd(execution.total_amount)}</td>
