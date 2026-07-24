@@ -1,11 +1,12 @@
 import { notFound } from 'next/navigation';
-import { recordExecution } from '@/app/actions';
+import { cancelLatestExecution, recordExecution } from '@/app/actions';
 import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { Strategy } from '@/lib/types';
+import { koreaDate } from '@/lib/date';
+import type { Execution, Strategy } from '@/lib/types';
 import { toStrategyState } from '@/lib/types';
 import { applyTEffect, modeLabel } from '@/lib/trading';
 
@@ -16,6 +17,15 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
   const supabase = createSupabaseServerClient();
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();
+
+  const { data: latestExecution } = await supabase!
+    .from('executions')
+    .select('*')
+    .eq('strategy_id', id)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(1)
+    .maybeSingle<Execution>();
 
   const state = toStrategyState(strategy);
   const effectOptions = [
@@ -61,7 +71,7 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
         <form className="form" action={recordExecution}>
           <input type="hidden" name="strategy_id" value={id} />
           <div className="form-grid">
-            <label>체결일<input name="executed_at" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></label>
+            <label>체결일<input name="executed_at" type="date" defaultValue={koreaDate(-1)} required /></label>
             <label>매수/매도<select name="side" defaultValue="buy"><option value="buy">매수</option><option value="sell">매도</option></select></label>
             <input type="hidden" name="order_type" value="MANUAL" />
             <label>수량<input name="quantity" type="number" min="1" inputMode="numeric" placeholder="체결 수량" required /></label>
@@ -98,6 +108,30 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
           <label>메모<textarea name="memo" rows={3} placeholder="예: 별지점 LOC 매수" /></label>
           <div className="sticky-form-actions"><button type="submit" className="primary">체결 저장하기</button></div>
         </form>
+      </section>
+
+      <section className="panel">
+        <div className="section-head">
+          <div><span className="eyebrow">UNDO</span><h2>최근 체결 취소</h2></div>
+          <span className="subtle-label">최근 입력 1건만</span>
+        </div>
+        {latestExecution ? (
+          <div className="record-delete-row execution-cancel-row">
+            <div>
+              <strong>{latestExecution.executed_at} · {latestExecution.side === 'buy' ? '매수' : '매도'} {latestExecution.quantity}주</strong>
+              <p>평균 체결가 {usd(latestExecution.avg_execution_price)} · 취소하면 체결 직전의 현금·수량·평단·T값으로 복원됩니다.</p>
+            </div>
+            <form action={cancelLatestExecution}>
+              <input name="strategy_id" type="hidden" value={id} />
+              <input name="execution_id" type="hidden" value={latestExecution.id} />
+              <button
+                className="danger"
+                data-confirm={`${latestExecution.executed_at} ${latestExecution.side === 'buy' ? '매수' : '매도'} ${latestExecution.quantity}주 체결을 취소하고 직전 상태로 되돌릴까요?`}
+                type="submit"
+              >최근 체결 취소</button>
+            </form>
+          </div>
+        ) : <p className="muted empty-copy">취소할 체결 기록이 없습니다.</p>}
       </section>
     </div>
   );

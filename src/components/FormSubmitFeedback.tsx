@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 
 function buttonLabel(button: HTMLButtonElement) {
   const text = button.textContent ?? '';
+  if (text.includes('취소')) return '취소 중...';
   if (button.classList.contains('danger') || text.includes('삭제')) return '삭제 중...';
   if (text.includes('저장')) return '저장 중...';
   if (text.includes('전환')) return '전환 중...';

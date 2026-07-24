@@ -118,15 +118,141 @@ end $$;
 create table if not exists strategy_snapshots (
   id uuid primary key default gen_random_uuid(),
   strategy_id uuid not null references strategies(id) on delete cascade,
+  execution_id uuid,
   snapshot_date date not null,
+  principal numeric(18, 4),
   mode text not null,
   cash_balance numeric(18, 4) not null,
   position_qty integer not null,
   avg_price numeric(18, 4) not null,
   t_value numeric(18, 10) not null,
+  started_at date,
+  reverse_started_at date,
+  reverse_first_sell_done boolean,
   note text,
   created_at timestamptz not null default now()
 );
+
+alter table strategy_snapshots add column if not exists execution_id uuid;
+alter table strategy_snapshots add column if not exists principal numeric(18, 4);
+alter table strategy_snapshots add column if not exists started_at date;
+alter table strategy_snapshots add column if not exists reverse_started_at date;
+alter table strategy_snapshots add column if not exists reverse_first_sell_done boolean;
+
+create unique index if not exists idx_snapshots_execution on strategy_snapshots (execution_id) where execution_id is not null;
+
+create or replace function cancel_latest_execution(p_strategy_id uuid, p_execution_id uuid)
+returns void
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_strategy strategies%rowtype;
+  v_execution executions%rowtype;
+  v_latest_execution_id uuid;
+  v_snapshot strategy_snapshots%rowtype;
+  v_round completed_rounds%rowtype;
+begin
+  select * into v_strategy
+  from strategies
+  where id = p_strategy_id
+  for update;
+
+  if not found then
+    raise exception '전략을 찾을 수 없습니다.';
+  end if;
+
+  select id into v_latest_execution_id
+  from executions
+  where strategy_id = p_strategy_id
+  order by created_at desc, id desc
+  limit 1;
+
+  if v_latest_execution_id is null or v_latest_execution_id <> p_execution_id then
+    raise exception '가장 최근에 입력한 체결만 취소할 수 있습니다.';
+  end if;
+
+  select * into v_execution
+  from executions
+  where id = p_execution_id and strategy_id = p_strategy_id
+  for update;
+
+  select * into v_snapshot
+  from strategy_snapshots
+  where execution_id = p_execution_id
+  limit 1;
+
+  if not found then
+    select * into v_snapshot
+    from strategy_snapshots
+    where strategy_id = p_strategy_id
+      and created_at <= v_execution.created_at
+    order by created_at desc, id desc
+    limit 1;
+  end if;
+
+  if v_snapshot.id is null
+     or v_execution.created_at - v_snapshot.created_at > interval '5 minutes' then
+    raise exception '체결 직전 상태를 찾을 수 없어 안전하게 취소할 수 없습니다.';
+  end if;
+
+  if v_snapshot.mode = 'reverse'
+     and v_snapshot.reverse_started_at is null
+     and v_strategy.reverse_started_at is null then
+    raise exception '기존 리버스 상태의 시작일을 확인할 수 없어 안전하게 자동 취소할 수 없습니다.';
+  end if;
+
+  if v_execution.round_id is not null then
+    select * into v_round
+    from completed_rounds
+    where id = v_execution.round_id and strategy_id = p_strategy_id
+    for update;
+
+    if not found
+       or v_execution.side <> 'sell'
+       or v_round.ended_at <> v_execution.executed_at then
+      raise exception '라운드 종료 체결 상태를 확인할 수 없습니다.';
+    end if;
+
+    delete from completed_rounds where id = v_round.id;
+  end if;
+
+  delete from executions where id = v_execution.id;
+
+  update strategies
+  set
+    principal = coalesce(v_snapshot.principal, v_round.started_principal, v_strategy.principal),
+    cash_balance = v_snapshot.cash_balance,
+    position_qty = v_snapshot.position_qty,
+    avg_price = v_snapshot.avg_price,
+    t_value = v_snapshot.t_value,
+    mode = v_snapshot.mode,
+    reverse_started_at = case
+      when v_snapshot.mode = 'normal' then null
+      else coalesce(v_snapshot.reverse_started_at, v_strategy.reverse_started_at)
+    end,
+    reverse_first_sell_done = case
+      when v_snapshot.mode = 'normal' then false
+      else coalesce(
+        v_snapshot.reverse_first_sell_done,
+        exists (
+          select 1 from executions
+          where strategy_id = p_strategy_id
+            and round_id is null
+            and t_effect = 'reverse_sell'
+        )
+      )
+    end,
+    started_at = coalesce(v_snapshot.started_at, v_round.started_at, v_strategy.started_at),
+    updated_at = now()
+  where id = p_strategy_id;
+
+  delete from strategy_snapshots where id = v_snapshot.id;
+end;
+$$;
+
+revoke all on function cancel_latest_execution(uuid, uuid) from public;
+grant execute on function cancel_latest_execution(uuid, uuid) to service_role;
 
 create index if not exists idx_strategies_active on strategies (is_archived, sort_order, created_at);
 create index if not exists idx_daily_prices_strategy_date on daily_prices (strategy_id, trade_date desc);

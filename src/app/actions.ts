@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { syncSoxlMarketData } from '@/lib/marketData/soxl';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { koreaDate } from '@/lib/date';
 import type { Execution, SplitCount, Strategy, TEffect } from '@/lib/types';
 import { toNumber, toStrategyState } from '@/lib/types';
 import { applyTEffect, calculateRoundPerformance } from '@/lib/trading';
@@ -234,7 +235,7 @@ export async function saveTradePlan(formData: FormData) {
 export async function recordExecution(formData: FormData) {
   const supabase = supabaseOrThrow();
   const strategyId = stringValue(formData, 'strategy_id');
-  const executedAt = stringValue(formData, 'executed_at', new Date().toISOString().slice(0, 10));
+  const executedAt = stringValue(formData, 'executed_at', koreaDate(-1));
   const side = stringValue(formData, 'side');
   const { data: strategy, error: strategyError } = await supabase
     .from('strategies')
@@ -290,19 +291,27 @@ export async function recordExecution(formData: FormData) {
   }
 
   const isCompletedRound = side === 'sell' && state.positionQty > 0 && finalPositionQty === 0;
+  const executionId = crypto.randomUUID();
 
-  await supabase.from('strategy_snapshots').insert({
+  const { error: snapshotError } = await supabase.from('strategy_snapshots').insert({
     strategy_id: strategyId,
-    snapshot_date: new Date().toISOString().slice(0, 10),
+    execution_id: executionId,
+    snapshot_date: koreaDate(),
+    principal: state.principal,
     mode: state.mode,
     cash_balance: state.cashBalance,
     position_qty: state.positionQty,
     avg_price: state.avgPrice,
     t_value: state.tValue,
+    started_at: strategy.started_at,
+    reverse_started_at: state.reverseStartedAt,
+    reverse_first_sell_done: state.reverseFirstSellDone,
     note: '체결 입력 전 상태',
   });
+  if (snapshotError) throw snapshotError;
 
   const { error: executionError } = await supabase.from('executions').insert({
+    id: executionId,
     strategy_id: strategyId,
     executed_at: executedAt,
     side,
@@ -314,7 +323,10 @@ export async function recordExecution(formData: FormData) {
     memo: stringValue(formData, 'memo') || null,
   });
 
-  if (executionError) throw executionError;
+  if (executionError) {
+    await supabase.from('strategy_snapshots').delete().eq('execution_id', executionId);
+    throw executionError;
+  }
 
   if (isCompletedRound) {
     const roundStartedAt = strategy.started_at ?? executedAt;
@@ -419,6 +431,27 @@ export async function recordExecution(formData: FormData) {
   revalidatePath(`/strategies/${strategyId}`);
   revalidatePath(`/strategies/${strategyId}/rounds`);
   redirect(`/strategies/${strategyId}`);
+}
+
+export async function cancelLatestExecution(formData: FormData) {
+  const supabase = supabaseOrThrow();
+  const strategyId = stringValue(formData, 'strategy_id');
+  const executionId = stringValue(formData, 'execution_id');
+  if (!strategyId || !executionId) throw new Error('취소할 체결을 찾을 수 없습니다.');
+
+  const { error } = await supabase.rpc('cancel_latest_execution', {
+    p_strategy_id: strategyId,
+    p_execution_id: executionId,
+  });
+  if (error) throw new Error(`체결 취소 실패: ${error.message}`);
+
+  revalidatePath('/');
+  revalidatePath('/rounds');
+  revalidatePath(`/strategies/${strategyId}`);
+  revalidatePath(`/strategies/${strategyId}/plan`);
+  revalidatePath(`/strategies/${strategyId}/executions/new`);
+  revalidatePath(`/strategies/${strategyId}/rounds`);
+  redirect(`/strategies/${strategyId}/executions/new`);
 }
 
 export async function updateCompletedRound(formData: FormData) {

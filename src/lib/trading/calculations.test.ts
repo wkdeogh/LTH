@@ -17,6 +17,7 @@ import {
   shouldReturnToNormalMode,
 } from '@/lib/trading';
 import { roundMoney, roundPrice } from '@/lib/trading/rounding';
+import { koreaDate } from '@/lib/date';
 
 function state(overrides: Partial<StrategyState> = {}): StrategyState {
   return {
@@ -40,6 +41,11 @@ test('금액과 주문가격을 경계값에서도 올바르게 반올림한다'
   assert.equal(roundPrice(1.005), 1.01);
   assert.equal(roundPrice(39.3724), 39.37);
   assert.equal(roundMoney(500.5641025641), 500.5641);
+});
+
+test('체결일 기본값은 한국시간 기준 어제 날짜다', () => {
+  assert.equal(koreaDate(-1, new Date('2026-07-23T15:30:00.000Z')), '2026-07-23');
+  assert.equal(koreaDate(-1, new Date('2026-07-23T14:30:00.000Z')), '2026-07-22');
 });
 
 test('문서의 SOXL 20분할 별지점 예시가 일치한다', () => {
