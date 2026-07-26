@@ -10,6 +10,7 @@ import {
   calculateOneUnitBudget,
   calculatePositionPerformance,
   calculateReferenceAverage,
+  calculateReversePlan,
   calculateRoundPerformance,
   calculateStarPercent,
   detectNormalPhase,
@@ -97,6 +98,22 @@ test('리버스 5일 평균, 매도수량, 복귀 경계를 정확히 계산한�
   assert.equal(shouldReturnToNormalMode(state({ avgPrice: 40 }), 34.01), true);
   assert.equal(shouldReturnToNormalMode(state({ symbol: 'SOXL', avgPrice: 40 }), 32), false);
   assert.equal(shouldReturnToNormalMode(state({ symbol: 'SOXL', avgPrice: 40 }), 32.01), true);
+});
+
+test('리버스 주문은 첫날 매도만 MOC이고 둘째 날부터 매수·매도 모두 LOC다', () => {
+  const firstDayPlan = calculateReversePlan(
+    state({ mode: 'reverse', positionQty: 200, reverseFirstSellDone: false }),
+    [40, 39, 38, 37, 36],
+  );
+  assert.equal(firstDayPlan.sellOrders[0]?.orderType, 'MOC');
+  assert.equal(firstDayPlan.buyOrders.length, 0);
+
+  const laterPlan = calculateReversePlan(
+    state({ mode: 'reverse', positionQty: 200, reverseFirstSellDone: true }),
+    [40, 39, 38, 37, 36],
+  );
+  assert.equal(laterPlan.buyOrders[0]?.orderType, 'LOC');
+  assert.equal(laterPlan.sellOrders[0]?.orderType, 'LOC');
 });
 
 test('직접 종가를 우선하고 없는 날짜는 최신 체결가를 사용한다', () => {

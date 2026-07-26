@@ -6,7 +6,7 @@ export type NormalPhase = 'initial' | 'first_half' | 'second_half' | 'reverse_re
 export type OrderGuide = {
   label: string;
   side: 'buy' | 'sell';
-  orderType: 'LOC' | 'MOC' | 'LIMIT' | 'MANUAL';
+  orderType: 'LOC' | 'MOC' | 'LIMIT';
   price: number | null;
   quantity: number;
   amount?: number;
