@@ -2,8 +2,9 @@ import 'server-only';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { roundPrice } from '@/lib/trading/rounding';
+import type { SymbolCode } from '@/lib/types';
 
-const SOXL_CHART_ENDPOINT = 'https://query1.finance.yahoo.com/v8/finance/chart/SOXL';
+const YAHOO_CHART_ENDPOINT = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
 type YahooChartResponse = {
   chart?: {
@@ -37,7 +38,7 @@ function newYorkTradeDate(timestamp: number) {
   }).format(new Date(timestamp * 1000));
 }
 
-export async function syncSoxlMarketData() {
+export async function syncMarketData(symbol: SymbolCode) {
   const supabase = createSupabaseServerClient();
   if (!supabase) return;
 
@@ -46,7 +47,7 @@ export async function syncSoxlMarketData() {
   const { data: latestCandle, error: latestCandleError } = await supabase
     .from('market_candles')
     .select('trade_date')
-    .eq('symbol', 'SOXL')
+    .eq('symbol', symbol)
     .order('trade_date', { ascending: false })
     .limit(1)
     .maybeSingle<{ trade_date: string }>();
@@ -62,7 +63,7 @@ export async function syncSoxlMarketData() {
     period1.setUTCDate(period1.getUTCDate() - 10);
   }
 
-  const url = new URL(SOXL_CHART_ENDPOINT);
+  const url = new URL(`${YAHOO_CHART_ENDPOINT}/${symbol}`);
   url.searchParams.set('period1', String(unixSeconds(period1)));
   url.searchParams.set('period2', String(unixSeconds(period2)));
   url.searchParams.set('interval', '1d');
@@ -77,16 +78,16 @@ export async function syncSoxlMarketData() {
     },
     signal: AbortSignal.timeout(20_000),
   });
-  if (!response.ok) throw new Error(`SOXL OHLC API 오류: ${response.status}`);
+  if (!response.ok) throw new Error(`${symbol} OHLC API 오류: ${response.status}`);
 
   const payload = await response.json() as YahooChartResponse;
-  if (payload.chart?.error) throw new Error(payload.chart.error.description ?? 'SOXL OHLC API 응답 오류');
+  if (payload.chart?.error) throw new Error(payload.chart.error.description ?? `${symbol} OHLC API 응답 오류`);
 
   const result = payload.chart?.result?.[0];
   const timestamps = result?.timestamp ?? [];
   const quote = result?.indicators?.quote?.[0];
   const adjustedCloses = result?.indicators?.adjclose?.[0]?.adjclose ?? [];
-  if (!quote || timestamps.length === 0) throw new Error('SOXL OHLC 데이터가 비어 있습니다.');
+  if (!quote || timestamps.length === 0) throw new Error(`${symbol} OHLC 데이터가 비어 있습니다.`);
 
   const fetchedAt = new Date().toISOString();
   const rows = timestamps.flatMap((timestamp, index) => {
@@ -97,7 +98,7 @@ export async function syncSoxlMarketData() {
     if (open == null || high == null || low == null || close == null) return [];
 
     return [{
-      symbol: 'SOXL' as const,
+      symbol,
       trade_date: newYorkTradeDate(timestamp),
       open_price: roundPrice(open),
       high_price: roundPrice(high),

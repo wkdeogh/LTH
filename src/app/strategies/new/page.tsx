@@ -17,7 +17,7 @@ export default function NewStrategyPage() {
             <h2>기본 정보</h2>
             <div className="form-grid">
               <label>전략명<input name="name" defaultValue="TQQQ 40분할" required /></label>
-              <label>종목<select name="symbol" defaultValue="TQQQ"><option>TQQQ</option><option>SOXL</option><option>RAM</option></select></label>
+              <label>종목<select name="symbol" defaultValue="TQQQ"><option>TQQQ</option><option>SOXL</option></select></label>
               <label>분할 수<select name="split_count" defaultValue="40"><option value="20">20분할 · 공격적</option><option value="40">40분할 · 방어적</option></select></label>
               <label>운용 방식<select name="compounding_type" defaultValue="compound"><option value="compound">복리 · 수익 포함</option><option value="simple">단리 · 원금 유지</option></select></label>
             </div>

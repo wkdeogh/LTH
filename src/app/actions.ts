@@ -3,11 +3,11 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
-import { syncSoxlMarketData } from '@/lib/marketData/soxl';
+import { syncMarketData } from '@/lib/marketData/candles';
 import { withNotice } from '@/lib/notices';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { koreaDate } from '@/lib/date';
-import type { Execution, SplitCount, Strategy, TEffect } from '@/lib/types';
+import type { Execution, SplitCount, Strategy, SymbolCode, TEffect } from '@/lib/types';
 import { toNumber, toStrategyState } from '@/lib/types';
 import { applyTEffect, calculateRoundPerformance } from '@/lib/trading';
 import { roundMoney } from '@/lib/trading/rounding';
@@ -32,6 +32,13 @@ function numberValue(formData: FormData, key: string, fallback = 0) {
 
 function intValue(formData: FormData, key: string, fallback = 0) {
   return Math.trunc(numberValue(formData, key, fallback));
+}
+
+function symbolValue(value: string): SymbolCode {
+  if (value !== 'TQQQ' && value !== 'SOXL') {
+    throw new Error('지원하는 종목은 TQQQ와 SOXL입니다.');
+  }
+  return value;
 }
 
 function internalReturnPath(formData: FormData) {
@@ -68,7 +75,7 @@ export async function createStrategy(formData: FormData) {
     .from('strategies')
     .insert({
       name: stringValue(formData, 'name', '새 전략'),
-      symbol: stringValue(formData, 'symbol', 'TQQQ'),
+      symbol: symbolValue(stringValue(formData, 'symbol', 'TQQQ')),
       split_count: intValue(formData, 'split_count', 40),
       principal,
       cash_balance: cashBalance,
@@ -107,7 +114,7 @@ export async function updateStrategy(formData: FormData) {
     .from('strategies')
     .update({
       name: stringValue(formData, 'name'),
-      symbol: stringValue(formData, 'symbol'),
+      symbol: symbolValue(stringValue(formData, 'symbol')),
       split_count: intValue(formData, 'split_count') as SplitCount,
       principal,
       cash_balance: cashBalance,
@@ -158,13 +165,21 @@ export async function addDailyPrice(formData: FormData) {
   redirect(withNotice(`/strategies/${strategyId}`, 'price-saved'));
 }
 
-export async function refreshSoxlChart(formData: FormData) {
+export async function refreshMarketChart(formData: FormData) {
+  const supabase = supabaseOrThrow();
   const strategyId = stringValue(formData, 'strategy_id');
   if (!strategyId) throw new Error('차트를 갱신할 전략을 찾을 수 없습니다.');
 
-  await syncSoxlMarketData();
+  const { data: strategy, error } = await supabase
+    .from('strategies')
+    .select('symbol')
+    .eq('id', strategyId)
+    .single<{ symbol: string }>();
+  if (error) throw error;
+
+  await syncMarketData(symbolValue(strategy.symbol));
   revalidatePath(`/strategies/${strategyId}`);
-  redirect(withNotice(`/strategies/${strategyId}#soxl-chart`, 'chart-refreshed'));
+  redirect(withNotice(`/strategies/${strategyId}#market-chart`, 'chart-refreshed'));
 }
 
 export async function switchToReverse(formData: FormData) {
@@ -422,10 +437,10 @@ export async function recordExecution(formData: FormData) {
 
   after(async () => {
     try {
-      await syncSoxlMarketData();
+      await syncMarketData(state.symbol);
       revalidatePath(`/strategies/${strategyId}`);
     } catch (error) {
-      console.error('SOXL OHLC 백그라운드 갱신 실패', error);
+      console.error(`${state.symbol} OHLC 백그라운드 갱신 실패`, error);
     }
   });
 

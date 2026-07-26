@@ -15,7 +15,7 @@ const ignoredTargetSelector = [
   'select',
   'textarea',
   '[contenteditable="true"]',
-  '.soxl-chart',
+  '.market-chart',
   '.table-wrap',
 ].join(',');
 

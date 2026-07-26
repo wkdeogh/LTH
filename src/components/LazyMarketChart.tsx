@@ -2,20 +2,20 @@
 
 import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import type { SoxlChartProps } from '@/components/SoxlChart';
+import type { MarketChartProps } from '@/components/MarketChart';
 
-const DynamicSoxlChart = dynamic(
-  () => import('@/components/SoxlChart').then((module) => module.SoxlChart),
+const DynamicMarketChart = dynamic(
+  () => import('@/components/MarketChart').then((module) => module.MarketChart),
   {
     ssr: false,
     loading: () => <ChartSkeleton />,
   },
 );
 
-function ChartSkeleton() {
+function ChartSkeleton({ symbol }: { symbol?: string }) {
   return (
-    <div className="chart-loading" role="status" aria-label="SOXL 차트 불러오는 중">
-      <span className="sr-only">SOXL 차트를 불러오고 있습니다.</span>
+    <div className="chart-loading" role="status" aria-label={`${symbol ?? '종목'} 차트 불러오는 중`}>
+      <span className="sr-only">{symbol ?? '종목'} 차트를 불러오고 있습니다.</span>
       <div className="chart-loading-toolbar" aria-hidden="true">
         <span className="skeleton-block" />
         <span className="skeleton-block" />
@@ -25,7 +25,7 @@ function ChartSkeleton() {
   );
 }
 
-export function LazySoxlChart(props: SoxlChartProps) {
+export function LazyMarketChart(props: MarketChartProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
 
@@ -49,7 +49,7 @@ export function LazySoxlChart(props: SoxlChartProps) {
 
   return (
     <div className="lazy-chart-shell" ref={shellRef}>
-      {isVisible ? <DynamicSoxlChart {...props} /> : <ChartSkeleton />}
+      {isVisible ? <DynamicMarketChart {...props} /> : <ChartSkeleton symbol={props.symbol} />}
     </div>
   );
 }

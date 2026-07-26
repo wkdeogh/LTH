@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
-import { addDailyPrice, deleteStrategy, refreshSoxlChart, switchToNormal, switchToReverse, updateStrategy } from '@/app/actions';
+import { addDailyPrice, deleteStrategy, refreshMarketChart, switchToNormal, switchToReverse, updateStrategy } from '@/app/actions';
 import { compact, usd } from '@/components/Format';
-import { LazySoxlChart } from '@/components/LazySoxlChart';
+import { LazyMarketChart } from '@/components/LazyMarketChart';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
@@ -53,7 +53,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
     supabase!
       .from('market_candles')
       .select('*')
-      .eq('symbol', 'SOXL')
+      .eq('symbol', strategy.symbol)
       .gte('trade_date', chartStart.toISOString().slice(0, 10))
       .order('trade_date', { ascending: true })
       .limit(900)
@@ -195,22 +195,23 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
         </div>
       </section>
 
-      <section className="panel chart-panel" id="soxl-chart">
+      <section className="panel chart-panel" id="market-chart">
         <div className="section-head chart-section-head">
           <div>
-            <span className="eyebrow">SOXL MARKET</span>
-            <h2>SOXL 차트와 체결 지점</h2>
+            <span className="eyebrow">{strategy.symbol} MARKET</span>
+            <h2>{strategy.symbol} 차트와 체결 지점</h2>
           </div>
           <div className="section-head-actions">
             <span className="subtle-label">일봉 · 최근 3년</span>
-            <form action={refreshSoxlChart}>
+            <form action={refreshMarketChart}>
               <input name="strategy_id" type="hidden" value={strategy.id} />
               <button className="button ghost chart-refresh-button" type="submit">캔들 즉시 갱신</button>
             </form>
           </div>
         </div>
         <p className="helper-copy">차트를 움직이거나 확대할 수 있습니다. 마우스를 올리거나 모바일에서 길게 터치하면 해당 일자의 OHLC와 체결 정보를 확인할 수 있습니다.</p>
-        <LazySoxlChart
+        <LazyMarketChart
+          symbol={strategy.symbol}
           candles={candleResult.data ?? []}
           executions={chartExecutionResult.data ?? []}
           averagePrice={toNumber(strategy.avg_price)}
@@ -228,7 +229,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
           <input type="hidden" name="id" value={strategy.id} />
           <div className="form-grid">
             <label>전략명<input name="name" defaultValue={strategy.name} required /></label>
-            <label>종목<select name="symbol" defaultValue={strategy.symbol}><option>TQQQ</option><option>SOXL</option><option>RAM</option></select></label>
+            <label>종목<select name="symbol" defaultValue={strategy.symbol}><option>TQQQ</option><option>SOXL</option></select></label>
             <label>분할 수<select name="split_count" defaultValue={strategy.split_count}><option value="20">20</option><option value="40">40</option></select></label>
             <label>원금($)<input name="principal" type="number" min="0.0001" step="0.0001" inputMode="decimal" defaultValue={String(strategy.principal)} required /></label>
             <label>현금($)<input name="cash_balance" type="number" min="0" step="0.0001" inputMode="decimal" defaultValue={String(strategy.cash_balance)} required /></label>

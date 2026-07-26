@@ -182,7 +182,7 @@ export function calculateNormalPlan(state: StrategyState, referencePrice?: numbe
         orderType: 'LIMIT',
         price: targetSellPrice,
         quantity: finalSellQty,
-        note: state.symbol === 'TQQQ' ? '평단 +15% 지정가 매도입니다.' : 'SOXL/RAM 기준 평단 +20% 지정가 매도입니다.',
+        note: state.symbol === 'TQQQ' ? '평단 +15% 지정가 매도입니다.' : 'SOXL 기준 평단 +20% 지정가 매도입니다.',
       },
     ],
     warnings,

@@ -1,4 +1,4 @@
-export type SymbolCode = 'TQQQ' | 'SOXL' | 'RAM';
+export type SymbolCode = 'TQQQ' | 'SOXL';
 export type SplitCount = 20 | 40;
 export type TradeMode = 'normal' | 'reverse';
 export type CompoundingType = 'simple' | 'compound';
@@ -47,7 +47,7 @@ export type DailyPrice = {
 
 export type MarketCandle = {
   id?: string;
-  symbol: 'SOXL';
+  symbol: SymbolCode;
   trade_date: string;
   open_price: number | string;
   high_price: number | string;

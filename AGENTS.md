@@ -25,7 +25,7 @@
 
 ## Domain Notes
 
-- Supported strategy symbols are `TQQQ`, `SOXL`, and `RAM`; `RAM` uses the same calculations as `SOXL`. Supported split counts are only `20` and `40`, enforced in both types and schema.
+- Supported strategy symbols are `TQQQ` and `SOXL`. Supported split counts are only `20` and `40`, enforced in both types and schema.
 - The implemented engine uses original-style V4 concepts: `t_value`, star percent/price, normal mode, and reverse mode.
 - Do not treat `Trade.md` as implementation truth by itself; it is a simplified human memo and conflicts with the app code by saying T values are unused.
 - `src/lib/trading/*` is the current source of truth for calculation behavior.

@@ -13,7 +13,7 @@ import {
   type SeriesMarker,
   type Time,
 } from 'lightweight-charts';
-import type { Execution, MarketCandle } from '@/lib/types';
+import type { Execution, MarketCandle, SymbolCode } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 
 type RangeKey = '3M' | '6M' | '1Y' | '2Y' | '3Y';
@@ -42,7 +42,8 @@ function subtractRange(dateText: string, range: RangeKey) {
   return date.toISOString().slice(0, 10);
 }
 
-export type SoxlChartProps = {
+export type MarketChartProps = {
+  symbol: SymbolCode;
   candles: MarketCandle[];
   executions: Execution[];
   averagePrice: number;
@@ -50,13 +51,14 @@ export type SoxlChartProps = {
   fullSellPrice: number | null;
 };
 
-export function SoxlChart({
+export function MarketChart({
+  symbol,
   candles,
   executions,
   averagePrice,
   starPrice,
   fullSellPrice,
-}: SoxlChartProps) {
+}: MarketChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [range, setRange] = useState<RangeKey>('3M');
   const [hover, setHover] = useState<HoverData | null>(null);
@@ -217,14 +219,14 @@ export function SoxlChart({
   if (candles.length === 0) {
     return (
       <div className="chart-empty">
-        <strong>아직 SOXL 차트 데이터가 없습니다.</strong>
-        <p>다음 체결을 저장하면 서버가 최근 3년 OHLC 데이터를 백그라운드에서 갱신합니다.</p>
+        <strong>아직 {symbol} 차트 데이터가 없습니다.</strong>
+        <p>캔들 즉시 갱신을 누르거나 다음 체결을 저장하면 최근 3년 OHLC 데이터를 갱신합니다.</p>
       </div>
     );
   }
 
   return (
-    <div className="soxl-chart-shell">
+    <div className="market-chart-shell">
       <div className="chart-toolbar">
         <div className="chart-legend" aria-live="polite">
           {displayed && (
@@ -256,7 +258,7 @@ export function SoxlChart({
           ))}
         </div>
       </div>
-      <div className="soxl-chart" ref={containerRef} aria-label="SOXL 일봉 캔들 차트" />
+      <div className="market-chart" ref={containerRef} aria-label={`${symbol} 일봉 캔들 차트`} />
       <div className="chart-key">
         <span><i className="buy-dot" />매수 체결</span>
         <span><i className="sell-dot" />매도 체결</span>

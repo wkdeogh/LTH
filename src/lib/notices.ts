@@ -3,7 +3,7 @@ export const noticeMessages = {
   'strategy-updated': { message: '현재 상태를 저장했어요.', tone: 'success' },
   'strategy-deleted': { message: '전략을 목록에서 정리했어요.', tone: 'success' },
   'price-saved': { message: '계산 기준가를 저장했어요.', tone: 'success' },
-  'chart-refreshed': { message: 'SOXL 캔들을 최신 상태로 갱신했어요.', tone: 'success' },
+  'chart-refreshed': { message: '차트 캔들을 최신 상태로 갱신했어요.', tone: 'success' },
   'reverse-started': { message: '리버스모드로 전환했어요.', tone: 'success' },
   'normal-restored': { message: '일반모드로 돌아왔어요.', tone: 'success' },
   'execution-saved': { message: '체결을 저장했어요.', tone: 'success' },

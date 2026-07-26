@@ -3,8 +3,8 @@ import Link from 'next/link';
 const starFormulas = [
   ['TQQQ · 20분할', '(15 − 1.5 × T)%'],
   ['TQQQ · 40분할', '(15 − 0.75 × T)%'],
-  ['SOXL / RAM · 20분할', '(20 − 2 × T)%'],
-  ['SOXL / RAM · 40분할', '(20 − T)%'],
+  ['SOXL · 20분할', '(20 − 2 × T)%'],
+  ['SOXL · 40분할', '(20 − T)%'],
 ];
 
 export default function GuidePage() {
@@ -40,7 +40,7 @@ export default function GuidePage() {
         <div className="guide-copy">
           <h3>종목과 원금</h3>
           <p>전략별 원금을 먼저 정하고, 매수 후 남은 현금도 해당 전략 전용으로 유지합니다. 여러 종목을 함께 운용한다면 각 전략의 원금을 독립적으로 관리합니다.</p>
-          <div className="callout"><strong>앱 지원 범위</strong><p>TQQQ, SOXL, RAM과 20·40분할을 지원합니다. RAM의 계산식은 SOXL과 같습니다.</p></div>
+          <div className="callout"><strong>앱 지원 범위</strong><p>TQQQ와 SOXL의 20·40분할을 지원합니다.</p></div>
 
           <h3>분할 수</h3>
           <div className="comparison-grid">
@@ -79,7 +79,7 @@ export default function GuidePage() {
           <h3>매도 규칙</h3>
           <div className="rule-list sell-rules">
             <div><span>쿼터매도</span><p>보유수량의 1/4을 별지점에 LOC 매도합니다. 수량은 소수점 이하를 버립니다.</p></div>
-            <div><span>최종매도</span><p>나머지 수량을 TQQQ는 평단 +15%, SOXL/RAM은 평단 +20%에 지정가 매도합니다.</p></div>
+            <div><span>최종매도</span><p>나머지 수량을 TQQQ는 평단 +15%, SOXL은 평단 +20%에 지정가 매도합니다.</p></div>
           </div>
           <div className="warning-callout"><strong>후반전 쿼터매도는 손절일 수 있습니다.</strong><p>후반전에는 별%가 음수가 되므로 별지점이 평단보다 낮아집니다. 전략 규칙상 이 매도도 그대로 실행합니다.</p></div>
         </div>
@@ -116,10 +116,10 @@ export default function GuidePage() {
           </div>
 
           <h3>일반모드 복귀</h3>
-          <p>종가가 평단 대비 TQQQ −15%, SOXL/RAM −20% 기준보다 위로 올라오면 일반모드로 복귀합니다. 리버스모드에서 계산한 T값은 그대로 이어서 사용합니다.</p>
+          <p>종가가 평단 대비 TQQQ −15%, SOXL −20% 기준보다 위로 올라오면 일반모드로 복귀합니다. 리버스모드에서 계산한 T값은 그대로 이어서 사용합니다.</p>
           <div className="formula-table two-rows">
             <div><span>TQQQ</span><strong>종가 &gt; 평단 × 0.85</strong></div>
-            <div><span>SOXL / RAM</span><strong>종가 &gt; 평단 × 0.80</strong></div>
+            <div><span>SOXL</span><strong>종가 &gt; 평단 × 0.80</strong></div>
           </div>
         </div>
       </section>

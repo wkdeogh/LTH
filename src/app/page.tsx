@@ -162,7 +162,7 @@ export default async function HomePage() {
         <section className="empty-state">
           <span className="empty-number">01</span>
           <h2>첫 전략을 만들어 보세요</h2>
-          <p>TQQQ, SOXL, RAM 중 하나를 선택하면 주문 계산을 시작할 수 있습니다.</p>
+          <p>TQQQ 또는 SOXL을 선택하면 주문 계산을 시작할 수 있습니다.</p>
         </section>
       )}
 
