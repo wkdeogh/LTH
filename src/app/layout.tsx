@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { FormSubmitFeedback } from '@/components/FormSubmitFeedback';
+import { PullToRefresh } from '@/components/PullToRefresh';
 import { TouchFeedback } from '@/components/TouchFeedback';
 import './globals.css';
 
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <FormSubmitFeedback />
         <TouchFeedback />
+        <PullToRefresh />
         <main className="shell">
           <header className="topbar">
             <Link className="brand" href="/">
