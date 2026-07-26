@@ -10,7 +10,7 @@ export default function NewStrategyPage() {
         <p>처음 시작한다면 네 가지만 정하면 됩니다. 진행 중인 전략도 이어서 등록할 수 있습니다.</p>
       </section>
 
-      <form className="panel form create-form" action={createStrategy}>
+      <form className="panel form create-form" action={createStrategy} data-inline-validation data-validation-kind="strategy" noValidate>
         <div className="form-section">
           <div className="form-section-number">1</div>
           <div className="form-section-content">

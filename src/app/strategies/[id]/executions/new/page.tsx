@@ -68,7 +68,15 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
           <div><span className="eyebrow">EXECUTION</span><h2>체결 입력</h2></div>
           <span className="required-note">모두 필수</span>
         </div>
-        <form className="form" action={recordExecution}>
+        <form
+          className="form"
+          action={recordExecution}
+          data-current-cash={state.cashBalance}
+          data-current-position={state.positionQty}
+          data-inline-validation
+          data-validation-kind="execution"
+          noValidate
+        >
           <input type="hidden" name="strategy_id" value={id} />
           <div className="form-grid">
             <label>체결일<input name="executed_at" type="date" defaultValue={koreaDate(-1)} required /></label>

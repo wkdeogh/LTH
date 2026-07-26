@@ -1,7 +1,10 @@
+import { Suspense } from 'react';
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { FormSubmitFeedback } from '@/components/FormSubmitFeedback';
+import { InlineValidation } from '@/components/InlineValidation';
 import { PullToRefresh } from '@/components/PullToRefresh';
+import { Toast } from '@/components/Toast';
 import { TouchFeedback } from '@/components/TouchFeedback';
 import './globals.css';
 
@@ -21,9 +24,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="ko">
       <body>
+        <InlineValidation />
         <FormSubmitFeedback />
         <TouchFeedback />
         <PullToRefresh />
+        <Suspense fallback={null}><Toast /></Suspense>
         <main className="shell">
           <header className="topbar">
             <Link className="brand" href="/">

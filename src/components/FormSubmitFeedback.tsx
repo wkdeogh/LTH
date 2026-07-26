@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { validateInlineForm } from '@/components/InlineValidation';
 
 function buttonLabel(button: HTMLButtonElement) {
   const text = button.textContent ?? '';
@@ -29,6 +30,10 @@ export function FormSubmitFeedback() {
     function onSubmit(event: Event) {
       const submitter = (event as SubmitEvent).submitter;
       if (!(submitter instanceof HTMLButtonElement)) return;
+      if (submitter.form && !validateInlineForm(submitter.form)) {
+        event.preventDefault();
+        return;
+      }
 
       if (submitter.classList.contains('danger')) {
         const message = submitter.dataset.confirm ?? '정말 이 전략을 삭제할까요? 삭제한 전략은 목록에서 숨겨집니다.';

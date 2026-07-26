@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { syncSoxlMarketData } from '@/lib/marketData/soxl';
+import { withNotice } from '@/lib/notices';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { koreaDate } from '@/lib/date';
 import type { Execution, SplitCount, Strategy, TEffect } from '@/lib/types';
@@ -84,7 +85,7 @@ export async function createStrategy(formData: FormData) {
   if (error) throw error;
 
   revalidatePath('/');
-  redirect(`/strategies/${data.id}`);
+  redirect(withNotice(`/strategies/${data.id}`, 'strategy-created'));
 }
 
 export async function updateStrategy(formData: FormData) {
@@ -122,7 +123,7 @@ export async function updateStrategy(formData: FormData) {
 
   revalidatePath('/');
   revalidatePath(`/strategies/${id}`);
-  redirect(`/strategies/${id}`);
+  redirect(withNotice(`/strategies/${id}`, 'strategy-updated'));
 }
 
 export async function deleteStrategy(formData: FormData) {
@@ -133,7 +134,7 @@ export async function deleteStrategy(formData: FormData) {
   if (error) throw error;
 
   revalidatePath('/');
-  redirect('/');
+  redirect(withNotice('/', 'strategy-deleted'));
 }
 
 export async function addDailyPrice(formData: FormData) {
@@ -154,6 +155,7 @@ export async function addDailyPrice(formData: FormData) {
 
   revalidatePath(`/strategies/${strategyId}`);
   revalidatePath(`/strategies/${strategyId}/plan`);
+  redirect(withNotice(`/strategies/${strategyId}`, 'price-saved'));
 }
 
 export async function refreshSoxlChart(formData: FormData) {
@@ -162,7 +164,7 @@ export async function refreshSoxlChart(formData: FormData) {
 
   await syncSoxlMarketData();
   revalidatePath(`/strategies/${strategyId}`);
-  redirect(`/strategies/${strategyId}#soxl-chart`);
+  redirect(withNotice(`/strategies/${strategyId}#soxl-chart`, 'chart-refreshed'));
 }
 
 export async function switchToReverse(formData: FormData) {
@@ -182,7 +184,7 @@ export async function switchToReverse(formData: FormData) {
   if (error) throw error;
 
   revalidatePath(`/strategies/${id}`);
-  redirect(`/strategies/${id}/plan`);
+  redirect(withNotice(`/strategies/${id}/plan`, 'reverse-started'));
 }
 
 export async function switchToNormal(formData: FormData) {
@@ -202,7 +204,7 @@ export async function switchToNormal(formData: FormData) {
   if (error) throw error;
 
   revalidatePath(`/strategies/${id}`);
-  redirect(`/strategies/${id}/plan`);
+  redirect(withNotice(`/strategies/${id}/plan`, 'normal-restored'));
 }
 
 export async function saveTradePlan(formData: FormData) {
@@ -430,7 +432,7 @@ export async function recordExecution(formData: FormData) {
   revalidatePath('/');
   revalidatePath(`/strategies/${strategyId}`);
   revalidatePath(`/strategies/${strategyId}/rounds`);
-  redirect(`/strategies/${strategyId}`);
+  redirect(withNotice(`/strategies/${strategyId}`, isCompletedRound ? 'round-completed' : 'execution-saved'));
 }
 
 export async function cancelLatestExecution(formData: FormData) {
@@ -451,7 +453,7 @@ export async function cancelLatestExecution(formData: FormData) {
   revalidatePath(`/strategies/${strategyId}/plan`);
   revalidatePath(`/strategies/${strategyId}/executions/new`);
   revalidatePath(`/strategies/${strategyId}/rounds`);
-  redirect(`/strategies/${strategyId}/executions/new`);
+  redirect(withNotice(`/strategies/${strategyId}/executions/new`, 'execution-cancelled'));
 }
 
 export async function updateCompletedRound(formData: FormData) {
@@ -496,7 +498,7 @@ export async function updateCompletedRound(formData: FormData) {
   revalidatePath('/');
   revalidatePath('/rounds');
   revalidatePath(`/strategies/${strategyId}/rounds`);
-  redirect(internalReturnPath(formData));
+  redirect(withNotice(internalReturnPath(formData), 'round-updated'));
 }
 
 export async function deleteCompletedRound(formData: FormData) {
@@ -525,5 +527,5 @@ export async function deleteCompletedRound(formData: FormData) {
   revalidatePath('/');
   revalidatePath('/rounds');
   revalidatePath(`/strategies/${strategyId}/rounds`);
-  redirect(internalReturnPath(formData));
+  redirect(withNotice(internalReturnPath(formData), 'round-deleted'));
 }

@@ -42,19 +42,21 @@ function subtractRange(dateText: string, range: RangeKey) {
   return date.toISOString().slice(0, 10);
 }
 
+export type SoxlChartProps = {
+  candles: MarketCandle[];
+  executions: Execution[];
+  averagePrice: number;
+  starPrice: number | null;
+  fullSellPrice: number | null;
+};
+
 export function SoxlChart({
   candles,
   executions,
   averagePrice,
   starPrice,
   fullSellPrice,
-}: {
-  candles: MarketCandle[];
-  executions: Execution[];
-  averagePrice: number;
-  starPrice: number | null;
-  fullSellPrice: number | null;
-}) {
+}: SoxlChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [range, setRange] = useState<RangeKey>('3M');
   const [hover, setHover] = useState<HoverData | null>(null);

@@ -13,7 +13,7 @@ export function CompletedRoundEditor({ round, returnPath = '/rounds' }: { round:
       </summary>
 
       <div className="disclosure-body record-editor-body">
-        <form className="form" action={updateCompletedRound}>
+        <form className="form" action={updateCompletedRound} data-inline-validation data-validation-kind="round" noValidate>
           <input type="hidden" name="id" value={round.id} />
           <input type="hidden" name="strategy_id" value={round.strategy_id} />
           <input type="hidden" name="return_to" value={returnPath} />
