@@ -99,6 +99,17 @@ create table if not exists completed_rounds (
   unique(strategy_id, round_number)
 );
 
+-- Keep existing strategy history while normalizing legacy symbols before
+-- tightening the supported-symbol constraints.
+update strategies
+set symbol = 'SOXL',
+    updated_at = now()
+where symbol not in ('TQQQ', 'SOXL');
+
+update completed_rounds
+set symbol = 'SOXL'
+where symbol not in ('TQQQ', 'SOXL');
+
 alter table strategies drop constraint if exists strategies_symbol_check;
 alter table strategies add constraint strategies_symbol_check check (symbol in ('TQQQ', 'SOXL'));
 
