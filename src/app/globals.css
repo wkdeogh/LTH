@@ -835,10 +835,13 @@ button.is-pending > span {
   font-weight: 800;
   justify-content: center;
   min-height: 42px;
+  overflow: hidden;
   padding: 8px 10px;
+  position: relative;
   text-align: center;
   transition:
     background var(--motion-base) var(--ease-touch),
+    box-shadow var(--motion-fast) ease,
     color var(--motion-fast) ease,
     transform var(--motion-fast) var(--ease-touch);
 }
@@ -2112,13 +2115,30 @@ td {
   transform: translateX(3px) scale(0.98);
 }
 
-.tab:active,
-.tab.is-touching,
 .record-view-tab:active,
 .record-view-tab.is-touching,
 .chart-ranges button:active,
 .chart-ranges button.is-touching {
   transform: scale(0.95);
+}
+
+.tab:active,
+.tab.is-touching {
+  background: #dce8ff;
+  box-shadow:
+    inset 0 0 0 1px rgba(21, 94, 239, 0.22),
+    0 3px 8px rgba(21, 94, 239, 0.12);
+  color: var(--accent-dark);
+  transform: translateY(1px) scale(0.94);
+}
+
+.tab.active:active,
+.tab.active.is-touching {
+  background: #263444;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 3px 9px rgba(20, 27, 36, 0.2);
+  color: #fff;
 }
 
 .round-row:active,
