@@ -1,11 +1,13 @@
 import { Suspense } from 'react';
 import type { Metadata, Viewport } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 import { FormSubmitFeedback } from '@/components/FormSubmitFeedback';
 import { InlineValidation } from '@/components/InlineValidation';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { Toast } from '@/components/Toast';
 import { TouchFeedback } from '@/components/TouchFeedback';
+import soxlLogo from './icon.png';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -32,7 +34,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <main className="shell">
           <header className="topbar">
             <Link className="brand" href="/">
-              <span className="brand-mark" aria-hidden="true">L</span>
+              <Image className="brand-mark" src={soxlLogo} alt="" priority />
               <span>쏙쓸계산기</span>
             </Link>
             <nav className="global-nav" aria-label="주요 메뉴">

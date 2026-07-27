@@ -290,14 +290,11 @@ summary {
 }
 
 .brand-mark {
-  align-items: center;
-  background: var(--ink);
   border-radius: 10px;
-  color: #fff;
-  display: inline-flex;
-  font-size: 15px;
+  display: block;
+  flex: 0 0 auto;
   height: 32px;
-  justify-content: center;
+  object-fit: cover;
   width: 32px;
 }
 
