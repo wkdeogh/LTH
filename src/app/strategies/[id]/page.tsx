@@ -132,8 +132,8 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
         </div>
         <div className="performance-details three">
           <div><span>계좌 평가액</span><strong>{accountPerformance.accountValue === null ? '-' : usd(accountPerformance.accountValue)}</strong></div>
-          <div><span>계좌 평가손익</span><strong>{accountPerformance.profitAmount === null ? '-' : `${accountPerformance.profitAmount >= 0 ? '+' : '-'}${usd(Math.abs(accountPerformance.profitAmount))}`}</strong></div>
-          <div><span>보유분 평단 대비</span><strong>{positionPerformance.profitRate === null ? '-' : signedValue(positionPerformance.profitRate, '%')}</strong></div>
+          <div><span>계좌 평가손익</span><strong className={accountPerformance.profitAmount !== null && accountPerformance.profitAmount < 0 ? 'profit-negative' : undefined}>{accountPerformance.profitAmount === null ? '-' : `${accountPerformance.profitAmount >= 0 ? '+' : '-'}${usd(Math.abs(accountPerformance.profitAmount))}`}</strong></div>
+          <div><span>보유분 평단 대비</span><strong className={positionPerformance.profitRate !== null && positionPerformance.profitRate < 0 ? 'profit-negative' : undefined}>{positionPerformance.profitRate === null ? '-' : signedValue(positionPerformance.profitRate, '%')}</strong></div>
         </div>
       </section>
 

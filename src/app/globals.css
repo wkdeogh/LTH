@@ -1060,7 +1060,24 @@ button.is-pending > span {
 }
 
 .performance-panel.negative {
-  background: linear-gradient(135deg, #b53645, #862631);
+  background: var(--surface);
+  border: 1px solid #efdadd;
+  box-shadow: var(--shadow);
+  color: var(--ink);
+}
+
+.performance-panel.negative .performance-main > span,
+.performance-panel.negative .performance-main p,
+.performance-panel.negative .performance-details span {
+  color: var(--muted);
+}
+
+.performance-panel.negative .performance-main > strong {
+  color: var(--negative);
+}
+
+.performance-panel.negative .performance-details > div {
+  background: var(--surface-soft);
 }
 
 .performance-main > span {
