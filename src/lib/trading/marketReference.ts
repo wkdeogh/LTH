@@ -1,8 +1,8 @@
-import type { DailyPrice, Execution } from '@/lib/types';
+import type { DailyPrice, MarketCandle } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 import { roundMoney, roundRate } from '@/lib/trading/rounding';
 
-export type ReferenceSource = 'saved_close' | 'execution';
+export type ReferenceSource = 'saved_close' | 'market_close';
 
 export type MarketReference = {
   date: string;
@@ -11,29 +11,25 @@ export type MarketReference = {
 };
 
 type DailyPriceInput = Pick<DailyPrice, 'trade_date' | 'close_price'>;
-type ExecutionInput = Pick<Execution, 'executed_at' | 'avg_execution_price' | 'created_at'>;
+type MarketCandleInput = Pick<MarketCandle, 'trade_date' | 'close_price'>;
 
 /**
- * 직접 입력한 종가가 있으면 같은 날의 체결가보다 우선한다.
- * 종가가 없는 날짜는 LOC 체결가를 그날의 종가로 간주한다.
+ * 일봉 차트의 실제 종가를 기준으로 사용한다.
+ * 직접 입력한 종가가 있으면 같은 거래일의 차트 종가를 덮어쓴다.
  */
 export function buildMarketReferenceHistory(
   dailyPrices: DailyPriceInput[],
-  executions: ExecutionInput[],
+  marketCandles: MarketCandleInput[],
 ): MarketReference[] {
   const references = new Map<string, MarketReference>();
-  const sortedExecutions = [...executions].sort((a, b) => {
-    const dateOrder = b.executed_at.localeCompare(a.executed_at);
-    return dateOrder !== 0 ? dateOrder : b.created_at.localeCompare(a.created_at);
-  });
 
-  for (const execution of sortedExecutions) {
-    const price = toNumber(execution.avg_execution_price);
-    if (price > 0 && !references.has(execution.executed_at)) {
-      references.set(execution.executed_at, {
-        date: execution.executed_at,
+  for (const candle of marketCandles) {
+    const price = toNumber(candle.close_price);
+    if (price > 0) {
+      references.set(candle.trade_date, {
+        date: candle.trade_date,
         price,
-        source: 'execution',
+        source: 'market_close',
       });
     }
   }
@@ -101,5 +97,5 @@ export function calculateRoundPerformance(startedPrincipal: number, endingCashBa
 }
 
 export function referenceSourceLabel(source?: ReferenceSource) {
-  return source === 'saved_close' ? '직접 입력 종가' : source === 'execution' ? '최근 체결가' : '기준가 없음';
+  return source === 'saved_close' ? '직접 입력 종가' : source === 'market_close' ? '차트 종가' : '기준가 없음';
 }

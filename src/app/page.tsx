@@ -3,7 +3,7 @@ import { SetupNotice } from '@/components/SetupNotice';
 import { compact, usd } from '@/components/Format';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { CompletedRound, DailyPrice, Execution, Strategy } from '@/lib/types';
+import type { CompletedRound, DailyPrice, MarketCandle, Strategy } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 import {
   buildMarketReferenceHistory,
@@ -24,6 +24,12 @@ function signedPercent(value: number) {
 function groupByStrategy<T extends { strategy_id: string }>(rows: T[]) {
   const grouped = new Map<string, T[]>();
   for (const row of rows) grouped.set(row.strategy_id, [...(grouped.get(row.strategy_id) ?? []), row]);
+  return grouped;
+}
+
+function groupBySymbol<T extends { symbol: string }>(rows: T[]) {
+  const grouped = new Map<string, T[]>();
+  for (const row of rows) grouped.set(row.symbol, [...(grouped.get(row.symbol) ?? []), row]);
   return grouped;
 }
 
@@ -49,12 +55,16 @@ export default async function HomePage() {
   }
 
   const strategyIds = (strategies ?? []).map((strategy) => strategy.id);
+  const strategySymbols = [...new Set((strategies ?? []).map((strategy) => strategy.symbol))];
   let dailyPrices: DailyPrice[] = [];
-  let executions: Execution[] = [];
+  let marketCandles: MarketCandle[] = [];
   let rounds: CompletedRound[] = [];
 
   if (strategyIds.length > 0) {
-    const [priceResult, executionResult, roundResult] = await Promise.all([
+    const marketStart = new Date();
+    marketStart.setUTCDate(marketStart.getUTCDate() - 20);
+
+    const [priceResult, candleResult, roundResult] = await Promise.all([
       supabase!
         .from('daily_prices')
         .select('*')
@@ -62,12 +72,12 @@ export default async function HomePage() {
         .order('trade_date', { ascending: false })
         .returns<DailyPrice[]>(),
       supabase!
-        .from('executions')
+        .from('market_candles')
         .select('*')
-        .in('strategy_id', strategyIds)
-        .order('executed_at', { ascending: false })
-        .order('created_at', { ascending: false })
-        .returns<Execution[]>(),
+        .in('symbol', strategySymbols)
+        .gte('trade_date', marketStart.toISOString().slice(0, 10))
+        .order('trade_date', { ascending: false })
+        .returns<MarketCandle[]>(),
       supabase!
         .from('completed_rounds')
         .select('*')
@@ -77,12 +87,12 @@ export default async function HomePage() {
         .returns<CompletedRound[]>(),
     ]);
     dailyPrices = priceResult.data ?? [];
-    executions = executionResult.data ?? [];
+    marketCandles = candleResult.data ?? [];
     rounds = roundResult.data ?? [];
   }
 
   const pricesByStrategy = groupByStrategy(dailyPrices);
-  const executionsByStrategy = groupByStrategy(executions);
+  const candlesBySymbol = groupBySymbol(marketCandles);
   const strategyNames = new Map((strategies ?? []).map((strategy) => [strategy.id, strategy.name]));
 
   return (
@@ -101,7 +111,7 @@ export default async function HomePage() {
           {strategies.map((strategy) => {
             const history = buildMarketReferenceHistory(
               pricesByStrategy.get(strategy.id) ?? [],
-              executionsByStrategy.get(strategy.id) ?? [],
+              candlesBySymbol.get(strategy.symbol) ?? [],
             );
             const reference = history[0];
             const performance = calculateAccountPerformance(

@@ -116,21 +116,20 @@ test('리버스 주문은 첫날 매도만 MOC이고 둘째 날부터 매수·�
   assert.equal(laterPlan.sellOrders[0]?.orderType, 'LOC');
 });
 
-test('직접 종가를 우선하고 없는 날짜는 최신 체결가를 사용한다', () => {
+test('차트 종가를 사용하고 같은 날짜의 직접 입력 종가를 우선한다', () => {
   const history = buildMarketReferenceHistory(
     [
       { trade_date: '2026-07-17', close_price: 102 },
       { trade_date: '2026-07-15', close_price: 98 },
     ],
     [
-      { executed_at: '2026-07-18', avg_execution_price: 105, created_at: '2026-07-18T02:00:00Z' },
-      { executed_at: '2026-07-17', avg_execution_price: 101, created_at: '2026-07-17T02:00:00Z' },
-      { executed_at: '2026-07-18', avg_execution_price: 104, created_at: '2026-07-18T01:00:00Z' },
+      { trade_date: '2026-07-18', close_price: 105 },
+      { trade_date: '2026-07-17', close_price: 101 },
     ],
   );
 
   assert.deepEqual(history, [
-    { date: '2026-07-18', price: 105, source: 'execution' },
+    { date: '2026-07-18', price: 105, source: 'market_close' },
     { date: '2026-07-17', price: 102, source: 'saved_close' },
     { date: '2026-07-15', price: 98, source: 'saved_close' },
   ]);

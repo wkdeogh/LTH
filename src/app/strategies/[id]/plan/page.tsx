@@ -5,7 +5,7 @@ import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { DailyPrice, Execution, Strategy } from '@/lib/types';
+import type { DailyPrice, MarketCandle, Strategy } from '@/lib/types';
 import { toStrategyState } from '@/lib/types';
 import {
   buildMarketReferenceHistory,
@@ -53,7 +53,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();
 
-  const [priceResult, executionResult] = await Promise.all([
+  const [priceResult, candleResult] = await Promise.all([
     supabase!
       .from('daily_prices')
       .select('*')
@@ -62,17 +62,16 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
       .limit(7)
       .returns<DailyPrice[]>(),
     supabase!
-      .from('executions')
+      .from('market_candles')
       .select('*')
-      .eq('strategy_id', id)
-      .order('executed_at', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(20)
-      .returns<Execution[]>(),
+      .eq('symbol', strategy.symbol)
+      .order('trade_date', { ascending: false })
+      .limit(7)
+      .returns<MarketCandle[]>(),
   ]);
 
   const state = toStrategyState(strategy);
-  const references = buildMarketReferenceHistory(priceResult.data ?? [], executionResult.data ?? []);
+  const references = buildMarketReferenceHistory(priceResult.data ?? [], candleResult.data ?? []);
   const recentCloses = references.slice(0, 5).map((reference) => reference.price);
   const recentAverage = calculateReferenceAverage(references);
   const currentReference = references[0];

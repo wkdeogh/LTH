@@ -6,7 +6,7 @@ import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { koreaDate } from '@/lib/date';
-import type { Execution, Strategy } from '@/lib/types';
+import type { Execution, MarketCandle, Strategy } from '@/lib/types';
 import { toStrategyState } from '@/lib/types';
 import { applyTEffect, modeLabel } from '@/lib/trading';
 
@@ -18,14 +18,25 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();
 
-  const { data: latestExecution } = await supabase!
-    .from('executions')
-    .select('*')
-    .eq('strategy_id', id)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(1)
-    .maybeSingle<Execution>();
+  const [latestExecutionResult, latestCandleResult] = await Promise.all([
+    supabase!
+      .from('executions')
+      .select('*')
+      .eq('strategy_id', id)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle<Execution>(),
+    supabase!
+      .from('market_candles')
+      .select('*')
+      .eq('symbol', strategy.symbol)
+      .order('trade_date', { ascending: false })
+      .limit(1)
+      .maybeSingle<MarketCandle>(),
+  ]);
+  const latestExecution = latestExecutionResult.data;
+  const latestCandle = latestCandleResult.data;
 
   const state = toStrategyState(strategy);
   const effectOptions = [
@@ -83,7 +94,7 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
             <label>매수/매도<select name="side" defaultValue="buy"><option value="buy">매수</option><option value="sell">매도</option></select></label>
             <input type="hidden" name="order_type" value="MANUAL" />
             <label>수량<input name="quantity" type="number" min="1" inputMode="numeric" placeholder="체결 수량" required /></label>
-            <label>평균 체결가($)<input name="avg_execution_price" type="number" min="0.0001" step="0.0001" inputMode="decimal" placeholder="예: 72.3500" required /></label>
+            <label>평균 체결가($)<input name="avg_execution_price" type="number" min="0.0001" step="0.0001" inputMode="decimal" defaultValue={latestCandle?.close_price} placeholder="예: 72.3500" required /></label>
             <label>T 반영 방식<select name="t_effect" defaultValue="none">{effectOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
           </div>
 

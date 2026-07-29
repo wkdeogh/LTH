@@ -34,7 +34,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
   chartStart.setUTCFullYear(chartStart.getUTCFullYear() - 3);
   chartStart.setUTCDate(chartStart.getUTCDate() - 14);
 
-  const [priceResult, executionResult, candleResult, chartExecutionResult] = await Promise.all([
+  const [priceResult, candleResult, chartExecutionResult] = await Promise.all([
     supabase!
       .from('daily_prices')
       .select('*')
@@ -42,14 +42,6 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
       .order('trade_date', { ascending: false })
       .limit(7)
       .returns<DailyPrice[]>(),
-    supabase!
-      .from('executions')
-      .select('*')
-      .eq('strategy_id', id)
-      .order('executed_at', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(10)
-      .returns<Execution[]>(),
     supabase!
       .from('market_candles')
       .select('*')
@@ -70,8 +62,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
   ]);
 
   const prices = priceResult.data ?? [];
-  const executions = executionResult.data ?? [];
-  const references = buildMarketReferenceHistory(prices, executions);
+  const references = buildMarketReferenceHistory(prices, candleResult.data ?? []);
   const reference = references[0];
   const positionPerformance = calculatePositionPerformance(
     strategy.position_qty,
@@ -163,7 +154,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
               <h2>종가 직접 입력</h2>
             </div>
           </div>
-          <p className="helper-copy">입력하지 않아도 괜찮습니다. 최근 체결가를 종가로 보고 수익률과 복귀 조건을 계산합니다.</p>
+          <p className="helper-copy">차트 종가를 자동으로 사용합니다. API 데이터가 없거나 직접 보정할 때만 입력하면 같은 날짜의 차트 종가보다 우선합니다.</p>
           <form className="form" action={addDailyPrice} data-inline-validation noValidate>
             <input type="hidden" name="strategy_id" value={strategy.id} />
             <div className="inline-form-grid">

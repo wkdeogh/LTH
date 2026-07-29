@@ -107,7 +107,7 @@ export default function GuidePage() {
           <p>첫날은 매수하지 않습니다. 보유수량을 20분할 전략은 10등분, 40분할 전략은 20등분해 소수점 이하를 버린 수량만큼 MOC 매도합니다.</p>
           <h3>둘째 날부터</h3>
           <p>최근 5거래일 종가 평균을 리버스 기준가로 사용합니다. 기준가 위에서는 일부 매도하고, 기준가 아래에서는 현재 현금의 1/4만큼 매수합니다.</p>
-          <p className="helper-copy">앱에서는 직접 입력한 종가를 우선 사용하고, 종가가 없는 거래일은 LOC 체결가를 해당일 종가로 간주합니다.</p>
+          <p className="helper-copy">앱에서는 자동으로 갱신한 일봉 차트 종가를 사용하고, 직접 입력한 종가가 있으면 같은 거래일의 차트 종가보다 우선합니다.</p>
           <div className="t-rule-grid">
             <div><span>20분할 매도 후 T</span><strong>직전 T × 0.9</strong></div>
             <div><span>40분할 매도 후 T</span><strong>직전 T × 0.95</strong></div>
