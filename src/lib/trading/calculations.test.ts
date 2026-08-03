@@ -15,6 +15,7 @@ import {
   calculateStarPercent,
   detectNormalPhase,
   reverseSellQuantity,
+  shouldAutoEnterReverseMode,
   shouldReturnToNormalMode,
 } from '@/lib/trading';
 import { roundMoney, roundPrice } from '@/lib/trading/rounding';
@@ -78,6 +79,18 @@ test('일반모드 구간 경계와 리버스 전환 기준이 정확하다', ()
   assert.equal(detectNormalPhase(state({ splitCount: 20, positionQty: 10, tValue: 10 })), 'second_half');
   assert.equal(detectNormalPhase(state({ splitCount: 20, positionQty: 10, tValue: 19 })), 'second_half');
   assert.equal(detectNormalPhase(state({ splitCount: 20, positionQty: 10, tValue: 19.0000001 })), 'reverse_required');
+});
+
+test('일반모드 체결 후 T값이 기준을 넘으면 리버스모드로 자동 전환한다', () => {
+  assert.equal(shouldAutoEnterReverseMode({
+    currentMode: 'normal', requestedMode: 'normal', nextTValue: 19, splitCount: 20,
+  }), false);
+  assert.equal(shouldAutoEnterReverseMode({
+    currentMode: 'normal', requestedMode: 'normal', nextTValue: 19.0000001, splitCount: 20,
+  }), true);
+  assert.equal(shouldAutoEnterReverseMode({
+    currentMode: 'reverse', requestedMode: 'reverse', nextTValue: 39.5, splitCount: 40,
+  }), false);
 });
 
 test('일반·리버스 체결별 T값 공식이 일치한다', () => {

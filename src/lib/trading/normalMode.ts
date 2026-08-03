@@ -58,7 +58,7 @@ export function calculateNormalPlan(state: StrategyState, referencePrice?: numbe
   const oneUnitBudget = phase === 'initial' ? roundMoney(state.principal / state.splitCount) : calculateOneUnitBudget(state);
 
   if (state.splitCount - state.tValue <= 1 && phase !== 'initial') {
-    warnings.push('잔여 회차가 1회 이하입니다. 리버스모드 전환 대상입니다.');
+    warnings.push('잔여 회차가 1회 이하입니다. T값이 기준을 넘으면 리버스모드로 자동 전환됩니다.');
   }
 
   if (state.positionQty > 0 && state.avgPrice <= 0) {
@@ -76,7 +76,7 @@ export function calculateNormalPlan(state: StrategyState, referencePrice?: numbe
       targetSellPrice: null,
       buyOrders: [],
       sellOrders: [],
-      warnings: ['T값이 리버스모드 전환 기준을 초과했습니다. 리버스모드 전환을 확인하세요.'],
+      warnings: ['T값이 리버스모드 전환 기준을 초과해 자동 전환합니다.'],
       formulas: [`${state.splitCount}분할 리버스 전환 기준: T > ${state.splitCount - 1}`],
     };
   }

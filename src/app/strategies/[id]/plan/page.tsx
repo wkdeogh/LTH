@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
-import { switchToNormal, switchToReverse } from '@/app/actions';
+import { switchToNormal } from '@/app/actions';
+import { AutoReverseTransition } from '@/components/AutoReverseTransition';
 import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
@@ -142,11 +143,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
       <OrderTable title="오늘 매도 가이드" orders={plan.sellOrders} />
 
       {'phase' in plan && plan.phase === 'reverse_required' && (
-        <section className="panel">
-          <h2>리버스모드 전환</h2>
-          <p className="muted">T값이 기준을 초과했습니다. 다음 계산부터 리버스모드로 진행하려면 전환을 저장하세요.</p>
-          <form action={switchToReverse}><input type="hidden" name="id" value={id} /><button type="submit">리버스모드 전환 저장</button></form>
-        </section>
+        <AutoReverseTransition strategyId={id} />
       )}
 
       <section className="panel">

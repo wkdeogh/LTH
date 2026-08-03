@@ -32,7 +32,7 @@ export default function GuidePage() {
         <article><span>01</span><strong>원금 고정</strong><p>정한 원금과 남은 현금은 다른 투자에 사용하지 않습니다.</p></article>
         <article><span>02</span><strong>매일 주문</strong><p>일반모드 매수는 LOC, 쿼터매도는 LOC, 최종매도는 지정가입니다.</p></article>
         <article><span>03</span><strong>T 추적</strong><p>체결 종류에 따라 T값을 정확히 이어서 계산합니다.</p></article>
-        <article><span>04</span><strong>소진 대응</strong><p>잔여 회차가 1회 미만이면 리버스모드로 전환합니다.</p></article>
+        <article><span>04</span><strong>소진 대응</strong><p>잔여 회차가 1회 미만이면 리버스모드로 자동 전환합니다.</p></article>
       </section>
 
       <section className="guide-section" id="start">
@@ -96,7 +96,7 @@ export default function GuidePage() {
             <div><span>지정가매도 후 1회 매수</span><strong>T × 0.25 + 1</strong></div>
             <div><span>지정가매도 후 절반 매수</span><strong>T × 0.25 + 0.5</strong></div>
           </div>
-          <p>20분할은 T&gt;19, 40분할은 T&gt;39가 되면 남은 현금과 함께 리버스모드로 전환합니다.</p>
+          <p>20분할은 T&gt;19, 40분할은 T&gt;39가 되면 체결 저장 즉시 남은 현금과 함께 리버스모드로 자동 전환합니다.</p>
         </div>
       </section>
 

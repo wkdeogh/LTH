@@ -1,7 +1,23 @@
-import type { StrategyState } from '@/lib/types';
+import type { StrategyState, TradeMode } from '@/lib/types';
 
-export function shouldEnterReverseMode(state: StrategyState) {
+export function shouldEnterReverseMode(state: Pick<StrategyState, 'tValue' | 'splitCount'>) {
   return state.tValue > state.splitCount - 1;
+}
+
+export function shouldAutoEnterReverseMode({
+  currentMode,
+  requestedMode,
+  nextTValue,
+  splitCount,
+}: {
+  currentMode: TradeMode;
+  requestedMode: TradeMode;
+  nextTValue: number;
+  splitCount: StrategyState['splitCount'];
+}) {
+  return currentMode === 'normal'
+    && requestedMode === 'normal'
+    && shouldEnterReverseMode({ tValue: nextTValue, splitCount });
 }
 
 export function modeLabel(mode: StrategyState['mode']) {

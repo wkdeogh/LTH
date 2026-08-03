@@ -7,9 +7,9 @@ import { syncMarketData } from '@/lib/marketData/candles';
 import { withNotice } from '@/lib/notices';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { koreaDate } from '@/lib/date';
-import type { Execution, SplitCount, Strategy, SymbolCode, TEffect } from '@/lib/types';
+import type { Execution, SplitCount, Strategy, SymbolCode, TEffect, TradeMode } from '@/lib/types';
 import { toNumber, toStrategyState } from '@/lib/types';
-import { applyTEffect, calculateRoundPerformance } from '@/lib/trading';
+import { applyTEffect, calculateRoundPerformance, shouldAutoEnterReverseMode } from '@/lib/trading';
 import { roundMoney } from '@/lib/trading/rounding';
 
 function supabaseOrThrow() {
@@ -190,7 +190,7 @@ export async function switchToReverse(formData: FormData) {
     .from('strategies')
     .update({
       mode: 'reverse',
-      reverse_started_at: new Date().toISOString().slice(0, 10),
+      reverse_started_at: koreaDate(),
       reverse_first_sell_done: false,
       updated_at: new Date().toISOString(),
     })
@@ -291,7 +291,7 @@ export async function recordExecution(formData: FormData) {
       : 0;
   const useFinalState = formData.get('use_final_state') === 'on';
   const finalT = useFinalState && stringValue(formData, 'final_t_value') ? numberValue(formData, 'final_t_value') : computedT;
-  const finalMode = useFinalState ? stringValue(formData, 'final_mode', state.mode) : state.mode;
+  const requestedFinalMode = (useFinalState ? stringValue(formData, 'final_mode', state.mode) : state.mode) as TradeMode;
   const finalCashBalance = autoCashBalance;
   const finalPositionQty = useFinalState && stringValue(formData, 'final_position_qty')
     ? intValue(formData, 'final_position_qty')
@@ -414,6 +414,13 @@ export async function recordExecution(formData: FormData) {
 
   const reverseFirstSellDone =
     state.mode === 'reverse' && effect === 'reverse_sell' ? true : state.reverseFirstSellDone;
+  const autoEnteredReverse = !isCompletedRound && shouldAutoEnterReverseMode({
+    currentMode: state.mode,
+    requestedMode: requestedFinalMode,
+    nextTValue: finalT,
+    splitCount: state.splitCount,
+  });
+  const finalMode: TradeMode = isCompletedRound ? 'normal' : autoEnteredReverse ? 'reverse' : requestedFinalMode;
 
   const nextPrincipal = isCompletedRound && strategy.compounding_type === 'compound' ? finalCashBalance : state.principal;
 
@@ -425,9 +432,9 @@ export async function recordExecution(formData: FormData) {
       position_qty: isCompletedRound ? 0 : finalPositionQty,
       avg_price: isCompletedRound ? 0 : finalAvgPrice,
       t_value: isCompletedRound ? 0 : finalT,
-      mode: isCompletedRound ? 'normal' : finalMode,
+      mode: finalMode,
       reverse_first_sell_done: isCompletedRound ? false : finalMode === 'reverse' ? reverseFirstSellDone : false,
-      reverse_started_at: isCompletedRound ? null : finalMode === 'reverse' ? state.reverseStartedAt ?? new Date().toISOString().slice(0, 10) : null,
+      reverse_started_at: isCompletedRound ? null : finalMode === 'reverse' ? state.reverseStartedAt ?? koreaDate() : null,
       started_at: isCompletedRound ? executedAt : strategy.started_at,
       updated_at: new Date().toISOString(),
     })
@@ -446,8 +453,11 @@ export async function recordExecution(formData: FormData) {
 
   revalidatePath('/');
   revalidatePath(`/strategies/${strategyId}`);
+  revalidatePath(`/strategies/${strategyId}/plan`);
   revalidatePath(`/strategies/${strategyId}/rounds`);
-  redirect(withNotice(`/strategies/${strategyId}`, isCompletedRound ? 'round-completed' : 'execution-saved'));
+  const redirectPath = autoEnteredReverse ? `/strategies/${strategyId}/plan` : `/strategies/${strategyId}`;
+  const notice = isCompletedRound ? 'round-completed' : autoEnteredReverse ? 'reverse-auto-started' : 'execution-saved';
+  redirect(withNotice(redirectPath, notice));
 }
 
 export async function cancelLatestExecution(formData: FormData) {
