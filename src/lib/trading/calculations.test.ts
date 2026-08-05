@@ -14,6 +14,7 @@ import {
   calculateRoundPerformance,
   calculateStarPercent,
   detectNormalPhase,
+  inferExecutionDefaultsFromClose,
   reverseSellQuantity,
   shouldAutoEnterReverseMode,
   shouldAutoReturnToNormalMode,
@@ -146,6 +147,53 @@ test('리버스 주문은 첫날 매도만 MOC이고 둘째 날부터 매수·�
   );
   assert.equal(laterPlan.buyOrders[0]?.orderType, 'LOC');
   assert.equal(laterPlan.sellOrders[0]?.orderType, 'LOC');
+});
+
+test('일반모드 체결 입력 기본값을 종가와 주문 가이드로 자동 결정한다', () => {
+  const plan = calculateNormalPlan(state({
+    symbol: 'SOXL',
+    splitCount: 20,
+    cashBalance: 5_700,
+    positionQty: 100,
+    avgPrice: 38.3,
+    tValue: 8.6,
+  }), 39);
+
+  assert.deepEqual(inferExecutionDefaultsFromClose(plan, 39), {
+    side: 'buy', orderType: 'LOC', quantity: 6, tEffect: 'buy_half',
+  });
+  assert.deepEqual(inferExecutionDefaultsFromClose(plan, 38), {
+    side: 'buy', orderType: 'LOC', quantity: 12, tEffect: 'buy_full',
+  });
+  assert.deepEqual(inferExecutionDefaultsFromClose(plan, 40), {
+    side: 'sell', orderType: 'LOC', quantity: 25, tEffect: 'quarter_sell',
+  });
+  assert.deepEqual(inferExecutionDefaultsFromClose(plan, 46), {
+    side: 'sell', orderType: 'LIMIT', quantity: 100, tEffect: 'full_sell',
+  });
+});
+
+test('리버스모드 체결 입력 기본값을 첫날과 5일 평균 기준으로 자동 결정한다', () => {
+  const reverseState = state({
+    mode: 'reverse', splitCount: 20, cashBalance: 4_000, positionQty: 200, tValue: 19.5,
+  });
+  const firstDayPlan = calculateReversePlan(reverseState, [40, 39, 38, 37, 36], 37);
+  assert.deepEqual(inferExecutionDefaultsFromClose(firstDayPlan, 37), {
+    side: 'sell', orderType: 'MOC', quantity: 20, tEffect: 'reverse_sell',
+  });
+
+  const laterPlan = calculateReversePlan(
+    { ...reverseState, reverseFirstSellDone: true },
+    [40, 39, 38, 37, 36],
+    37,
+  );
+  assert.deepEqual(inferExecutionDefaultsFromClose(laterPlan, 37), {
+    side: 'buy', orderType: 'LOC', quantity: 26, tEffect: 'reverse_buy',
+  });
+  assert.deepEqual(inferExecutionDefaultsFromClose(laterPlan, 39), {
+    side: 'sell', orderType: 'LOC', quantity: 20, tEffect: 'reverse_sell',
+  });
+  assert.equal(inferExecutionDefaultsFromClose(laterPlan, 38), null);
 });
 
 test('차트 종가를 사용하고 같은 날짜의 직접 입력 종가를 우선한다', () => {

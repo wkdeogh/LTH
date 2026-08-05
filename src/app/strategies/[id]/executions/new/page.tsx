@@ -7,8 +7,14 @@ import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { koreaDate } from '@/lib/date';
 import type { Execution, MarketCandle, Strategy } from '@/lib/types';
-import { toStrategyState } from '@/lib/types';
-import { applyTEffect, modeLabel } from '@/lib/trading';
+import { toNumber, toStrategyState } from '@/lib/types';
+import {
+  applyTEffect,
+  calculateNormalPlan,
+  calculateReversePlan,
+  inferExecutionDefaultsFromClose,
+  modeLabel,
+} from '@/lib/trading';
 
 export default async function NewExecutionPage({ params }: { params: Promise<{ id: string }> }) {
   if (!hasSupabaseEnv()) return <SetupNotice />;
@@ -18,7 +24,7 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();
 
-  const [latestExecutionResult, latestCandleResult] = await Promise.all([
+  const [latestExecutionResult, recentCandlesResult] = await Promise.all([
     supabase!
       .from('executions')
       .select('*')
@@ -32,13 +38,20 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
       .select('*')
       .eq('symbol', strategy.symbol)
       .order('trade_date', { ascending: false })
-      .limit(1)
-      .maybeSingle<MarketCandle>(),
+      .limit(5)
+      .returns<MarketCandle[]>(),
   ]);
   const latestExecution = latestExecutionResult.data;
-  const latestCandle = latestCandleResult.data;
+  const recentCandles = recentCandlesResult.data ?? [];
+  const latestCandle = recentCandles[0];
 
   const state = toStrategyState(strategy);
+  const latestClose = latestCandle ? toNumber(latestCandle.close_price) : undefined;
+  const recentCloses = recentCandles.map((candle) => toNumber(candle.close_price));
+  const plan = state.mode === 'normal'
+    ? calculateNormalPlan(state, latestClose)
+    : calculateReversePlan(state, recentCloses, latestClose);
+  const executionDefaults = inferExecutionDefaultsFromClose(plan, latestClose);
   const effectOptions = [
     ['buy_full', '일반모드 1회 매수: T + 1'],
     ['buy_half', '일반모드 절반 매수: T + 0.5'],
@@ -91,11 +104,11 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
           <input type="hidden" name="strategy_id" value={id} />
           <div className="form-grid">
             <label>체결일<input name="executed_at" type="date" defaultValue={koreaDate(-1)} required /></label>
-            <label>매수/매도<select name="side" defaultValue="buy"><option value="buy">매수</option><option value="sell">매도</option></select></label>
-            <input type="hidden" name="order_type" value="MANUAL" />
-            <label>수량<input name="quantity" type="number" min="1" inputMode="numeric" placeholder="체결 수량" required /></label>
-            <label>평균 체결가($)<input name="avg_execution_price" type="number" min="0.0001" step="0.0001" inputMode="decimal" defaultValue={latestCandle?.close_price} placeholder="예: 72.3500" required /></label>
-            <label>T 반영 방식<select name="t_effect" defaultValue="none">{effectOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+            <label>매수/매도<select name="side" defaultValue={executionDefaults?.side ?? 'buy'}><option value="buy">매수</option><option value="sell">매도</option></select></label>
+            <input type="hidden" name="order_type" value={executionDefaults?.orderType ?? 'MANUAL'} />
+            <label>수량<input name="quantity" type="number" min="1" inputMode="numeric" defaultValue={executionDefaults?.quantity} placeholder="체결 수량" required /></label>
+            <label>평균 체결가($)<input name="avg_execution_price" type="number" min="0.0001" step="0.0001" inputMode="decimal" defaultValue={latestClose} placeholder="예: 72.3500" required /></label>
+            <label>T 반영 방식<select name="t_effect" defaultValue={executionDefaults?.tEffect ?? 'none'}>{effectOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
           </div>
 
           <details className="nested-disclosure compact-disclosure">
