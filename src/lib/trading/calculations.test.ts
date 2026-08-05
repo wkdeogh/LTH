@@ -114,10 +114,10 @@ test('리버스 5일 평균, 매도수량, 복귀 경계를 정확히 계산한�
   assert.equal(shouldReturnToNormalMode(state({ symbol: 'SOXL', avgPrice: 40 }), 32.01), true);
 });
 
-test('리버스 첫날 매도가 끝난 뒤에만 일반모드로 자동 복귀한다', () => {
+test('리버스모드에서는 첫날 매도 여부와 관계없이 일반모드 복귀를 판단한다', () => {
   assert.equal(shouldAutoReturnToNormalMode(state({
     mode: 'reverse', avgPrice: 40, reverseFirstSellDone: false,
-  }), 34.01), false);
+  }), 34.01), true);
   assert.equal(shouldAutoReturnToNormalMode(state({
     mode: 'reverse', avgPrice: 40, reverseFirstSellDone: true,
   }), 34.01), true);

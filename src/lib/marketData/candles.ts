@@ -129,7 +129,6 @@ export async function syncMarketData(symbol: SymbolCode) {
     .select('*')
     .eq('symbol', symbol)
     .eq('mode', 'reverse')
-    .eq('reverse_first_sell_done', true)
     .eq('is_archived', false)
     .returns<Strategy[]>();
   if (reverseStrategiesError) throw reverseStrategiesError;

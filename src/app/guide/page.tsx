@@ -116,7 +116,7 @@ export default function GuidePage() {
           </div>
 
           <h3>일반모드 복귀</h3>
-          <p>첫날 MOC 매도가 완료된 뒤 최신 차트 종가가 평단 대비 TQQQ −15%, SOXL −20% 기준보다 위로 올라오면 일반모드로 자동 복귀합니다. 리버스모드에서 계산한 T값은 그대로 이어서 사용합니다.</p>
+          <p>리버스모드에서는 체결을 저장할 때마다 최신 차트 종가를 확인합니다. 종가가 평단 대비 TQQQ −15%, SOXL −20% 기준보다 위로 올라오면 첫날 매도 완료 여부와 관계없이 일반모드로 자동 복귀합니다. 리버스모드에서 계산한 T값은 그대로 이어서 사용합니다.</p>
           <div className="formula-table two-rows">
             <div><span>TQQQ</span><strong>종가 &gt; 평단 × 0.85</strong></div>
             <div><span>SOXL</span><strong>종가 &gt; 평단 × 0.80</strong></div>

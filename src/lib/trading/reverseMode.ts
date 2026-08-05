@@ -33,11 +33,10 @@ export function shouldReturnToNormalMode(
 }
 
 export function shouldAutoReturnToNormalMode(
-  state: Pick<StrategyState, 'mode' | 'symbol' | 'avgPrice' | 'reverseFirstSellDone'>,
+  state: Pick<StrategyState, 'mode' | 'symbol' | 'avgPrice'>,
   closePrice?: number,
 ) {
   return state.mode === 'reverse'
-    && state.reverseFirstSellDone
     && shouldReturnToNormalMode(state, closePrice);
 }
 

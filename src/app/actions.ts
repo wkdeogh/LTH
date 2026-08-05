@@ -318,7 +318,7 @@ export async function recordExecution(formData: FormData) {
   const reverseFirstSellDone =
     state.mode === 'reverse' && effect === 'reverse_sell' ? true : state.reverseFirstSellDone;
   let latestClose: number | undefined;
-  if (!isCompletedRound && state.mode === 'reverse' && reverseFirstSellDone) {
+  if (!isCompletedRound && state.mode === 'reverse') {
     const { data: latestCandle, error: latestCandleError } = await supabase
       .from('market_candles')
       .select('close_price')
@@ -440,7 +440,6 @@ export async function recordExecution(formData: FormData) {
       mode: state.mode,
       symbol: state.symbol,
       avgPrice: finalAvgPrice,
-      reverseFirstSellDone,
     }, latestClose);
   const autoEnteredReverse = !isCompletedRound && shouldAutoEnterReverseMode({
     currentMode: state.mode,
