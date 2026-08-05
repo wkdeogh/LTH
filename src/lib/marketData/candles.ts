@@ -1,8 +1,10 @@
 import 'server-only';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { shouldAutoReturnToNormalMode } from '@/lib/trading/reverseMode';
 import { roundPrice } from '@/lib/trading/rounding';
-import type { SymbolCode } from '@/lib/types';
+import type { Strategy, SymbolCode } from '@/lib/types';
+import { toStrategyState } from '@/lib/types';
 
 const YAHOO_CHART_ENDPOINT = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
@@ -116,4 +118,39 @@ export async function syncMarketData(symbol: SymbolCode) {
       .upsert(rows.slice(index, index + 500), { onConflict: 'symbol,trade_date' });
     if (error) throw error;
   }
+
+  const latestRow = rows.reduce<(typeof rows)[number] | null>((latest, row) => (
+    !latest || row.trade_date > latest.trade_date ? row : latest
+  ), null);
+  if (!latestRow) return;
+
+  const { data: reverseStrategies, error: reverseStrategiesError } = await supabase
+    .from('strategies')
+    .select('*')
+    .eq('symbol', symbol)
+    .eq('mode', 'reverse')
+    .eq('reverse_first_sell_done', true)
+    .eq('is_archived', false)
+    .returns<Strategy[]>();
+  if (reverseStrategiesError) throw reverseStrategiesError;
+
+  const strategyIds = (reverseStrategies ?? [])
+    .filter((strategy) => shouldAutoReturnToNormalMode(
+      toStrategyState(strategy),
+      latestRow.close_price,
+    ))
+    .map((strategy) => strategy.id);
+
+  if (strategyIds.length === 0) return;
+
+  const { error: restoreError } = await supabase
+    .from('strategies')
+    .update({
+      mode: 'normal',
+      reverse_started_at: null,
+      reverse_first_sell_done: false,
+      updated_at: new Date().toISOString(),
+    })
+    .in('id', strategyIds);
+  if (restoreError) throw restoreError;
 }

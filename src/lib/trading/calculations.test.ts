@@ -16,6 +16,7 @@ import {
   detectNormalPhase,
   reverseSellQuantity,
   shouldAutoEnterReverseMode,
+  shouldAutoReturnToNormalMode,
   shouldReturnToNormalMode,
 } from '@/lib/trading';
 import { roundMoney, roundPrice } from '@/lib/trading/rounding';
@@ -111,6 +112,24 @@ test('리버스 5일 평균, 매도수량, 복귀 경계를 정확히 계산한�
   assert.equal(shouldReturnToNormalMode(state({ avgPrice: 40 }), 34.01), true);
   assert.equal(shouldReturnToNormalMode(state({ symbol: 'SOXL', avgPrice: 40 }), 32), false);
   assert.equal(shouldReturnToNormalMode(state({ symbol: 'SOXL', avgPrice: 40 }), 32.01), true);
+});
+
+test('리버스 첫날 매도가 끝난 뒤에만 일반모드로 자동 복귀한다', () => {
+  assert.equal(shouldAutoReturnToNormalMode(state({
+    mode: 'reverse', avgPrice: 40, reverseFirstSellDone: false,
+  }), 34.01), false);
+  assert.equal(shouldAutoReturnToNormalMode(state({
+    mode: 'reverse', avgPrice: 40, reverseFirstSellDone: true,
+  }), 34.01), true);
+  assert.equal(shouldAutoReturnToNormalMode(state({
+    mode: 'normal', avgPrice: 40, reverseFirstSellDone: true,
+  }), 34.01), false);
+  assert.equal(shouldAutoReturnToNormalMode(state({
+    mode: 'reverse', symbol: 'SOXL', avgPrice: 40, reverseFirstSellDone: true,
+  }), 32), false);
+  assert.equal(shouldAutoReturnToNormalMode(state({
+    mode: 'reverse', symbol: 'SOXL', avgPrice: 40, reverseFirstSellDone: true,
+  }), 32.01), true);
 });
 
 test('리버스 주문은 첫날 매도만 MOC이고 둘째 날부터 매수·매도 모두 LOC다', () => {

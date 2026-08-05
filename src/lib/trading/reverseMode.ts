@@ -24,9 +24,21 @@ export function reverseSellQuantity(state: StrategyState) {
   return floorShares(state.positionQty / (state.splitCount === 20 ? 10 : 20));
 }
 
-export function shouldReturnToNormalMode(state: StrategyState, closePrice?: number) {
+export function shouldReturnToNormalMode(
+  state: Pick<StrategyState, 'symbol' | 'avgPrice'>,
+  closePrice?: number,
+) {
   if (!closePrice || state.avgPrice <= 0) return false;
   return state.symbol === 'TQQQ' ? closePrice > state.avgPrice * 0.85 : closePrice > state.avgPrice * 0.8;
+}
+
+export function shouldAutoReturnToNormalMode(
+  state: Pick<StrategyState, 'mode' | 'symbol' | 'avgPrice' | 'reverseFirstSellDone'>,
+  closePrice?: number,
+) {
+  return state.mode === 'reverse'
+    && state.reverseFirstSellDone
+    && shouldReturnToNormalMode(state, closePrice);
 }
 
 export function calculateReversePlan(state: StrategyState, recentCloses: number[], closePrice?: number): ReversePlan {
@@ -36,7 +48,7 @@ export function calculateReversePlan(state: StrategyState, recentCloses: number[
   const formulas: string[] = [];
   const sellQty = reverseSellQuantity(state);
   const buyBudget = roundMoney(state.cashBalance * 0.25);
-  const returnToNormal = shouldReturnToNormalMode(state, closePrice);
+  const returnToNormal = shouldAutoReturnToNormalMode(state, closePrice);
 
   if (!referencePrice && !isFirstDay) {
     warnings.push('리버스모드 둘째 날 이후 계산에는 최근 5거래일 종가가 필요합니다.');

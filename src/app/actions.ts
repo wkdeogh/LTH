@@ -9,7 +9,12 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { koreaDate } from '@/lib/date';
 import type { Execution, SplitCount, Strategy, SymbolCode, TEffect, TradeMode } from '@/lib/types';
 import { toNumber, toStrategyState } from '@/lib/types';
-import { applyTEffect, calculateRoundPerformance, shouldAutoEnterReverseMode } from '@/lib/trading';
+import {
+  applyTEffect,
+  calculateRoundPerformance,
+  shouldAutoEnterReverseMode,
+  shouldAutoReturnToNormalMode,
+} from '@/lib/trading';
 import { roundMoney } from '@/lib/trading/rounding';
 
 function supabaseOrThrow() {
@@ -185,6 +190,7 @@ export async function refreshMarketChart(formData: FormData) {
 export async function switchToReverse(formData: FormData) {
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');
+  const automatic = stringValue(formData, 'automatic') === '1';
 
   const { error } = await supabase
     .from('strategies')
@@ -199,12 +205,13 @@ export async function switchToReverse(formData: FormData) {
   if (error) throw error;
 
   revalidatePath(`/strategies/${id}`);
-  redirect(withNotice(`/strategies/${id}/plan`, 'reverse-started'));
+  redirect(withNotice(`/strategies/${id}/plan`, automatic ? 'reverse-auto-started' : 'reverse-started'));
 }
 
 export async function switchToNormal(formData: FormData) {
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');
+  const automatic = stringValue(formData, 'automatic') === '1';
 
   const { error } = await supabase
     .from('strategies')
@@ -219,7 +226,7 @@ export async function switchToNormal(formData: FormData) {
   if (error) throw error;
 
   revalidatePath(`/strategies/${id}`);
-  redirect(withNotice(`/strategies/${id}/plan`, 'normal-restored'));
+  redirect(withNotice(`/strategies/${id}/plan`, automatic ? 'normal-auto-restored' : 'normal-restored'));
 }
 
 export async function saveTradePlan(formData: FormData) {
@@ -308,6 +315,21 @@ export async function recordExecution(formData: FormData) {
   }
 
   const isCompletedRound = side === 'sell' && state.positionQty > 0 && finalPositionQty === 0;
+  const reverseFirstSellDone =
+    state.mode === 'reverse' && effect === 'reverse_sell' ? true : state.reverseFirstSellDone;
+  let latestClose: number | undefined;
+  if (!isCompletedRound && state.mode === 'reverse' && reverseFirstSellDone) {
+    const { data: latestCandle, error: latestCandleError } = await supabase
+      .from('market_candles')
+      .select('close_price')
+      .eq('symbol', state.symbol)
+      .order('trade_date', { ascending: false })
+      .limit(1)
+      .maybeSingle<{ close_price: number | string }>();
+    if (latestCandleError) throw latestCandleError;
+    latestClose = latestCandle ? toNumber(latestCandle.close_price) : undefined;
+  }
+
   const executionId = crypto.randomUUID();
 
   const { error: snapshotError } = await supabase.from('strategy_snapshots').insert({
@@ -412,15 +434,27 @@ export async function recordExecution(formData: FormData) {
     }
   }
 
-  const reverseFirstSellDone =
-    state.mode === 'reverse' && effect === 'reverse_sell' ? true : state.reverseFirstSellDone;
+  const autoReturnedToNormal = !isCompletedRound
+    && requestedFinalMode === 'reverse'
+    && shouldAutoReturnToNormalMode({
+      mode: state.mode,
+      symbol: state.symbol,
+      avgPrice: finalAvgPrice,
+      reverseFirstSellDone,
+    }, latestClose);
   const autoEnteredReverse = !isCompletedRound && shouldAutoEnterReverseMode({
     currentMode: state.mode,
     requestedMode: requestedFinalMode,
     nextTValue: finalT,
     splitCount: state.splitCount,
   });
-  const finalMode: TradeMode = isCompletedRound ? 'normal' : autoEnteredReverse ? 'reverse' : requestedFinalMode;
+  const finalMode: TradeMode = isCompletedRound
+    ? 'normal'
+    : autoReturnedToNormal
+      ? 'normal'
+      : autoEnteredReverse
+        ? 'reverse'
+        : requestedFinalMode;
 
   const nextPrincipal = isCompletedRound && strategy.compounding_type === 'compound' ? finalCashBalance : state.principal;
 
@@ -455,8 +489,16 @@ export async function recordExecution(formData: FormData) {
   revalidatePath(`/strategies/${strategyId}`);
   revalidatePath(`/strategies/${strategyId}/plan`);
   revalidatePath(`/strategies/${strategyId}/rounds`);
-  const redirectPath = autoEnteredReverse ? `/strategies/${strategyId}/plan` : `/strategies/${strategyId}`;
-  const notice = isCompletedRound ? 'round-completed' : autoEnteredReverse ? 'reverse-auto-started' : 'execution-saved';
+  const redirectPath = autoEnteredReverse || autoReturnedToNormal
+    ? `/strategies/${strategyId}/plan`
+    : `/strategies/${strategyId}`;
+  const notice = isCompletedRound
+    ? 'round-completed'
+    : autoReturnedToNormal
+      ? 'normal-auto-restored'
+      : autoEnteredReverse
+        ? 'reverse-auto-started'
+        : 'execution-saved';
   redirect(withNotice(redirectPath, notice));
 }
 

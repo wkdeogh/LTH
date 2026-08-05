@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { switchToNormal } from '@/app/actions';
+import { AutoNormalTransition } from '@/components/AutoNormalTransition';
 import { AutoReverseTransition } from '@/components/AutoReverseTransition';
 import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
@@ -133,7 +133,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
             <div className="stat"><span>현재 기준가</span><strong>{currentReference ? usd(currentReference.price) : '-'}</strong></div>
             <div className="stat"><span>복귀 조건</span><strong>{plan.returnToNormal ? '충족' : '미충족'}</strong></div>
           </div>
-          {plan.returnToNormal && <form action={switchToNormal} style={{ marginTop: 12 }}><input type="hidden" name="id" value={id} /><button type="submit">일반모드로 복귀 저장</button></form>}
+          {plan.returnToNormal && <AutoNormalTransition strategyId={id} />}
         </section>
       )}
 

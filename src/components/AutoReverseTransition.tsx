@@ -19,6 +19,7 @@ export function AutoReverseTransition({ strategyId }: { strategyId: string }) {
       <p className="muted">T값이 기준을 넘어 상태를 전환하고 첫날 매도 가이드를 계산하고 있습니다.</p>
       <form action={switchToReverse} ref={formRef}>
         <input name="id" type="hidden" value={strategyId} />
+        <input name="automatic" type="hidden" value="1" />
         <button className="secondary" type="submit">바로 전환</button>
       </form>
     </section>
