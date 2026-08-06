@@ -5,6 +5,7 @@ import {
   applyTEffect,
   buildMarketReferenceHistory,
   buildDownsideBuyOrders,
+  buildAssetValueHistory,
   calculateAccountPerformance,
   calculateFiveDayAverage,
   calculateNormalPlan,
@@ -74,6 +75,44 @@ test('전반전 하락 보완 주문이 예시 표와 같은 가격과 수량으
   });
   assert.equal(buildDownsideBuyOrders(539.23, 7).length, 7);
   assert.deepEqual(buildDownsideBuyOrders(617.89, 12).slice(0, 2).map((order) => order.price), [47.53, 44.13]);
+});
+
+test('체결 후 현금과 보유수량을 종가에 반영해 일별 계좌 평가액을 만든다', () => {
+  const executions = [
+    {
+      id: 'buy-1', strategy_id: 'test', trade_plan_id: null, round_id: null,
+      executed_at: '2026-07-01', side: 'buy' as const, order_type: 'LOC' as const,
+      quantity: 2, avg_execution_price: 100, total_amount: 200,
+      t_effect: 'buy_full' as const, memo: null, created_at: '2026-07-02T00:00:00Z',
+    },
+    {
+      id: 'buy-2', strategy_id: 'test', trade_plan_id: null, round_id: null,
+      executed_at: '2026-07-02', side: 'buy' as const, order_type: 'LOC' as const,
+      quantity: 1, avg_execution_price: 90, total_amount: 90,
+      t_effect: 'buy_full' as const, memo: null, created_at: '2026-07-03T00:00:00Z',
+    },
+  ];
+  const points = buildAssetValueHistory({
+    currentCashBalance: 710,
+    currentPositionQty: 3,
+    executions,
+    snapshots: [
+      { execution_id: 'buy-1', cash_balance: 1000, position_qty: 0 },
+      { execution_id: 'buy-2', cash_balance: 800, position_qty: 2 },
+    ],
+    candles: [
+      { symbol: 'TQQQ', trade_date: '2026-07-01', open_price: 100, high_price: 112, low_price: 99, close_price: 110, adjusted_close: 110, volume: 1000 },
+      { symbol: 'TQQQ', trade_date: '2026-07-02', open_price: 95, high_price: 98, low_price: 90, close_price: 95, adjusted_close: 95, volume: 1000 },
+      { symbol: 'TQQQ', trade_date: '2026-07-03', open_price: 98, high_price: 101, low_price: 97, close_price: 100, adjusted_close: 100, volume: 1000 },
+    ],
+    dailyPrices: [{ id: 'price-1', strategy_id: 'test', trade_date: '2026-07-02', close_price: 96, created_at: '2026-07-03T00:00:00Z' }],
+  });
+
+  assert.deepEqual(points, [
+    { date: '2026-07-01', accountValue: 1020, cashBalance: 800, positionValue: 220, positionQty: 2, closePrice: 110 },
+    { date: '2026-07-02', accountValue: 998, cashBalance: 710, positionValue: 288, positionQty: 3, closePrice: 96 },
+    { date: '2026-07-03', accountValue: 1010, cashBalance: 710, positionValue: 300, positionQty: 3, closePrice: 100 },
+  ]);
 });
 
 test('체결일 기본값은 한국시간 기준 어제 날짜다', () => {

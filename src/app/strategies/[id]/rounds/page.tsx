@@ -1,14 +1,17 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { AssetValueChart } from '@/components/AssetValueChart';
 import { compact, usd } from '@/components/Format';
 import { CompletedRoundEditor } from '@/components/CompletedRoundEditor';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { CompletedRound, Execution, Strategy, TEffect } from '@/lib/types';
+import type { CompletedRound, DailyPrice, Execution, MarketCandle, Strategy, TEffect } from '@/lib/types';
+import { toNumber } from '@/lib/types';
+import { buildAssetValueHistory, type AssetValuePoint, type ExecutionSnapshot } from '@/lib/trading';
 
-type RecordView = 'rounds' | 'executions';
+type RecordView = 'rounds' | 'executions' | 'assets';
 
 function daysBetween(startedAt: string, endedAt: string) {
   const start = new Date(`${startedAt}T00:00:00`);
@@ -191,7 +194,7 @@ export default async function StrategyRoundsPage({
   if (!hasSupabaseEnv()) return <SetupNotice />;
 
   const [{ id }, query] = await Promise.all([params, searchParams]);
-  const view: RecordView = query.view === 'rounds' ? 'rounds' : 'executions';
+  const view: RecordView = query.view === 'rounds' || query.view === 'assets' ? query.view : 'executions';
   const supabase = createSupabaseServerClient();
   const [strategyResult, roundResult, executionResult] = await Promise.all([
     supabase!.from('strategies').select('*').eq('id', id).single<Strategy>(),
@@ -224,6 +227,52 @@ export default async function StrategyRoundsPage({
 
   const rounds = roundResult.data ?? [];
   const executions = executionResult.data ?? [];
+  let assetPoints: AssetValuePoint[] = [];
+
+  if (view === 'assets' && executions.length > 0) {
+    const firstExecutionDate = executions[0].executed_at;
+    const [snapshotResult, candleResult, dailyPriceResult] = await Promise.all([
+      supabase!
+        .from('strategy_snapshots')
+        .select('execution_id, cash_balance, position_qty')
+        .eq('strategy_id', id)
+        .not('execution_id', 'is', null)
+        .returns<ExecutionSnapshot[]>(),
+      supabase!
+        .from('market_candles')
+        .select('*')
+        .eq('symbol', strategy.symbol)
+        .gte('trade_date', firstExecutionDate)
+        .order('trade_date', { ascending: true })
+        .returns<MarketCandle[]>(),
+      supabase!
+        .from('daily_prices')
+        .select('*')
+        .eq('strategy_id', id)
+        .gte('trade_date', firstExecutionDate)
+        .order('trade_date', { ascending: true })
+        .returns<DailyPrice[]>(),
+    ]);
+
+    if (snapshotResult.error || candleResult.error || dailyPriceResult.error) {
+      return (
+        <section className="panel">
+          <h1>자산 기록을 불러오지 못했습니다</h1>
+          <p className="danger-text">{snapshotResult.error?.message ?? candleResult.error?.message ?? dailyPriceResult.error?.message}</p>
+        </section>
+      );
+    }
+
+    assetPoints = buildAssetValueHistory({
+      currentCashBalance: toNumber(strategy.cash_balance),
+      currentPositionQty: strategy.position_qty,
+      executions,
+      snapshots: snapshotResult.data ?? [],
+      candles: candleResult.data ?? [],
+      dailyPrices: dailyPriceResult.data ?? [],
+    });
+  }
+
   const executionsByRound = new Map<string, Execution[]>();
   const roundNumberById = new Map(rounds.map((round) => [round.id, round.round_number]));
 
@@ -245,14 +294,17 @@ export default async function StrategyRoundsPage({
         <Link className={`record-view-tab ${view === 'executions' ? 'active' : ''}`} href={`/strategies/${id}/rounds`}>
           <span>체결 기록</span><strong>{executions.length}</strong>
         </Link>
+        <Link className={`record-view-tab ${view === 'assets' ? 'active' : ''}`} href={`/strategies/${id}/rounds?view=assets`}>
+          <span>자산차트</span>
+        </Link>
         <Link className={`record-view-tab ${view === 'rounds' ? 'active' : ''}`} href={`/strategies/${id}/rounds?view=rounds`}>
           <span>라운드 기록</span><strong>{rounds.length}</strong>
         </Link>
       </nav>
 
-      {view === 'rounds'
-        ? <RoundRecords rounds={rounds} executionsByRound={executionsByRound} strategyId={id} />
-        : <ExecutionRecords executions={[...executions].reverse()} roundNumberById={roundNumberById} />}
+      {view === 'rounds' && <RoundRecords rounds={rounds} executionsByRound={executionsByRound} strategyId={id} />}
+      {view === 'assets' && <AssetValueChart points={assetPoints} />}
+      {view === 'executions' && <ExecutionRecords executions={[...executions].reverse()} roundNumberById={roundNumberById} />}
     </div>
   );
 }
