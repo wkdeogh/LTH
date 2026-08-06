@@ -13,7 +13,6 @@ export default function GuidePage() {
       <section className="hero guide-hero">
         <span className="eyebrow">INFINITE BUYING V4.0</span>
         <h1>무한매수법<br />전략 가이드</h1>
-        <p>주문 전에 다시 확인할 수 있도록 앱에서 사용하는 일반모드와 리버스모드 규칙을 순서대로 정리했습니다.</p>
         <div className="hero-actions">
           <Link className="button primary" href="/">내 전략 보기</Link>
           <a className="button ghost" href="#daily-check">오늘의 체크리스트</a>
