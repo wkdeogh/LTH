@@ -158,21 +158,46 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
         />
       </section>
 
-      <section className="panel">
-        <div className="section-head">
+      <section className="panel current-state-panel">
+        <div className="section-head current-state-head">
           <div>
             <span className="eyebrow">CURRENT STATE</span>
             <h2>현재 전략 상태</h2>
           </div>
-          <span className="subtle-label">T {compact(strategy.t_value)}</span>
         </div>
-        <div className="metric-grid">
-          <div><span>현재 라운드 원금</span><strong>{usd(strategy.principal)}</strong><small>{strategy.compounding_type === 'compound' ? '전량매도 시 종료 현금으로 갱신' : '단리형 · 다음 라운드에도 유지'}</small></div>
-          <div><span>현금</span><strong>{usd(strategy.cash_balance)}</strong></div>
-          <div><span>보유수량</span><strong>{strategy.position_qty}주</strong></div>
-          <div><span>평단</span><strong>{usd(strategy.avg_price)}</strong></div>
-          <div><span>T값</span><strong>{compact(strategy.t_value)}</strong></div>
-          <div><span>보유주식 평가금액</span><strong>{positionMarketValue === null ? '-' : usd(positionMarketValue)}</strong><small>{strategy.position_qty === 0 ? '0주 보유' : reference ? `${strategy.position_qty}주 × ${usd(reference.price)}` : '최신 종가가 필요합니다'}</small></div>
+
+        <div className="current-state-capital" aria-label="자금 현황">
+          <div>
+            <span>현재 라운드 원금</span>
+            <strong>{usd(strategy.principal)}</strong>
+          </div>
+          <div>
+            <span>현금</span>
+            <strong>{usd(strategy.cash_balance)}</strong>
+          </div>
+        </div>
+
+        <div className="current-position-overview">
+          <div className="current-position-value">
+            <span>보유주식 평가금액</span>
+            <strong>{positionMarketValue === null ? '-' : usd(positionMarketValue)}</strong>
+            <small>{strategy.position_qty === 0 ? '0주 보유' : reference ? `${strategy.position_qty}주 × 최근 종가 ${usd(reference.price)}` : '최신 종가가 필요합니다'}</small>
+          </div>
+
+          <dl className="current-position-facts">
+            <div>
+              <dt>보유수량</dt>
+              <dd>{strategy.position_qty}주</dd>
+            </div>
+            <div>
+              <dt>평균단가</dt>
+              <dd>{usd(strategy.avg_price)}</dd>
+            </div>
+            <div>
+              <dt>T값</dt>
+              <dd>{compact(strategy.t_value)}</dd>
+            </div>
+          </dl>
         </div>
       </section>
 

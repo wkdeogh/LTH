@@ -1170,6 +1170,104 @@ button.is-pending > span {
   margin-top: 3px;
 }
 
+.panel.current-state-panel {
+  overflow: hidden;
+  padding: 0;
+}
+
+.current-state-head {
+  margin: 0;
+  padding: 22px 22px 19px;
+}
+
+.current-state-capital {
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.current-state-capital > div {
+  min-width: 0;
+  padding: 20px 22px 21px;
+}
+
+.current-state-capital > div + div {
+  border-left: 1px solid var(--line);
+}
+
+.current-state-capital span,
+.current-position-value > span,
+.current-position-facts dt {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+}
+
+.current-state-capital strong {
+  display: block;
+  font-size: clamp(21px, 3vw, 27px);
+  letter-spacing: -0.045em;
+  line-height: 1.2;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.current-position-overview {
+  background: linear-gradient(135deg, rgba(21, 94, 239, 0.055), rgba(21, 94, 239, 0.012));
+  border-top: 1px solid var(--line);
+  padding: 22px;
+}
+
+.current-position-value strong {
+  display: block;
+  font-size: clamp(28px, 5vw, 36px);
+  letter-spacing: -0.055em;
+  line-height: 1.1;
+  margin: 5px 0 4px;
+  overflow-wrap: anywhere;
+}
+
+.current-position-value small {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+}
+
+.current-position-facts {
+  border-top: 1px solid rgba(21, 94, 239, 0.12);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 19px 0 0;
+  padding: 17px 0 0;
+}
+
+.current-position-facts > div {
+  min-width: 0;
+  padding: 0 16px;
+}
+
+.current-position-facts > div:first-child {
+  padding-left: 0;
+}
+
+.current-position-facts > div + div {
+  border-left: 1px solid rgba(21, 94, 239, 0.12);
+}
+
+.current-position-facts > div:last-child {
+  padding-right: 0;
+}
+
+.current-position-facts dd {
+  font-size: 18px;
+  font-weight: 820;
+  letter-spacing: -0.035em;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
 .chart-panel {
   overflow: hidden;
 }
@@ -2676,6 +2774,39 @@ td {
   .metric-grid strong,
   .stat strong {
     font-size: 15px;
+  }
+
+  .current-state-head {
+    padding: 18px 17px 16px;
+  }
+
+  .current-state-capital > div {
+    padding: 17px;
+  }
+
+  .current-state-capital strong {
+    font-size: 21px;
+  }
+
+  .current-position-overview {
+    padding: 19px 17px 18px;
+  }
+
+  .current-position-value strong {
+    font-size: 30px;
+  }
+
+  .current-position-facts {
+    margin-top: 17px;
+    padding-top: 15px;
+  }
+
+  .current-position-facts > div {
+    padding: 0 10px;
+  }
+
+  .current-position-facts dd {
+    font-size: 16px;
   }
 
   .form-grid,
