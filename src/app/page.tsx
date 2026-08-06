@@ -120,46 +120,48 @@ export default async function HomePage() {
             const progress = Math.min(Math.max((toNumber(strategy.t_value) / strategy.split_count) * 100, 0), 100);
 
             return (
-              <article className="strategy-card" key={strategy.id}>
-                <div className="strategy-card-head">
-                  <div>
-                    <div className="badge-row">
-                      <span className={`symbol-badge symbol-${strategy.symbol.toLowerCase()}`}>{strategy.symbol}</span>
-                      <span className="mode-label">{modeLabel(strategy.mode)} · {strategy.split_count}분할</span>
+              <article className="strategy-card clickable-strategy-card" key={strategy.id}>
+                <Link className="strategy-card-main-link" href={`/strategies/${strategy.id}`} aria-label={`${strategy.name} 상세 보기`}>
+                  <div className="strategy-card-head">
+                    <div>
+                      <div className="badge-row">
+                        <span className={`symbol-badge symbol-${strategy.symbol.toLowerCase()}`}>{strategy.symbol}</span>
+                        <span className="mode-label">{modeLabel(strategy.mode)} · {strategy.split_count}분할</span>
+                      </div>
+                      <h2>{strategy.name}</h2>
                     </div>
-                    <h2>{strategy.name}</h2>
+                    <div className={`return-block ${performance.profitRate !== null && performance.profitRate < 0 ? 'negative' : ''}`}>
+                      <span>원금 대비 수익률</span>
+                      <strong>{performance.profitRate === null ? '-' : signedPercent(performance.profitRate)}</strong>
+                    </div>
                   </div>
-                  <div className={`return-block ${performance.profitRate !== null && performance.profitRate < 0 ? 'negative' : ''}`}>
-                    <span>원금 대비 수익률</span>
-                    <strong>{performance.profitRate === null ? '-' : signedPercent(performance.profitRate)}</strong>
-                  </div>
-                </div>
 
-                <div className="price-line">
-                  <div><span>평단</span><strong>{usd(strategy.avg_price)}</strong></div>
-                  <span className="price-arrow" aria-hidden="true">→</span>
-                  <div><span>{referenceSourceLabel(reference?.source)}</span><strong>{reference ? usd(reference.price) : '-'}</strong></div>
-                </div>
-
-                <div className="turn-progress">
-                  <div className="turn-progress-label">
-                    <span>T 진행도</span>
-                    <strong>{compact(strategy.t_value)} / {strategy.split_count}</strong>
+                  <div className="price-line">
+                    <div><span>평단</span><strong>{usd(strategy.avg_price)}</strong></div>
+                    <span className="price-arrow" aria-hidden="true">→</span>
+                    <div><span>{referenceSourceLabel(reference?.source)}</span><strong>{reference ? usd(reference.price) : '-'}</strong></div>
                   </div>
-                  <div className="progress-track" role="progressbar" aria-label={`${strategy.name} T 진행도`} aria-valuemin={0} aria-valuemax={strategy.split_count} aria-valuenow={toNumber(strategy.t_value)}>
-                    <span style={{ width: `${progress}%` }} />
-                  </div>
-                </div>
 
-                <div className="strategy-mini-stats">
-                  <div><span>보유</span><strong>{strategy.position_qty}주</strong></div>
-                  <div><span>현금</span><strong>{usd(strategy.cash_balance)}</strong></div>
-                  <div><span>계좌손익</span><strong className={performance.profitAmount !== null && performance.profitAmount < 0 ? 'profit-negative' : 'profit-positive'}>{performance.profitAmount === null ? '-' : signedUsd(performance.profitAmount)}</strong></div>
-                </div>
+                  <div className="turn-progress">
+                    <div className="turn-progress-label">
+                      <span>T 진행도</span>
+                      <strong>{compact(strategy.t_value)} / {strategy.split_count}</strong>
+                    </div>
+                    <div className="progress-track" role="progressbar" aria-label={`${strategy.name} T 진행도`} aria-valuemin={0} aria-valuemax={strategy.split_count} aria-valuenow={toNumber(strategy.t_value)}>
+                      <span style={{ width: `${progress}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="strategy-mini-stats">
+                    <div><span>보유</span><strong>{strategy.position_qty}주</strong></div>
+                    <div><span>현금</span><strong>{usd(strategy.cash_balance)}</strong></div>
+                    <div><span>계좌손익</span><strong className={performance.profitAmount !== null && performance.profitAmount < 0 ? 'profit-negative' : 'profit-positive'}>{performance.profitAmount === null ? '-' : signedUsd(performance.profitAmount)}</strong></div>
+                  </div>
+                </Link>
 
                 <div className="card-actions">
                   <Link className="button primary" href={`/strategies/${strategy.id}/plan`}>오늘 주문 보기</Link>
-                  <Link className="button ghost" href={`/strategies/${strategy.id}`}>전략 관리</Link>
+                  <Link className="button ghost" href={`/strategies/${strategy.id}/executions/new`}>체결 입력</Link>
                 </div>
               </article>
             );

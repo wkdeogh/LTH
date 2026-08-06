@@ -727,6 +727,36 @@ button.is-pending > span {
   padding: 22px;
 }
 
+.clickable-strategy-card {
+  transition:
+    border-color var(--motion-base) ease,
+    box-shadow var(--motion-base) ease,
+    transform var(--motion-base) var(--ease-touch);
+}
+
+.clickable-strategy-card:hover,
+.clickable-strategy-card:focus-within {
+  border-color: #b9c9e6;
+  box-shadow: 0 18px 44px rgba(28, 39, 51, 0.11);
+  transform: translateY(-2px);
+}
+
+.strategy-card-main-link {
+  border-radius: 17px;
+  display: block;
+  margin: -8px -8px 0;
+  padding: 8px;
+  transition:
+    background var(--motion-fast) ease,
+    transform var(--motion-fast) var(--ease-touch);
+}
+
+.strategy-card-main-link:active,
+.strategy-card-main-link.is-touching {
+  background: var(--surface-soft);
+  transform: scale(0.995);
+}
+
 .strategy-card-head {
   align-items: flex-start;
 }
@@ -816,8 +846,7 @@ button.is-pending > span {
 
 .price-line span,
 .strategy-mini-stats span,
-.metric-grid span,
-.performance-details span {
+.metric-grid span {
   color: var(--muted);
   display: block;
   font-size: 11px;
@@ -892,6 +921,59 @@ button.is-pending > span {
 .strategy-mini-stats strong {
   font-size: 14px;
   overflow-wrap: anywhere;
+}
+
+.strategy-detail-summary {
+  padding: 24px;
+}
+
+.strategy-detail-price-line small {
+  color: var(--muted);
+  display: block;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.strategy-detail-quick-stats {
+  margin-bottom: 0;
+}
+
+.strategy-detail-metrics {
+  background: linear-gradient(135deg, rgba(21, 94, 239, 0.055), rgba(21, 94, 239, 0.012));
+  border: 1px solid rgba(21, 94, 239, 0.11);
+  border-radius: var(--radius-md);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 18px;
+  padding: 16px 0;
+}
+
+.strategy-detail-metrics > div {
+  min-width: 0;
+  padding: 0 16px;
+}
+
+.strategy-detail-metrics > div + div {
+  border-left: 1px solid rgba(21, 94, 239, 0.12);
+}
+
+.strategy-detail-metrics span,
+.strategy-detail-metrics small {
+  color: var(--muted);
+  display: block;
+  font-size: 10px;
+}
+
+.strategy-detail-metrics strong {
+  display: block;
+  font-size: 16px;
+  letter-spacing: -0.035em;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.strategy-detail-metrics small {
+  margin-top: 3px;
 }
 
 .card-actions {
@@ -1049,96 +1131,6 @@ button.is-pending > span {
   display: none;
 }
 
-.performance-panel {
-  background: linear-gradient(135deg, #087a55, #075b42);
-  border-radius: var(--radius-lg);
-  color: #fff;
-  display: grid;
-  gap: 28px;
-  grid-template-columns: 1.2fr 1fr;
-  padding: 26px;
-}
-
-.performance-panel.negative {
-  background: var(--surface);
-  border: 1px solid #efdadd;
-  box-shadow: var(--shadow);
-  color: var(--ink);
-}
-
-.performance-panel.negative .performance-main > span,
-.performance-panel.negative .performance-main p,
-.performance-panel.negative .performance-details span {
-  color: var(--muted);
-}
-
-.performance-panel.negative .performance-main > strong {
-  color: var(--negative);
-}
-
-.performance-panel.negative .performance-details > div {
-  background: var(--surface-soft);
-}
-
-.performance-main > span {
-  color: rgba(255, 255, 255, 0.72);
-  display: block;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.performance-main > strong {
-  display: block;
-  font-size: clamp(34px, 6vw, 48px);
-  letter-spacing: -0.055em;
-  line-height: 1.1;
-  margin: 6px 0;
-}
-
-.performance-main p {
-  color: rgba(255, 255, 255, 0.76);
-  font-size: 12px;
-  margin: 0;
-}
-
-.performance-details {
-  align-items: center;
-  display: grid;
-  gap: 1px;
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.performance-details.three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.performance-details > div {
-  background: rgba(255, 255, 255, 0.1);
-  min-width: 0;
-  padding: 16px;
-}
-
-.performance-details > div:first-child {
-  border-radius: 16px 0 0 16px;
-}
-
-.performance-details > div:last-child {
-  border-radius: 0 16px 16px 0;
-}
-
-.performance-details.three > div:nth-child(2) {
-  border-radius: 0;
-}
-
-.performance-details span {
-  color: rgba(255, 255, 255, 0.68);
-}
-
-.performance-details strong {
-  font-size: 17px;
-  overflow-wrap: anywhere;
-}
-
 .metric-grid,
 .stat-grid {
   display: grid;
@@ -1168,104 +1160,6 @@ button.is-pending > span {
   display: block;
   font-size: 10px;
   margin-top: 3px;
-}
-
-.panel.current-state-panel {
-  overflow: hidden;
-  padding: 0;
-}
-
-.current-state-head {
-  margin: 0;
-  padding: 22px 22px 19px;
-}
-
-.current-state-capital {
-  border-top: 1px solid var(--line);
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.current-state-capital > div {
-  min-width: 0;
-  padding: 20px 22px 21px;
-}
-
-.current-state-capital > div + div {
-  border-left: 1px solid var(--line);
-}
-
-.current-state-capital span,
-.current-position-value > span,
-.current-position-facts dt {
-  color: var(--muted);
-  display: block;
-  font-size: 11px;
-  font-weight: 720;
-  letter-spacing: -0.01em;
-}
-
-.current-state-capital strong {
-  display: block;
-  font-size: clamp(21px, 3vw, 27px);
-  letter-spacing: -0.045em;
-  line-height: 1.2;
-  margin-top: 5px;
-  overflow-wrap: anywhere;
-}
-
-.current-position-overview {
-  background: linear-gradient(135deg, rgba(21, 94, 239, 0.055), rgba(21, 94, 239, 0.012));
-  border-top: 1px solid var(--line);
-  padding: 22px;
-}
-
-.current-position-value strong {
-  display: block;
-  font-size: clamp(28px, 5vw, 36px);
-  letter-spacing: -0.055em;
-  line-height: 1.1;
-  margin: 5px 0 4px;
-  overflow-wrap: anywhere;
-}
-
-.current-position-value small {
-  color: var(--muted);
-  display: block;
-  font-size: 11px;
-}
-
-.current-position-facts {
-  border-top: 1px solid rgba(21, 94, 239, 0.12);
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 19px 0 0;
-  padding: 17px 0 0;
-}
-
-.current-position-facts > div {
-  min-width: 0;
-  padding: 0 16px;
-}
-
-.current-position-facts > div:first-child {
-  padding-left: 0;
-}
-
-.current-position-facts > div + div {
-  border-left: 1px solid rgba(21, 94, 239, 0.12);
-}
-
-.current-position-facts > div:last-child {
-  padding-right: 0;
-}
-
-.current-position-facts dd {
-  font-size: 18px;
-  font-weight: 820;
-  letter-spacing: -0.035em;
-  margin: 4px 0 0;
-  overflow-wrap: anywhere;
 }
 
 .chart-panel {
@@ -2628,7 +2522,6 @@ td {
   .strategy-list,
   .two-column-grid,
   .grid,
-  .performance-panel,
   .skeleton-grid {
     grid-template-columns: 1fr;
   }
@@ -2663,6 +2556,31 @@ td {
 
   .strategy-mini-stats strong {
     font-size: 12px;
+  }
+
+  .strategy-detail-summary {
+    padding: 17px;
+  }
+
+  .strategy-detail-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0;
+  }
+
+  .strategy-detail-metrics > div {
+    padding: 14px;
+  }
+
+  .strategy-detail-metrics > div + div {
+    border-left: 0;
+  }
+
+  .strategy-detail-metrics > div:nth-child(even) {
+    border-left: 1px solid rgba(21, 94, 239, 0.12);
+  }
+
+  .strategy-detail-metrics > div:nth-child(n + 3) {
+    border-top: 1px solid rgba(21, 94, 239, 0.12);
   }
 
   .add-strategy-panel {
@@ -2702,34 +2620,6 @@ td {
     display: grid;
     gap: 2px;
     justify-items: end;
-  }
-
-  .performance-panel {
-    gap: 17px;
-    padding: 21px;
-  }
-
-  .performance-main > strong {
-    font-size: 38px;
-  }
-
-  .performance-details > div {
-    padding: 13px;
-  }
-
-  .performance-details strong {
-    font-size: 14px;
-  }
-
-  .performance-details.three {
-    grid-template-columns: 1fr;
-  }
-
-  .performance-details.three > div,
-  .performance-details.three > div:first-child,
-  .performance-details.three > div:nth-child(2),
-  .performance-details.three > div:last-child {
-    border-radius: 12px;
   }
 
   .chart-toolbar {
@@ -2774,39 +2664,6 @@ td {
   .metric-grid strong,
   .stat strong {
     font-size: 15px;
-  }
-
-  .current-state-head {
-    padding: 18px 17px 16px;
-  }
-
-  .current-state-capital > div {
-    padding: 17px;
-  }
-
-  .current-state-capital strong {
-    font-size: 21px;
-  }
-
-  .current-position-overview {
-    padding: 19px 17px 18px;
-  }
-
-  .current-position-value strong {
-    font-size: 30px;
-  }
-
-  .current-position-facts {
-    margin-top: 17px;
-    padding-top: 15px;
-  }
-
-  .current-position-facts > div {
-    padding: 0 10px;
-  }
-
-  .current-position-facts dd {
-    font-size: 16px;
   }
 
   .form-grid,

@@ -82,6 +82,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
       ? strategy.position_qty * reference.price
       : null;
   const isNegative = accountPerformance.profitRate !== null && accountPerformance.profitRate < 0;
+  const progress = Math.min(Math.max((toNumber(strategy.t_value) / strategy.split_count) * 100, 0), 100);
   const chartPlan = strategy.mode === 'normal'
     ? calculateNormalPlan({
       id: strategy.id,
@@ -114,22 +115,65 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
 
       <StrategyTabs strategyId={id} active="detail" />
 
-      <section className={`performance-panel ${isNegative ? 'negative' : ''}`}>
-        <div className="performance-main">
-          <span>현재 라운드 원금 대비 계좌 전체 수익률</span>
-          <strong>{accountPerformance.profitRate === null ? '-' : signedValue(accountPerformance.profitRate, '%')}</strong>
-          <p>
-            {reference
-              ? `${referenceSourceLabel(reference.source)} ${usd(reference.price)} · ${reference.date}`
-              : strategy.position_qty > 0
-                ? '종가나 체결가가 기록되면 자동으로 계산됩니다.'
-                : '보유 중인 수량이 없습니다.'}
-          </p>
+      <section className="strategy-card strategy-detail-summary" aria-label="현재 전략 요약">
+        <div className="strategy-card-head">
+          <div>
+            <div className="badge-row">
+              <span className={`symbol-badge symbol-${strategy.symbol.toLowerCase()}`}>{strategy.symbol}</span>
+              <span className="mode-label">{modeLabel(strategy.mode)} · {strategy.split_count}분할</span>
+            </div>
+            <h2>현재 전략 상태</h2>
+          </div>
+          <div className={`return-block ${isNegative ? 'negative' : ''}`}>
+            <span>원금 대비 수익률</span>
+            <strong>{accountPerformance.profitRate === null ? '-' : signedValue(accountPerformance.profitRate, '%')}</strong>
+          </div>
         </div>
-        <div className="performance-details three">
-          <div><span>계좌 평가액</span><strong>{accountPerformance.accountValue === null ? '-' : usd(accountPerformance.accountValue)}</strong></div>
-          <div><span>계좌 평가손익</span><strong className={accountPerformance.profitAmount !== null && accountPerformance.profitAmount < 0 ? 'profit-negative' : undefined}>{accountPerformance.profitAmount === null ? '-' : `${accountPerformance.profitAmount >= 0 ? '+' : '-'}${usd(Math.abs(accountPerformance.profitAmount))}`}</strong></div>
-          <div><span>보유분 평단 대비</span><strong className={positionPerformance.profitRate !== null && positionPerformance.profitRate < 0 ? 'profit-negative' : undefined}>{positionPerformance.profitRate === null ? '-' : signedValue(positionPerformance.profitRate, '%')}</strong></div>
+
+        <div className="price-line strategy-detail-price-line">
+          <div><span>평균단가</span><strong>{usd(strategy.avg_price)}</strong></div>
+          <span className="price-arrow" aria-hidden="true">→</span>
+          <div>
+            <span>{referenceSourceLabel(reference?.source)}</span>
+            <strong>{reference ? usd(reference.price) : '-'}</strong>
+            {reference && <small>{reference.date}</small>}
+          </div>
+        </div>
+
+        <div className="turn-progress">
+          <div className="turn-progress-label">
+            <span>T 진행도</span>
+            <strong>{compact(strategy.t_value)} / {strategy.split_count}</strong>
+          </div>
+          <div className="progress-track" role="progressbar" aria-label={`${strategy.name} T 진행도`} aria-valuemin={0} aria-valuemax={strategy.split_count} aria-valuenow={toNumber(strategy.t_value)}>
+            <span style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+
+        <div className="strategy-mini-stats strategy-detail-quick-stats">
+          <div><span>보유</span><strong>{strategy.position_qty}주</strong></div>
+          <div><span>현금</span><strong>{usd(strategy.cash_balance)}</strong></div>
+          <div><span>계좌손익</span><strong className={accountPerformance.profitAmount !== null && accountPerformance.profitAmount < 0 ? 'profit-negative' : 'profit-positive'}>{accountPerformance.profitAmount === null ? '-' : `${accountPerformance.profitAmount >= 0 ? '+' : '-'}${usd(Math.abs(accountPerformance.profitAmount))}`}</strong></div>
+        </div>
+
+        <div className="strategy-detail-metrics">
+          <div>
+            <span>현재 라운드 원금</span>
+            <strong>{usd(strategy.principal)}</strong>
+          </div>
+          <div>
+            <span>보유주식 평가금액</span>
+            <strong>{positionMarketValue === null ? '-' : usd(positionMarketValue)}</strong>
+            <small>{strategy.position_qty === 0 ? '0주 보유' : reference ? `${strategy.position_qty}주 × ${usd(reference.price)}` : '최신 종가 필요'}</small>
+          </div>
+          <div>
+            <span>계좌 평가액</span>
+            <strong>{accountPerformance.accountValue === null ? '-' : usd(accountPerformance.accountValue)}</strong>
+          </div>
+          <div>
+            <span>보유분 평단 대비</span>
+            <strong className={positionPerformance.profitRate !== null && positionPerformance.profitRate < 0 ? 'profit-negative' : 'profit-positive'}>{positionPerformance.profitRate === null ? '-' : signedValue(positionPerformance.profitRate, '%')}</strong>
+          </div>
         </div>
       </section>
 
@@ -156,49 +200,6 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
           starPrice={chartPlan?.starPrice ?? null}
           fullSellPrice={chartPlan?.targetSellPrice ?? null}
         />
-      </section>
-
-      <section className="panel current-state-panel">
-        <div className="section-head current-state-head">
-          <div>
-            <span className="eyebrow">CURRENT STATE</span>
-            <h2>현재 전략 상태</h2>
-          </div>
-        </div>
-
-        <div className="current-state-capital" aria-label="자금 현황">
-          <div>
-            <span>현재 라운드 원금</span>
-            <strong>{usd(strategy.principal)}</strong>
-          </div>
-          <div>
-            <span>현금</span>
-            <strong>{usd(strategy.cash_balance)}</strong>
-          </div>
-        </div>
-
-        <div className="current-position-overview">
-          <div className="current-position-value">
-            <span>보유주식 평가금액</span>
-            <strong>{positionMarketValue === null ? '-' : usd(positionMarketValue)}</strong>
-            <small>{strategy.position_qty === 0 ? '0주 보유' : reference ? `${strategy.position_qty}주 × 최근 종가 ${usd(reference.price)}` : '최신 종가가 필요합니다'}</small>
-          </div>
-
-          <dl className="current-position-facts">
-            <div>
-              <dt>보유수량</dt>
-              <dd>{strategy.position_qty}주</dd>
-            </div>
-            <div>
-              <dt>평균단가</dt>
-              <dd>{usd(strategy.avg_price)}</dd>
-            </div>
-            <div>
-              <dt>T값</dt>
-              <dd>{compact(strategy.t_value)}</dd>
-            </div>
-          </dl>
-        </div>
       </section>
 
       <section className="panel">
