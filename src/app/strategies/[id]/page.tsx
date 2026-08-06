@@ -201,45 +201,41 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
         </div>
       </section>
 
-      <section className="two-column-grid">
-        <div className="panel">
-          <div className="section-head">
-            <div>
-              <span className="eyebrow">OPTIONAL</span>
-              <h2>종가 직접 입력</h2>
-            </div>
+      <section className="panel">
+        <div className="section-head">
+          <div>
+            <span className="eyebrow">PRICE HISTORY</span>
+            <h2>최근 계산 기준가</h2>
           </div>
-          <p className="helper-copy">차트 종가를 자동으로 사용합니다. API 데이터가 없거나 직접 보정할 때만 입력하면 같은 날짜의 차트 종가보다 우선합니다.</p>
-          <form className="form" action={addDailyPrice} data-inline-validation noValidate>
-            <input type="hidden" name="strategy_id" value={strategy.id} />
-            <div className="inline-form-grid">
-              <label>거래일<input name="trade_date" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></label>
-              <label>종가($)<input name="close_price" type="number" min="0.0001" step="0.0001" inputMode="decimal" placeholder="예: 72.35" required /></label>
-            </div>
-            <button type="submit" className="secondary">종가 저장</button>
-          </form>
+          <span className="subtle-label">5일 평균 ({Math.min(references.length, 5)}/5) {referenceAverage === null ? '-' : usd(referenceAverage)}</span>
         </div>
-
-        <div className="panel">
-          <div className="section-head">
-            <div>
-              <span className="eyebrow">PRICE HISTORY</span>
-              <h2>최근 계산 기준가</h2>
-            </div>
-            <span className="subtle-label">5일 평균 ({Math.min(references.length, 5)}/5) {referenceAverage === null ? '-' : usd(referenceAverage)}</span>
+        {references.length > 0 ? (
+          <div className="reference-list">
+            {references.slice(0, 5).map((item, index) => (
+              <div className="reference-row" key={`${item.date}-${item.source}`}>
+                <div><strong>{item.date}</strong><span>{referenceSourceLabel(item.source)}{index === 0 ? ' · 현재 기준' : ''}</span></div>
+                <strong>{usd(item.price)}</strong>
+              </div>
+            ))}
           </div>
-          {references.length > 0 ? (
-            <div className="reference-list">
-              {references.slice(0, 5).map((item, index) => (
-                <div className="reference-row" key={`${item.date}-${item.source}`}>
-                  <div><strong>{item.date}</strong><span>{referenceSourceLabel(item.source)}{index === 0 ? ' · 현재 기준' : ''}</span></div>
-                  <strong>{usd(item.price)}</strong>
-                </div>
-              ))}
-            </div>
-          ) : <p className="muted empty-copy">아직 종가나 체결 기록이 없습니다.</p>}
-        </div>
+        ) : <p className="muted empty-copy">아직 종가나 체결 기록이 없습니다.</p>}
       </section>
+
+      <details className="panel disclosure">
+        <summary>
+          <span><strong>종가 직접 입력</strong><small>API 데이터가 없거나 직접 보정할 때만 사용하세요</small></span>
+          <span aria-hidden="true">＋</span>
+        </summary>
+        <form className="form disclosure-body" action={addDailyPrice} data-inline-validation noValidate>
+          <p className="helper-copy">직접 입력한 종가는 같은 날짜의 차트 종가보다 우선합니다.</p>
+          <input type="hidden" name="strategy_id" value={strategy.id} />
+          <div className="inline-form-grid">
+            <label>거래일<input name="trade_date" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></label>
+            <label>종가($)<input name="close_price" type="number" min="0.0001" step="0.0001" inputMode="decimal" placeholder="예: 72.35" required /></label>
+          </div>
+          <button type="submit" className="secondary">종가 저장</button>
+        </form>
+      </details>
 
       <details className="panel disclosure">
         <summary>
