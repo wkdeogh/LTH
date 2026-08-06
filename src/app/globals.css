@@ -1792,6 +1792,13 @@ input[type="date"]::-webkit-date-and-time-value {
   overflow-wrap: anywhere;
 }
 
+.order-fields > div:nth-child(-n + 2) strong {
+  font-size: 18px;
+  font-weight: 850;
+  letter-spacing: -0.035em;
+  line-height: 1.25;
+}
+
 .order-card p {
   color: var(--muted);
   font-size: 12px;
@@ -1807,6 +1814,10 @@ input[type="date"]::-webkit-date-and-time-value {
   border-color: rgba(21, 94, 239, 0.12);
 }
 
+.buy-guide .order-fields > div:nth-child(-n + 2) strong {
+  color: var(--accent-dark);
+}
+
 .sell-guide .order-card {
   background: linear-gradient(135deg, rgba(8, 122, 85, 0.075), rgba(64, 174, 133, 0.025));
   border-color: rgba(8, 122, 85, 0.18);
@@ -1814,6 +1825,10 @@ input[type="date"]::-webkit-date-and-time-value {
 
 .sell-guide .order-fields > div {
   border-color: rgba(8, 122, 85, 0.13);
+}
+
+.sell-guide .order-fields > div:nth-child(-n + 2) strong {
+  color: var(--positive);
 }
 
 .sell-guide .pill {
