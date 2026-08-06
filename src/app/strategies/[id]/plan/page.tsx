@@ -18,14 +18,18 @@ import {
   phaseLabel,
   referenceSourceLabel,
 } from '@/lib/trading';
+import type { OrderGuide } from '@/lib/trading';
 
-function OrderTable({ title, orders }: { title: string; orders: Array<{ label: string; orderType: string; price: number | null; quantity: number; amount?: number; note: string }> }) {
+function OrderTable({ title, orders }: { title: string; orders: OrderGuide[] }) {
+  const mainOrders = orders.filter((order) => !order.isSupplemental);
+  const supplementalOrders = orders.filter((order) => order.isSupplemental);
+
   return (
     <section className="panel">
       <h2>{title}</h2>
       {orders.length > 0 ? (
         <div className="order-list">
-          {orders.map((order, index) => (
+          {mainOrders.map((order, index) => (
             <article className="order-card" key={`${order.label}-${index}`}>
               <div className="order-card-head">
                 <strong>{order.label}</strong>
@@ -39,6 +43,26 @@ function OrderTable({ title, orders }: { title: string; orders: Array<{ label: s
               <p>{order.note}</p>
             </article>
           ))}
+          {supplementalOrders.length > 0 && (
+            <article className="supplemental-orders">
+              <div className="supplemental-orders-head">
+                <div>
+                  <strong>하락 보완 1주 매수</strong>
+                  <p>종가가 내려갈수록 1회 매수금을 채우는 LOC 주문입니다.</p>
+                </div>
+                <span className="pill">LOC · {supplementalOrders.length}건</span>
+              </div>
+              <div className="supplemental-order-list" aria-label="하락 보완 LOC 주문 목록">
+                {supplementalOrders.map((order, index) => (
+                  <div className="supplemental-order-row" key={`${order.label}-${index}`}>
+                    <span>{index + 1}</span>
+                    <div><small>LOC 가격</small><strong>{order.price ? usd(order.price) : '-'}</strong></div>
+                    <b>{order.quantity}주</b>
+                  </div>
+                ))}
+              </div>
+            </article>
+          )}
         </div>
       ) : <p className="muted">해당 주문 없음</p>}
     </section>

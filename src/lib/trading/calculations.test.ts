@@ -4,6 +4,7 @@ import type { StrategyState } from '@/lib/types';
 import {
   applyTEffect,
   buildMarketReferenceHistory,
+  buildDownsideBuyOrders,
   calculateAccountPerformance,
   calculateFiveDayAverage,
   calculateNormalPlan,
@@ -20,7 +21,7 @@ import {
   shouldAutoReturnToNormalMode,
   shouldReturnToNormalMode,
 } from '@/lib/trading';
-import { roundMoney, roundPrice } from '@/lib/trading/rounding';
+import { floorPrice, roundMoney, roundPrice } from '@/lib/trading/rounding';
 import { koreaDate } from '@/lib/date';
 
 function state(overrides: Partial<StrategyState> = {}): StrategyState {
@@ -42,9 +43,37 @@ function state(overrides: Partial<StrategyState> = {}): StrategyState {
 }
 
 test('금액과 주문가격을 경계값에서도 올바르게 반올림한다', () => {
+  assert.equal(floorPrice(44.9358), 44.93);
   assert.equal(roundPrice(1.005), 1.01);
   assert.equal(roundPrice(39.3724), 39.37);
   assert.equal(roundMoney(500.5641025641), 500.5641);
+});
+
+test('전반전 하락 보완 주문이 예시 표와 같은 가격과 수량으로 계산된다', () => {
+  const plan = calculateNormalPlan(state({
+    cashBalance: 19_412.28,
+    positionQty: 100,
+    avgPrice: 69.75,
+    tValue: 4,
+  }));
+
+  assert.equal(plan.oneUnitBudget, 539.23);
+  assert.deepEqual(plan.buyOrders.slice(0, 2).map(({ price, quantity }) => ({ price, quantity })), [
+    { price: 78.11, quantity: 3 },
+    { price: 69.75, quantity: 4 },
+  ]);
+  assert.deepEqual(
+    plan.buyOrders.filter((order) => order.isSupplemental).map(({ price, quantity }) => ({ price, quantity })),
+    [67.4, 59.91, 53.92, 49.02, 44.93, 41.47, 38.51].map((price) => ({ price, quantity: 1 })),
+  );
+  assert.deepEqual(inferExecutionDefaultsFromClose(plan, 70), {
+    side: 'buy', orderType: 'LOC', quantity: 3, tEffect: 'buy_half',
+  });
+  assert.deepEqual(inferExecutionDefaultsFromClose(plan, 67.4), {
+    side: 'buy', orderType: 'LOC', quantity: 8, tEffect: 'buy_full',
+  });
+  assert.equal(buildDownsideBuyOrders(539.23, 7).length, 7);
+  assert.deepEqual(buildDownsideBuyOrders(617.89, 12).slice(0, 2).map((order) => order.price), [47.53, 44.13]);
 });
 
 test('체결일 기본값은 한국시간 기준 어제 날짜다', () => {
@@ -163,7 +192,10 @@ test('일반모드 체결 입력 기본값을 종가와 주문 가이드로 자�
     side: 'buy', orderType: 'LOC', quantity: 6, tEffect: 'buy_half',
   });
   assert.deepEqual(inferExecutionDefaultsFromClose(plan, 38), {
-    side: 'buy', orderType: 'LOC', quantity: 12, tEffect: 'buy_full',
+    side: 'buy', orderType: 'LOC', quantity: 13, tEffect: 'buy_full',
+  });
+  assert.deepEqual(inferExecutionDefaultsFromClose(plan, 35), {
+    side: 'buy', orderType: 'LOC', quantity: 14, tEffect: 'buy_full',
   });
   assert.deepEqual(inferExecutionDefaultsFromClose(plan, 40), {
     side: 'sell', orderType: 'LOC', quantity: 25, tEffect: 'quarter_sell',

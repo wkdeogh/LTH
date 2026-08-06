@@ -13,6 +13,11 @@ export function roundPrice(value: number) {
   return roundTo(value, 2);
 }
 
+export function floorPrice(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.floor((value + 1e-9) * 100) / 100;
+}
+
 export function roundMoney(value: number) {
   return roundTo(value, 4);
 }

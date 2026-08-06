@@ -64,7 +64,8 @@ export function inferExecutionDefaultsFromClose(
   if (filledBuyOrders.length === 0) return null;
 
   const quantity = filledBuyOrders.reduce((sum, order) => sum + order.quantity, 0);
-  const isHalfBuy = plan.phase === 'first_half' && filledBuyOrders.length < plan.buyOrders.length;
+  const isHalfBuy = plan.phase === 'first_half'
+    && !filledBuyOrders.some((order) => order.completesBuyUnit);
   return {
     side: 'buy',
     orderType: 'LOC',

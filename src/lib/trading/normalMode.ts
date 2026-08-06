@@ -1,5 +1,5 @@
 import type { StrategyState, SymbolCode } from '@/lib/types';
-import { floorShares, roundMoney, roundPrice } from '@/lib/trading/rounding';
+import { floorPrice, floorShares, roundMoney, roundPrice } from '@/lib/trading/rounding';
 
 export type NormalPhase = 'initial' | 'first_half' | 'second_half' | 'reverse_required';
 
@@ -11,6 +11,8 @@ export type OrderGuide = {
   quantity: number;
   amount?: number;
   note: string;
+  isSupplemental?: boolean;
+  completesBuyUnit?: boolean;
 };
 
 export type NormalPlan = {
@@ -51,6 +53,25 @@ export function calculateTargetSellPrice(symbol: SymbolCode, avgPrice: number) {
   return roundPrice(avgPrice * (symbol === 'TQQQ' ? 1.15 : 1.2));
 }
 
+export function buildDownsideBuyOrders(oneUnitBudget: number, baseQuantity: number): OrderGuide[] {
+  if (oneUnitBudget <= 0 || baseQuantity <= 0) return [];
+
+  return Array.from({ length: baseQuantity }, (_, index) => {
+    const totalQuantity = baseQuantity + index + 1;
+    const price = floorPrice(oneUnitBudget / totalQuantity);
+    return {
+      label: `하락 보완 매수 ${index + 1}`,
+      side: 'buy',
+      orderType: 'LOC',
+      price,
+      quantity: 1,
+      note: `종가가 내려갈 때 총 ${totalQuantity}주로 1회 매수금을 채우기 위한 주문입니다.`,
+      isSupplemental: true,
+      completesBuyUnit: true,
+    };
+  });
+}
+
 export function calculateNormalPlan(state: StrategyState, referencePrice?: number): NormalPlan {
   const phase = detectNormalPhase(state);
   const warnings: string[] = [];
@@ -84,9 +105,20 @@ export function calculateNormalPlan(state: StrategyState, referencePrice?: numbe
   if (phase === 'initial') {
     const price = referencePrice && referencePrice > 0 ? roundPrice(referencePrice * 1.12) : null;
     const quantity = price ? floorShares(oneUnitBudget / price) : 0;
+    const initialOrder: OrderGuide = {
+      label: '첫 매수',
+      side: 'buy',
+      orderType: 'LOC',
+      price,
+      quantity,
+      amount: oneUnitBudget,
+      note: referencePrice ? '참고가보다 12% 높은 LOC 매수 가이드입니다.' : '참고가를 입력하면 예상 수량을 계산합니다.',
+      completesBuyUnit: true,
+    };
 
     formulas.push(`초기 1회 매수금 = 원금 / 분할 수 = ${state.principal} / ${state.splitCount}`);
     formulas.push('수량 = 매수금 / 주문가격');
+    formulas.push('하락 보완 LOC 가격 = 1회 매수금 / 체결 후 누적수량 (센트 미만 버림)');
 
     return {
       kind: 'normal',
@@ -96,17 +128,7 @@ export function calculateNormalPlan(state: StrategyState, referencePrice?: numbe
       starPrice: null,
       buyPrice: price,
       targetSellPrice: null,
-      buyOrders: [
-        {
-          label: '첫 매수',
-          side: 'buy',
-          orderType: 'LOC',
-          price,
-          quantity,
-          amount: oneUnitBudget,
-          note: referencePrice ? '참고가보다 12% 높은 LOC 매수 가이드입니다.' : '참고가를 입력하면 예상 수량을 계산합니다.',
-        },
-      ],
+      buyOrders: [initialOrder, ...buildDownsideBuyOrders(oneUnitBudget, quantity)],
       sellOrders: [],
       warnings,
       formulas,
@@ -125,15 +147,18 @@ export function calculateNormalPlan(state: StrategyState, referencePrice?: numbe
   formulas.push(`별지점 = 평단 × (1 + 별%) = ${state.avgPrice} × ${1 + starPercent}`);
   formulas.push(`1회 매수금 = 현금 / (${state.splitCount} - T) = ${state.cashBalance} / ${state.splitCount - state.tValue}`);
   formulas.push('매수 수량 = 배정금액 / 주문가격');
+  formulas.push('하락 보완 LOC 가격 = 1회 매수금 / 체결 후 누적수량 (센트 미만 버림)');
 
   if (phase === 'first_half') {
     const halfBudget = roundMoney(oneUnitBudget / 2);
+    const starQuantity = floorShares(halfBudget / buyPrice);
+    const baseQuantityAtAverage = floorShares(oneUnitBudget / state.avgPrice);
     buyOrders.push({
       label: '전반전 별지점 매수',
       side: 'buy',
       orderType: 'LOC',
       price: buyPrice,
-      quantity: floorShares(halfBudget / buyPrice),
+      quantity: starQuantity,
       amount: halfBudget,
       note: '1회 매수금의 절반을 별지점 - 0.01에 배정합니다.',
     });
@@ -142,9 +167,10 @@ export function calculateNormalPlan(state: StrategyState, referencePrice?: numbe
       side: 'buy',
       orderType: 'LOC',
       price: roundPrice(state.avgPrice),
-      quantity: floorShares(halfBudget / state.avgPrice),
+      quantity: Math.max(baseQuantityAtAverage - starQuantity, 0),
       amount: halfBudget,
-      note: '1회 매수금의 절반을 평단에 배정합니다.',
+      note: '평단 이하 종가에서 기본 매수 총수량이 1회 매수금에 맞도록 채웁니다.',
+      completesBuyUnit: true,
     });
   } else {
     buyOrders.push({
@@ -155,8 +181,12 @@ export function calculateNormalPlan(state: StrategyState, referencePrice?: numbe
       quantity: floorShares(oneUnitBudget / buyPrice),
       amount: oneUnitBudget,
       note: '후반전은 1회 매수금 전체를 별지점 - 0.01에 배정합니다.',
+      completesBuyUnit: true,
     });
   }
+
+  const baseBuyQuantity = buyOrders.reduce((sum, order) => sum + order.quantity, 0);
+  buyOrders.push(...buildDownsideBuyOrders(oneUnitBudget, baseBuyQuantity));
 
   return {
     kind: 'normal',

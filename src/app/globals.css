@@ -1798,6 +1798,81 @@ input[type="date"]::-webkit-date-and-time-value {
   margin: 0;
 }
 
+.supplemental-orders {
+  background: linear-gradient(135deg, rgba(21, 94, 239, 0.055), rgba(121, 87, 200, 0.04));
+  border: 1px solid rgba(21, 94, 239, 0.14);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.supplemental-orders-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.supplemental-orders-head p {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 3px 0 0;
+}
+
+.supplemental-orders-head .pill {
+  flex: 0 0 auto;
+}
+
+.supplemental-order-list {
+  border-top: 1px solid rgba(21, 94, 239, 0.12);
+  display: grid;
+}
+
+.supplemental-order-row {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 24px 1fr auto;
+  min-height: 50px;
+  padding: 8px 16px;
+}
+
+.supplemental-order-row + .supplemental-order-row {
+  border-top: 1px solid rgba(21, 94, 239, 0.1);
+}
+
+.supplemental-order-row > span {
+  align-items: center;
+  background: rgba(21, 94, 239, 0.1);
+  border-radius: 999px;
+  color: var(--accent-dark);
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 850;
+  height: 22px;
+  justify-content: center;
+  width: 22px;
+}
+
+.supplemental-order-row > div {
+  display: grid;
+  gap: 1px;
+}
+
+.supplemental-order-row small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.supplemental-order-row strong {
+  font-size: 15px;
+}
+
+.supplemental-order-row b {
+  color: #6540a4;
+  font-size: 13px;
+}
+
 table {
   border-collapse: collapse;
   width: 100%;
