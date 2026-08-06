@@ -1798,6 +1798,29 @@ input[type="date"]::-webkit-date-and-time-value {
   margin: 0;
 }
 
+.buy-guide .order-card {
+  background: linear-gradient(135deg, rgba(21, 94, 239, 0.065), rgba(86, 161, 255, 0.025));
+  border-color: rgba(21, 94, 239, 0.16);
+}
+
+.buy-guide .order-fields > div {
+  border-color: rgba(21, 94, 239, 0.12);
+}
+
+.sell-guide .order-card {
+  background: linear-gradient(135deg, rgba(8, 122, 85, 0.075), rgba(64, 174, 133, 0.025));
+  border-color: rgba(8, 122, 85, 0.18);
+}
+
+.sell-guide .order-fields > div {
+  border-color: rgba(8, 122, 85, 0.13);
+}
+
+.sell-guide .pill {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+
 .supplemental-orders {
   background: linear-gradient(135deg, rgba(21, 94, 239, 0.055), rgba(121, 87, 200, 0.04));
   border: 1px solid rgba(21, 94, 239, 0.14);
@@ -1830,6 +1853,7 @@ input[type="date"]::-webkit-date-and-time-value {
 
 .supplemental-order-row {
   align-items: center;
+  animation: list-item-in 190ms var(--ease-touch) both;
   display: grid;
   gap: 10px;
   grid-template-columns: 24px 1fr auto;
@@ -1854,16 +1878,6 @@ input[type="date"]::-webkit-date-and-time-value {
   width: 22px;
 }
 
-.supplemental-order-row > div {
-  display: grid;
-  gap: 1px;
-}
-
-.supplemental-order-row small {
-  color: var(--muted);
-  font-size: 10px;
-}
-
 .supplemental-order-row strong {
   font-size: 15px;
 }
@@ -1871,6 +1885,34 @@ input[type="date"]::-webkit-date-and-time-value {
 .supplemental-order-row b {
   color: #6540a4;
   font-size: 13px;
+}
+
+.supplemental-orders-footer {
+  align-items: center;
+  border-top: 1px solid rgba(21, 94, 239, 0.12);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 12px 10px 16px;
+}
+
+.supplemental-orders-footer > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.supplemental-more-button {
+  background: var(--accent-soft);
+  border-color: rgba(21, 94, 239, 0.16);
+  color: var(--accent-dark);
+  font-size: 12px;
+  min-height: 38px;
+  padding: 8px 12px;
+}
+
+.supplemental-more-button:hover {
+  background: #dce8ff;
 }
 
 table {

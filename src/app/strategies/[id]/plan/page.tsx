@@ -4,6 +4,7 @@ import { AutoReverseTransition } from '@/components/AutoReverseTransition';
 import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
+import { SupplementalOrders } from '@/components/SupplementalOrders';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { DailyPrice, MarketCandle, Strategy } from '@/lib/types';
@@ -20,12 +21,12 @@ import {
 } from '@/lib/trading';
 import type { OrderGuide } from '@/lib/trading';
 
-function OrderTable({ title, orders }: { title: string; orders: OrderGuide[] }) {
+function OrderTable({ title, orders, tone }: { title: string; orders: OrderGuide[]; tone: 'buy' | 'sell' }) {
   const mainOrders = orders.filter((order) => !order.isSupplemental);
   const supplementalOrders = orders.filter((order) => order.isSupplemental);
 
   return (
-    <section className="panel">
+    <section className={`panel order-guide ${tone}-guide`}>
       <h2>{title}</h2>
       {orders.length > 0 ? (
         <div className="order-list">
@@ -43,26 +44,7 @@ function OrderTable({ title, orders }: { title: string; orders: OrderGuide[] }) 
               <p>{order.note}</p>
             </article>
           ))}
-          {supplementalOrders.length > 0 && (
-            <article className="supplemental-orders">
-              <div className="supplemental-orders-head">
-                <div>
-                  <strong>하락 보완 1주 매수</strong>
-                  <p>종가가 내려갈수록 1회 매수금을 채우는 LOC 주문입니다.</p>
-                </div>
-                <span className="pill">LOC · {supplementalOrders.length}건</span>
-              </div>
-              <div className="supplemental-order-list" aria-label="하락 보완 LOC 주문 목록">
-                {supplementalOrders.map((order, index) => (
-                  <div className="supplemental-order-row" key={`${order.label}-${index}`}>
-                    <span>{index + 1}</span>
-                    <div><small>LOC 가격</small><strong>{order.price ? usd(order.price) : '-'}</strong></div>
-                    <b>{order.quantity}주</b>
-                  </div>
-                ))}
-              </div>
-            </article>
-          )}
+          {supplementalOrders.length > 0 && <SupplementalOrders orders={supplementalOrders} />}
         </div>
       ) : <p className="muted">해당 주문 없음</p>}
     </section>
@@ -114,8 +96,8 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
 
       <StrategyTabs strategyId={id} active="plan" />
 
-      <OrderTable title="오늘 매수 가이드" orders={plan.buyOrders} />
-      <OrderTable title="오늘 매도 가이드" orders={plan.sellOrders} />
+      <OrderTable title="오늘 매수 가이드" orders={plan.buyOrders} tone="buy" />
+      <OrderTable title="오늘 매도 가이드" orders={plan.sellOrders} tone="sell" />
 
       <section className="panel summary-panel">
         <div className="section-head">
