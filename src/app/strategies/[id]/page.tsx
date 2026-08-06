@@ -76,6 +76,11 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
     reference?.price,
   );
   const referenceAverage = calculateReferenceAverage(references);
+  const positionMarketValue = strategy.position_qty === 0
+    ? 0
+    : reference
+      ? strategy.position_qty * reference.price
+      : null;
   const isNegative = accountPerformance.profitRate !== null && accountPerformance.profitRate < 0;
   const chartPlan = strategy.mode === 'normal'
     ? calculateNormalPlan({
@@ -128,6 +133,31 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
         </div>
       </section>
 
+      <section className="panel chart-panel" id="market-chart">
+        <div className="section-head chart-section-head">
+          <div>
+            <span className="eyebrow">{strategy.symbol} MARKET</span>
+            <h2>{strategy.symbol} 차트와 체결 지점</h2>
+          </div>
+          <div className="section-head-actions">
+            <span className="subtle-label">일봉 · 최근 3년</span>
+            <form action={refreshMarketChart}>
+              <input name="strategy_id" type="hidden" value={strategy.id} />
+              <button className="button ghost chart-refresh-button" type="submit">캔들 즉시 갱신</button>
+            </form>
+          </div>
+        </div>
+        <p className="helper-copy">차트를 움직이거나 확대할 수 있습니다. 마우스를 올리거나 모바일에서 길게 터치하면 해당 일자의 OHLC와 체결 정보를 확인할 수 있습니다.</p>
+        <LazyMarketChart
+          symbol={strategy.symbol}
+          candles={candleResult.data ?? []}
+          executions={chartExecutionResult.data ?? []}
+          averagePrice={toNumber(strategy.avg_price)}
+          starPrice={chartPlan?.starPrice ?? null}
+          fullSellPrice={chartPlan?.targetSellPrice ?? null}
+        />
+      </section>
+
       <section className="panel">
         <div className="section-head">
           <div>
@@ -142,7 +172,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
           <div><span>보유수량</span><strong>{strategy.position_qty}주</strong></div>
           <div><span>평단</span><strong>{usd(strategy.avg_price)}</strong></div>
           <div><span>T값</span><strong>{compact(strategy.t_value)}</strong></div>
-          <div><span>리버스 첫 매도</span><strong>{strategy.reverse_first_sell_done ? '완료' : '미완료'}</strong></div>
+          <div><span>보유주식 평가금액</span><strong>{positionMarketValue === null ? '-' : usd(positionMarketValue)}</strong><small>{strategy.position_qty === 0 ? '0주 보유' : reference ? `${strategy.position_qty}주 × ${usd(reference.price)}` : '최신 종가가 필요합니다'}</small></div>
         </div>
       </section>
 
@@ -184,31 +214,6 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
             </div>
           ) : <p className="muted empty-copy">아직 종가나 체결 기록이 없습니다.</p>}
         </div>
-      </section>
-
-      <section className="panel chart-panel" id="market-chart">
-        <div className="section-head chart-section-head">
-          <div>
-            <span className="eyebrow">{strategy.symbol} MARKET</span>
-            <h2>{strategy.symbol} 차트와 체결 지점</h2>
-          </div>
-          <div className="section-head-actions">
-            <span className="subtle-label">일봉 · 최근 3년</span>
-            <form action={refreshMarketChart}>
-              <input name="strategy_id" type="hidden" value={strategy.id} />
-              <button className="button ghost chart-refresh-button" type="submit">캔들 즉시 갱신</button>
-            </form>
-          </div>
-        </div>
-        <p className="helper-copy">차트를 움직이거나 확대할 수 있습니다. 마우스를 올리거나 모바일에서 길게 터치하면 해당 일자의 OHLC와 체결 정보를 확인할 수 있습니다.</p>
-        <LazyMarketChart
-          symbol={strategy.symbol}
-          candles={candleResult.data ?? []}
-          executions={chartExecutionResult.data ?? []}
-          averagePrice={toNumber(strategy.avg_price)}
-          starPrice={chartPlan?.starPrice ?? null}
-          fullSellPrice={chartPlan?.targetSellPrice ?? null}
-        />
       </section>
 
       <details className="panel disclosure">

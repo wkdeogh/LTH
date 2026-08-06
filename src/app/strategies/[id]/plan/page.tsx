@@ -91,6 +91,9 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
 
       <StrategyTabs strategyId={id} active="plan" />
 
+      <OrderTable title="오늘 매수 가이드" orders={plan.buyOrders} />
+      <OrderTable title="오늘 매도 가이드" orders={plan.sellOrders} />
+
       <section className="panel summary-panel">
         <div className="section-head">
           <div><span className="eyebrow">CALCULATION BASE</span><h2>계산 기준</h2></div>
@@ -138,9 +141,6 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
       )}
 
       {plan.warnings.length > 0 && <section className="warning"><strong>확인 필요</strong><ul>{plan.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></section>}
-
-      <OrderTable title="오늘 매수 가이드" orders={plan.buyOrders} />
-      <OrderTable title="오늘 매도 가이드" orders={plan.sellOrders} />
 
       {'phase' in plan && plan.phase === 'reverse_required' && (
         <AutoReverseTransition strategyId={id} />

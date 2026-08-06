@@ -74,19 +74,6 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
 
       <StrategyTabs strategyId={id} active="execution" />
 
-      <section className="panel summary-panel">
-        <div className="section-head">
-          <div><span className="eyebrow">BEFORE</span><h2>체결 전 상태</h2></div>
-          <span className="subtle-label">{modeLabel(state.mode)}</span>
-        </div>
-        <div className="metric-grid">
-          <div className="stat"><span>T</span><strong>{compact(state.tValue)}</strong></div>
-          <div className="stat"><span>현금</span><strong>{usd(state.cashBalance)}</strong></div>
-          <div className="stat"><span>수량</span><strong>{state.positionQty}주</strong></div>
-          <div className="stat"><span>평단</span><strong>{usd(state.avgPrice)}</strong></div>
-        </div>
-      </section>
-
       <section className="panel">
         <div className="section-head">
           <div><span className="eyebrow">EXECUTION</span><h2>체결 입력</h2></div>
@@ -140,6 +127,19 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
           <label>메모<textarea name="memo" rows={3} placeholder="예: 별지점 LOC 매수" /></label>
           <div className="sticky-form-actions"><button type="submit" className="primary">체결 저장하기</button></div>
         </form>
+      </section>
+
+      <section className="panel summary-panel">
+        <div className="section-head">
+          <div><span className="eyebrow">BEFORE</span><h2>체결 전 상태</h2></div>
+          <span className="subtle-label">{modeLabel(state.mode)}</span>
+        </div>
+        <div className="metric-grid">
+          <div className="stat"><span>T</span><strong>{compact(state.tValue)}</strong></div>
+          <div className="stat"><span>현금</span><strong>{usd(state.cashBalance)}</strong></div>
+          <div className="stat"><span>수량</span><strong>{state.positionQty}주</strong></div>
+          <div className="stat"><span>평단</span><strong>{usd(state.avgPrice)}</strong></div>
+        </div>
       </section>
 
       <details className="panel disclosure">

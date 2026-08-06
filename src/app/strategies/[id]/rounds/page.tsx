@@ -191,7 +191,7 @@ export default async function StrategyRoundsPage({
   if (!hasSupabaseEnv()) return <SetupNotice />;
 
   const [{ id }, query] = await Promise.all([params, searchParams]);
-  const view: RecordView = query.view === 'executions' ? 'executions' : 'rounds';
+  const view: RecordView = query.view === 'rounds' ? 'rounds' : 'executions';
   const supabase = createSupabaseServerClient();
   const [strategyResult, roundResult, executionResult] = await Promise.all([
     supabase!.from('strategies').select('*').eq('id', id).single<Strategy>(),
@@ -243,11 +243,11 @@ export default async function StrategyRoundsPage({
       <StrategyTabs strategyId={id} active="rounds" />
 
       <nav className="record-view-tabs" aria-label="전략 기록 종류 선택">
-        <Link className={`record-view-tab ${view === 'rounds' ? 'active' : ''}`} href={`/strategies/${id}/rounds`}>
-          <span>라운드 기록</span><strong>{rounds.length}</strong>
-        </Link>
-        <Link className={`record-view-tab ${view === 'executions' ? 'active' : ''}`} href={`/strategies/${id}/rounds?view=executions`}>
+        <Link className={`record-view-tab ${view === 'executions' ? 'active' : ''}`} href={`/strategies/${id}/rounds`}>
           <span>체결 기록</span><strong>{executions.length}</strong>
+        </Link>
+        <Link className={`record-view-tab ${view === 'rounds' ? 'active' : ''}`} href={`/strategies/${id}/rounds?view=rounds`}>
+          <span>라운드 기록</span><strong>{rounds.length}</strong>
         </Link>
       </nav>
 
