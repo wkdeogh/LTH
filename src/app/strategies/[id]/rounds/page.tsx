@@ -237,7 +237,6 @@ export default async function StrategyRoundsPage({
       <section className="hero compact-hero">
         <span className="eyebrow">STRATEGY HISTORY</span>
         <h1>{strategy.name} 전략 기록</h1>
-        <p>완료된 라운드의 성과와 지금까지 입력한 체결을 선택해서 확인할 수 있습니다.</p>
       </section>
 
       <StrategyTabs strategyId={id} active="rounds" />

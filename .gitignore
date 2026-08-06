@@ -2,6 +2,8 @@ node_modules
 .next
 .env
 .env.local
+*.un~
+.codex/
 *.log
 tsconfig.tsbuildinfo
 .vercel

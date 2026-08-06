@@ -107,7 +107,6 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
         <div className="title-row">
           <div>
             <h1>{strategy.name}</h1>
-            <p>{modeLabel(strategy.mode)}로 진행 중입니다.</p>
           </div>
           <span className={`status-badge ${strategy.mode === 'reverse' ? 'reverse' : ''}`}>{modeLabel(strategy.mode)}</span>
         </div>
@@ -119,10 +118,8 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
         <div className="strategy-card-head">
           <div>
             <div className="badge-row">
-              <span className={`symbol-badge symbol-${strategy.symbol.toLowerCase()}`}>{strategy.symbol}</span>
-              <span className="mode-label">{modeLabel(strategy.mode)} · {strategy.split_count}분할</span>
             </div>
-            <h2>현재 전략 상태</h2>
+            <h2>현재 상태</h2>
           </div>
           <div className={`return-block ${isNegative ? 'negative' : ''}`}>
             <span>원금 대비 수익률</span>
@@ -164,7 +161,6 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
           <div>
             <span>보유주식 평가금액</span>
             <strong>{positionMarketValue === null ? '-' : usd(positionMarketValue)}</strong>
-            <small>{strategy.position_qty === 0 ? '0주 보유' : reference ? `${strategy.position_qty}주 × ${usd(reference.price)}` : '최신 종가 필요'}</small>
           </div>
           <div>
             <span>계좌 평가액</span>
@@ -184,14 +180,12 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
             <h2>{strategy.symbol} 차트와 체결 지점</h2>
           </div>
           <div className="section-head-actions">
-            <span className="subtle-label">일봉 · 최근 3년</span>
             <form action={refreshMarketChart}>
               <input name="strategy_id" type="hidden" value={strategy.id} />
               <button className="button ghost chart-refresh-button" type="submit">캔들 즉시 갱신</button>
             </form>
           </div>
         </div>
-        <p className="helper-copy">차트를 움직이거나 확대할 수 있습니다. 마우스를 올리거나 모바일에서 길게 터치하면 해당 일자의 OHLC와 체결 정보를 확인할 수 있습니다.</p>
         <LazyMarketChart
           symbol={strategy.symbol}
           candles={candleResult.data ?? []}

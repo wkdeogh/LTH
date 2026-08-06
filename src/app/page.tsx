@@ -179,7 +179,6 @@ export default async function HomePage() {
         <div>
           <span className="eyebrow">NEW STRATEGY</span>
           <h2>새 전략 추가</h2>
-          <p>새 전략은 현재 목록의 가장 아래에 추가됩니다.</p>
         </div>
         <Link className="button primary" href="/strategies/new">전략 추가하기</Link>
       </section>

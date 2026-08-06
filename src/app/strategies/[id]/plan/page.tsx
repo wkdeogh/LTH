@@ -86,7 +86,6 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
       <section className="hero compact-hero">
         <span className="eyebrow">TODAY&apos;S ORDER</span>
         <h1>{strategy.name}</h1>
-        <p>저장된 현재 상태를 기준으로 주문 수량과 가격을 계산했습니다.</p>
       </section>
 
       <StrategyTabs strategyId={id} active="plan" />

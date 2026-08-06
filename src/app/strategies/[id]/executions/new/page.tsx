@@ -69,7 +69,6 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
       <section className="hero compact-hero">
         <span className="eyebrow">RECORD EXECUTION</span>
         <h1>{strategy.name}</h1>
-        <p>증권사에서 확인한 실제 체결 결과를 입력하세요.</p>
       </section>
 
       <StrategyTabs strategyId={id} active="execution" />
