@@ -14,6 +14,7 @@ import {
   calculateNormalPlan,
   calculatePositionPerformance,
   calculateReferenceAverage,
+  calculateStarPercent,
   modeLabel,
   referenceSourceLabel,
 } from '@/lib/trading';
@@ -83,6 +84,22 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
       : null;
   const isNegative = accountPerformance.profitRate !== null && accountPerformance.profitRate < 0;
   const progress = Math.min(Math.max((toNumber(strategy.t_value) / strategy.split_count) * 100, 0), 100);
+  const principal = toNumber(strategy.principal);
+  const cashBalance = toNumber(strategy.cash_balance);
+  const accountValue = accountPerformance.accountValue;
+  const capitalScale = Math.max(principal, accountValue ?? 0, 1);
+  const accountValuePercent = accountValue === null
+    ? 0
+    : Math.min(Math.max((accountValue / capitalScale) * 100, 0), 100);
+  const principalMarkerPercent = Math.min(Math.max((principal / capitalScale) * 100, 0), 100);
+  const hasAssetComposition = accountValue !== null && accountValue > 0 && positionMarketValue !== null;
+  const cashSharePercent = hasAssetComposition
+    ? Math.min(Math.max((cashBalance / accountValue) * 100, 0), 100)
+    : 0;
+  const positionSharePercent = hasAssetComposition ? 100 - cashSharePercent : 0;
+  const currentStarPercent = strategy.mode === 'normal'
+    ? calculateStarPercent(strategy.symbol, strategy.split_count, toNumber(strategy.t_value)) * 100
+    : null;
   const chartPlan = strategy.mode === 'normal'
     ? calculateNormalPlan({
       id: strategy.id,
@@ -139,7 +156,14 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
 
         <div className="turn-progress">
           <div className="turn-progress-label">
-            <span>T 진행도</span>
+            <div className="turn-progress-title">
+              <span>T 진행도</span>
+              {currentStarPercent === null ? (
+                <small className="reverse">리버스 · 5일 평균 기준</small>
+              ) : (
+                <small>별% {signedValue(currentStarPercent, '%')}</small>
+              )}
+            </div>
             <strong>{compact(strategy.t_value)} / {strategy.split_count}</strong>
           </div>
           <div className="progress-track" role="progressbar" aria-label={`${strategy.name} T 진행도`} aria-valuemin={0} aria-valuemax={strategy.split_count} aria-valuenow={toNumber(strategy.t_value)}>
@@ -147,29 +171,48 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        <div className="strategy-mini-stats strategy-detail-quick-stats">
-          <div><span>보유</span><strong>{strategy.position_qty}주</strong></div>
-          <div><span>현금</span><strong>{usd(strategy.cash_balance)}</strong></div>
-          <div><span>계좌손익</span><strong className={accountPerformance.profitAmount !== null && accountPerformance.profitAmount < 0 ? 'profit-negative' : 'profit-positive'}>{accountPerformance.profitAmount === null ? '-' : `${accountPerformance.profitAmount >= 0 ? '+' : '-'}${usd(Math.abs(accountPerformance.profitAmount))}`}</strong></div>
+        <div className="capital-visuals" aria-label="현재 계좌 금액 구성">
+          <div className="capital-visual">
+            <div className="capital-visual-head">
+              <span>원금 대비 계좌 평가</span>
+              <strong className={isNegative ? 'profit-negative' : 'profit-positive'}>
+                {accountPerformance.profitRate === null ? '-' : signedValue(accountPerformance.profitRate, '%')}
+              </strong>
+            </div>
+            <div className={`capital-comparison-track ${isNegative ? 'negative' : ''} ${accountValue === null ? 'unavailable' : ''}`} aria-hidden="true">
+              <span className="capital-comparison-fill" style={{ width: `${accountValuePercent}%` }} />
+              <i className="capital-principal-marker" style={{ left: `${principalMarkerPercent}%` }} />
+            </div>
+            <div className="capital-visual-values">
+              <span>원금 <strong>{usd(principal)}</strong></span>
+              <span>평가액 <strong>{accountValue === null ? '-' : usd(accountValue)}</strong></span>
+            </div>
+          </div>
+
+          <div className="capital-visual">
+            <div className="capital-visual-head">
+              <span>현재 자산 구성</span>
+              <strong>{hasAssetComposition ? `주식 ${compact(positionSharePercent, 0)}%` : accountValue === null ? '종가 필요' : '자산 없음'}</strong>
+            </div>
+            <div className={`asset-composition-track ${hasAssetComposition ? '' : 'unavailable'}`} aria-hidden="true">
+              {hasAssetComposition && (
+                <>
+                  <span className="asset-cash-fill" style={{ width: `${cashSharePercent}%` }} />
+                  <span className="asset-position-fill" style={{ width: `${positionSharePercent}%` }} />
+                </>
+              )}
+            </div>
+            <div className="asset-legend">
+              <span><i className="cash" />현금 <strong>{usd(cashBalance)}</strong></span>
+              <span><i className="position" />보유주식 <strong>{positionMarketValue === null ? '-' : usd(positionMarketValue)}</strong></span>
+            </div>
+          </div>
         </div>
 
-        <div className="strategy-detail-metrics">
-          <div>
-            <span>현재 라운드 원금</span>
-            <strong>{usd(strategy.principal)}</strong>
-          </div>
-          <div>
-            <span>보유주식 평가금액</span>
-            <strong>{positionMarketValue === null ? '-' : usd(positionMarketValue)}</strong>
-          </div>
-          <div>
-            <span>계좌 평가액</span>
-            <strong>{accountPerformance.accountValue === null ? '-' : usd(accountPerformance.accountValue)}</strong>
-          </div>
-          <div>
-            <span>보유분 평단 대비</span>
-            <strong className={positionPerformance.profitRate !== null && positionPerformance.profitRate < 0 ? 'profit-negative' : 'profit-positive'}>{positionPerformance.profitRate === null ? '-' : signedValue(positionPerformance.profitRate, '%')}</strong>
-          </div>
+        <div className="strategy-mini-stats strategy-detail-quick-stats">
+          <div><span>보유</span><strong>{strategy.position_qty}주</strong></div>
+          <div><span>계좌손익</span><strong className={accountPerformance.profitAmount !== null && accountPerformance.profitAmount < 0 ? 'profit-negative' : 'profit-positive'}>{accountPerformance.profitAmount === null ? '-' : `${accountPerformance.profitAmount >= 0 ? '+' : '-'}${usd(Math.abs(accountPerformance.profitAmount))}`}</strong></div>
+          <div><span>보유분 평단 대비</span><strong className={positionPerformance.profitRate !== null && positionPerformance.profitRate < 0 ? 'profit-negative' : 'profit-positive'}>{positionPerformance.profitRate === null ? '-' : signedValue(positionPerformance.profitRate, '%')}</strong></div>
         </div>
       </section>
 
