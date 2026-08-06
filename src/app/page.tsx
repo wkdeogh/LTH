@@ -99,11 +99,8 @@ export default async function HomePage() {
     <div className="stack page-stack">
       <section className="hero home-hero">
         <div>
-          <span className="eyebrow">MY STRATEGIES</span>
-          <h1>마이 빠우라!</h1>
-          <p>원칙대로 ㄱㄱ</p>
+          <h1>HELLO DAEHO</h1>
         </div>
-        <Link className="text-link" href="/guide">무한매수법 사용법 보기 <span aria-hidden="true">→</span></Link>
       </section>
 
       {strategies && strategies.length > 0 ? (
