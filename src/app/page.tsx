@@ -12,6 +12,8 @@ import {
   referenceSourceLabel,
 } from '@/lib/trading';
 
+export const dynamic = 'force-dynamic';
+
 function signedUsd(value: number | string) {
   const number = typeof value === 'string' ? Number(value) : value;
   return `${number >= 0 ? '+' : '-'}${usd(Math.abs(number))}`;
