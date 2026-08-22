@@ -1,4 +1,5 @@
 export type ForecastConfidence = '낮음' | '보통' | '높음';
+export type ForecastStrategyAction = '매수 예상' | '매도 예상' | '관망 예상' | '모드 전환 가능';
 
 export type ChartForecast = {
   date: string;
@@ -7,6 +8,8 @@ export type ChartForecast = {
   high: number;
   confidence: ForecastConfidence;
   rationale: string;
+  strategyAction?: ForecastStrategyAction;
+  tradeEstimate?: string;
 };
 
 export type ChartAnalysisResult = {
@@ -14,14 +17,14 @@ export type ChartAnalysisResult = {
   summary: string;
   marketRegime: string;
   technicalEvidence: string[];
-  keyLevels: Array<{
+  keyLevels?: Array<{
     label: string;
     price: number;
     meaning: string;
   }>;
   forecast: ChartForecast[];
   risks: string[];
-  limitations: string;
+  limitations?: string;
 };
 
 export type StoredChartAnalysis = {

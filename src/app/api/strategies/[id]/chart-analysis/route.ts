@@ -13,6 +13,7 @@ import {
 import type { ChartAnalysisRow } from '@/lib/ai/chartAnalysis';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { MarketCandle, Strategy } from '@/lib/types';
+import { toStrategyState } from '@/lib/types';
 
 export const maxDuration = 60;
 
@@ -97,11 +98,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       .select('*')
       .eq('symbol', strategy.symbol)
       .order('trade_date', { ascending: false })
-      .limit(756)
+      .limit(63)
       .returns<MarketCandle[]>();
     if (candleError) throw candleError;
 
-    const generated = await startChartAnalysis(strategy.symbol, candles ?? []);
+    const generated = await startChartAnalysis(toStrategyState(strategy), candles ?? []);
     const completed = generated.status === 'completed'
       ? completedChartAnalysis(generated.response, generated.candleEnd)
       : null;

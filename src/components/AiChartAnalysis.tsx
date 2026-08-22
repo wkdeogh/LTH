@@ -158,29 +158,16 @@ export function AiChartAnalysis({
             </div>
 
             <section className="ai-analysis-section">
-              <h4>기술적 분석 근거</h4>
+              <h4>판단 근거</h4>
               <ul>
-                {analysis.result.technicalEvidence.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
+                {analysis.result.technicalEvidence.slice(0, 3).map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
               </ul>
             </section>
 
             <section className="ai-analysis-section">
-              <h4>주요 가격대</h4>
-              <div className="ai-key-levels">
-                {analysis.result.keyLevels.map((level, index) => (
-                  <article key={`${level.label}-${index}`}>
-                    <span>{level.label}</span>
-                    <strong>{usd(level.price)}</strong>
-                    <p>{level.meaning}</p>
-                  </article>
-                ))}
-              </div>
-            </section>
-
-            <section className="ai-analysis-section">
               <div className="ai-analysis-section-head">
-                <h4>앞으로 5거래일 종가 예측</h4>
-                <span>USD · 예상 범위 포함</span>
+                <h4>5거래일 예상 종가와 매매 흐름</h4>
+                <span>USD</span>
               </div>
               <div className="ai-forecast-list">
                 {analysis.result.forecast.map((forecast, index) => (
@@ -196,22 +183,26 @@ export function AiChartAnalysis({
                     </div>
                     <span className={`ai-confidence confidence-${forecast.confidence}`}>신뢰도 {forecast.confidence}</span>
                     <p>{forecast.rationale}</p>
+                    {forecast.strategyAction && (
+                      <div className="ai-trade-outlook">
+                        <strong>{forecast.strategyAction}</strong>
+                        {forecast.tradeEstimate && <span>{forecast.tradeEstimate}</span>}
+                      </div>
+                    )}
                   </article>
                 ))}
               </div>
             </section>
 
             <section className="ai-analysis-section ai-risk-section">
-              <h4>위험요인과 무효화 가능성</h4>
+              <h4>예측 변수</h4>
               <ul>
-                {analysis.result.risks.map((risk, index) => <li key={`${index}-${risk}`}>{risk}</li>)}
+                {analysis.result.risks.slice(0, 2).map((risk, index) => <li key={`${index}-${risk}`}>{risk}</li>)}
               </ul>
             </section>
 
             <p className="ai-analysis-disclaimer">
-              <strong>분석 한계</strong>
-              {analysis.result.limitations}
-              <span>재미와 참고를 위한 AI 추정이며 투자 조언이나 수익 보장이 아닙니다.</span>
+              재미와 참고를 위한 AI 추정이며 투자 조언이나 수익 보장이 아닙니다.
             </p>
           </div>
         </details>

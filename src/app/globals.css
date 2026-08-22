@@ -1762,6 +1762,27 @@ button.is-pending > span {
   margin: 0;
 }
 
+.ai-trade-outlook {
+  align-items: center;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  display: flex;
+  gap: 10px;
+  grid-column: 1 / -1;
+  padding: 9px 11px;
+}
+
+.ai-trade-outlook strong {
+  color: var(--accent-dark);
+  flex: 0 0 auto;
+  font-size: 11px;
+}
+
+.ai-trade-outlook span {
+  color: #374151;
+  font-size: 10px;
+}
+
 .ai-risk-section {
   background: var(--warning-soft);
   border-radius: 14px;
@@ -3351,6 +3372,12 @@ td {
 
   .ai-forecast-list article > p {
     grid-column: 1 / -1;
+  }
+
+  .ai-trade-outlook {
+    align-items: flex-start;
+    display: grid;
+    gap: 3px;
   }
 
   .metric-grid,

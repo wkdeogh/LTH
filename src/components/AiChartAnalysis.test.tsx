@@ -31,6 +31,8 @@ const analysis: StoredChartAnalysis = {
       high: 123 + index,
       confidence: '보통' as const,
       rationale: `${index + 1}일차 근거`,
+      strategyAction: index === 0 ? '매수 예상' as const : '관망 예상' as const,
+      tradeEstimate: index === 0 ? '예상 종가가 현재 LOC 매수 기준 아래입니다.' : '현재 주문 기준에 닿지 않습니다.',
     })),
     risks: ['위험 1', '위험 2'],
     limitations: '일봉 데이터만 사용했습니다.',
@@ -47,10 +49,14 @@ test('저장된 AI 분석은 기본 접힘 상태로 시각 요소를 모두 렌
 
   assert.match(html, /AI 차트 다시 분석/);
   assert.match(html, /최근 AI 분석 결과/);
-  assert.match(html, /앞으로 5거래일 종가 예측/);
+  assert.match(html, /5거래일 예상 종가와 매매 흐름/);
+  assert.match(html, /매수 예상/);
   assert.match(html, /gpt-5\.6-luna/);
   assert.match(html, /\$121\.00/);
+  assert.doesNotMatch(html, /근거 4/);
+  assert.doesNotMatch(html, /일봉 데이터만 사용했습니다/);
   assert.doesNotMatch(html, /기본적으로 접혀 있어요/);
+  assert.doesNotMatch(html, /주요 가격대/);
   assert.doesNotMatch(html, /<details[^>]+open/);
 });
 

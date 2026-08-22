@@ -7,7 +7,8 @@ import type {
   StoredChartAnalysis,
 } from '@/lib/ai/chartAnalysisTypes';
 import { buildTechnicalSnapshot, nextNyseTradingDays, normalizeMarketCandles } from '@/lib/marketData/technicalIndicators';
-import type { MarketCandle, SymbolCode } from '@/lib/types';
+import { calculateNormalPlan, calculateReversePlan } from '@/lib/trading';
+import type { MarketCandle, StrategyState, SymbolCode } from '@/lib/types';
 
 const OPENAI_RESPONSES_ENDPOINT = 'https://api.openai.com/v1/responses';
 export const CHART_ANALYSIS_MODEL = 'gpt-5.6-luna';
@@ -22,24 +23,9 @@ const chartAnalysisSchema = {
     marketRegime: { type: 'string' },
     technicalEvidence: {
       type: 'array',
-      minItems: 4,
-      maxItems: 10,
-      items: { type: 'string' },
-    },
-    keyLevels: {
-      type: 'array',
       minItems: 2,
-      maxItems: 8,
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          label: { type: 'string' },
-          price: { type: 'number', exclusiveMinimum: 0 },
-          meaning: { type: 'string' },
-        },
-        required: ['label', 'price', 'meaning'],
-      },
+      maxItems: 3,
+      items: { type: 'string' },
     },
     forecast: {
       type: 'array',
@@ -55,27 +41,26 @@ const chartAnalysisSchema = {
           high: { type: 'number', exclusiveMinimum: 0 },
           confidence: { type: 'string', enum: ['낮음', '보통', '높음'] },
           rationale: { type: 'string' },
+          strategyAction: { type: 'string', enum: ['매수 예상', '매도 예상', '관망 예상', '모드 전환 가능'] },
+          tradeEstimate: { type: 'string' },
         },
-        required: ['date', 'close', 'low', 'high', 'confidence', 'rationale'],
+        required: ['date', 'close', 'low', 'high', 'confidence', 'rationale', 'strategyAction', 'tradeEstimate'],
       },
     },
     risks: {
       type: 'array',
-      minItems: 2,
-      maxItems: 8,
+      minItems: 1,
+      maxItems: 3,
       items: { type: 'string' },
     },
-    limitations: { type: 'string' },
   },
   required: [
     'headline',
     'summary',
     'marketRegime',
     'technicalEvidence',
-    'keyLevels',
     'forecast',
     'risks',
-    'limitations',
   ],
 } as const;
 
@@ -143,17 +128,14 @@ function stringArray(value: unknown, field: string, minimum: number) {
 function validateAnalysis(value: unknown, forecastDates: string[]): ChartAnalysisResult {
   if (!isRecord(value)) throw new Error('AI 분석 응답이 객체 형식이 아닙니다.');
 
-  if (!Array.isArray(value.keyLevels) || value.keyLevels.length < 2) {
-    throw new Error('AI 분석 응답의 주요 가격대가 부족합니다.');
-  }
-  const keyLevels = value.keyLevels.map((item, index) => {
+  const keyLevels = Array.isArray(value.keyLevels) ? value.keyLevels.map((item, index) => {
     if (!isRecord(item)) throw new Error(`AI 분석 응답의 keyLevels[${index}] 형식이 올바르지 않습니다.`);
     return {
       label: nonEmptyString(item.label, `keyLevels[${index}].label`),
       price: positiveNumber(item.price, `keyLevels[${index}].price`),
       meaning: nonEmptyString(item.meaning, `keyLevels[${index}].meaning`),
     };
-  });
+  }) : undefined;
 
   if (!Array.isArray(value.forecast) || value.forecast.length !== forecastDates.length) {
     throw new Error('AI 분석 응답에 5개 거래일 예측이 모두 포함되지 않았습니다.');
@@ -174,6 +156,16 @@ function validateAnalysis(value: unknown, forecastDates: string[]): ChartAnalysi
     if (confidence !== '낮음' && confidence !== '보통' && confidence !== '높음') {
       throw new Error(`AI 분석 응답의 ${date} 신뢰도 형식이 올바르지 않습니다.`);
     }
+    const strategyAction = item.strategyAction;
+    if (
+      strategyAction !== undefined
+      && strategyAction !== '매수 예상'
+      && strategyAction !== '매도 예상'
+      && strategyAction !== '관망 예상'
+      && strategyAction !== '모드 전환 가능'
+    ) {
+      throw new Error(`AI 분석 응답의 ${date} 매매 예측 형식이 올바르지 않습니다.`);
+    }
     return {
       date,
       low,
@@ -181,6 +173,10 @@ function validateAnalysis(value: unknown, forecastDates: string[]): ChartAnalysi
       high,
       confidence,
       rationale: nonEmptyString(item.rationale, `forecast[${index}].rationale`),
+      strategyAction,
+      tradeEstimate: item.tradeEstimate === undefined
+        ? undefined
+        : nonEmptyString(item.tradeEstimate, `forecast[${index}].tradeEstimate`),
     };
   });
 
@@ -188,11 +184,11 @@ function validateAnalysis(value: unknown, forecastDates: string[]): ChartAnalysi
     headline: nonEmptyString(value.headline, 'headline'),
     summary: nonEmptyString(value.summary, 'summary'),
     marketRegime: nonEmptyString(value.marketRegime, 'marketRegime'),
-    technicalEvidence: stringArray(value.technicalEvidence, 'technicalEvidence', 4),
+    technicalEvidence: stringArray(value.technicalEvidence, 'technicalEvidence', 2),
     keyLevels,
     forecast,
-    risks: stringArray(value.risks, 'risks', 2),
-    limitations: nonEmptyString(value.limitations, 'limitations'),
+    risks: stringArray(value.risks, 'risks', 1),
+    limitations: value.limitations === undefined ? undefined : nonEmptyString(value.limitations, 'limitations'),
   };
 }
 
@@ -200,15 +196,69 @@ function modelInstructions(symbol: SymbolCode, forecastDates: string[]) {
   return `당신은 수십 년 경력의 정량 기술적 분석가다. ${symbol}의 일봉 OHLCV만 사용해 다음 5개 미국 시장 거래일의 종가 경로를 분석하라.
 
 목표는 그럴듯한 이야기가 아니라 수치 근거가 연결된 조건부 예측이다. 다음 순서를 내부적으로 충분히 검토하라.
-1) 데이터 품질과 최신성, 장기·중기·단기 추세 국면을 확인한다.
-2) SMA/EMA/MACD와 회귀 기울기, RSI/Stochastic과 다중 기간 수익률, ATR/Bollinger/실현변동성, 거래량/OBV, 20·60일 가격 구조를 각각 독립 증거군으로 분석한다.
+1) 데이터 품질과 최신성, 3개월 안의 중기·단기 추세 국면을 확인한다.
+2) SMA/EMA/MACD와 회귀 기울기, RSI/Stochastic과 다중 기간 수익률, ATR/Bollinger/실현변동성, 거래량/OBV, 20·60일 가격 구조를 분석한다.
 3) 추세와 모멘텀의 일치, 가격과 거래량의 확인 또는 다이버전스, 변동성 수축/확장을 교차검증한다.
 4) 상승·기준·하락 시나리오와 무효화 가격을 비교한 뒤 가장 가능성 높은 연속 경로를 선택한다.
 5) 첫 예측은 최신 실제 종가에서 출발하고, 이후 날짜는 전날 예측에서 연속되어야 한다. ATR에 비해 큰 움직임은 반드시 수치 근거가 있어야 한다.
+6) 함께 제공된 현재 전략 상태와 실제 주문 가이드를 가격 경로에 대입해 날짜별 예상 매수·매도·관망·모드 전환 가능성을 판단한다. LOC는 예상 종가, LIMIT는 예상 고저 범위를 기준으로 보되 실제 체결처럼 단정하지 않는다.
 
-${symbol}은 일일 레버리지 ETF이므로 여러 날 수익이 기초지수 수익의 단순 배수가 아니고 변동성 드래그와 일별 복리 경로에 민감하다. 5일이라는 짧은 기간에도 이를 위험요인으로 반영하라. 뉴스, 실적, 금리, 옵션, 장중 흐름은 입력에 없으므로 만들어내지 말고 한계에 명시하라. 과매수/과매도나 차트 패턴 하나만으로 반전을 단정하지 마라.
+${symbol}은 일일 레버리지 ETF이므로 여러 날 수익이 기초지수 수익의 단순 배수가 아니고 변동성 드래그와 일별 복리 경로에 민감하다. 5일이라는 짧은 기간에도 이를 위험요인으로 반영하라. 뉴스, 실적, 금리, 옵션, 장중 흐름은 입력에 없으므로 만들어내지 말고 risks에 짧게 반영하라. 과매수/과매도나 차트 패턴 하나만으로 반전을 단정하지 마라.
 
-모든 설명은 전문적이되 이해 가능한 한국어로 작성한다. 가격은 달러이며 소수점 넷째 자리 이내로 쓴다. forecast의 날짜와 순서는 반드시 ${forecastDates.join(', ')} 그대로 사용한다. 예상 범위는 low <= close <= high여야 한다. 신뢰도는 낮음/보통/높음 중 하나지만 차트 데이터만으로 높은 신뢰도를 남발하지 마라. 투자 권유나 매수·매도 명령은 하지 않는다.`;
+결과 중심으로 간결한 한국어로 작성한다. 기술적 근거는 가장 중요한 2~3개만 짧게 쓰고, forecast의 rationale과 tradeEstimate도 각각 한 문장 이내로 쓴다. 가격은 달러이며 소수점 넷째 자리 이내로 쓴다. forecast의 날짜와 순서는 반드시 ${forecastDates.join(', ')} 그대로 사용한다. 예상 범위는 low <= close <= high여야 한다. 신뢰도는 낮음/보통/높음 중 하나지만 차트 데이터만으로 높은 신뢰도를 남발하지 마라. 투자 권유나 매수·매도 명령은 하지 않는다.`;
+}
+
+function compactOrder(order: { label: string; orderType: string; price: number | null; quantity: number }) {
+  return {
+    label: order.label,
+    orderType: order.orderType,
+    triggerPrice: order.price,
+    quantity: order.quantity,
+  };
+}
+
+function compactOrders(orders: Array<{ label: string; orderType: string; price: number | null; quantity: number }>) {
+  const executable = orders.filter((order) => order.quantity > 0);
+  const selected = executable.length <= 10
+    ? executable
+    : [...executable.slice(0, 8), ...executable.slice(-2)];
+  return {
+    orders: selected.map(compactOrder),
+    omittedOrderCount: executable.length - selected.length,
+  };
+}
+
+function strategyContext(state: StrategyState, closesNewestFirst: number[]) {
+  const latestClose = closesNewestFirst[0];
+  const plan = state.mode === 'normal'
+    ? calculateNormalPlan(state, latestClose)
+    : calculateReversePlan(state, closesNewestFirst, latestClose);
+  return {
+    mode: state.mode,
+    splitCount: state.splitCount,
+    cashBalance: state.cashBalance,
+    positionQty: state.positionQty,
+    averagePrice: state.avgPrice,
+    tValue: state.tValue,
+    reverseFirstSellDone: state.reverseFirstSellDone,
+    currentPlan: {
+      kind: plan.kind,
+      state: plan.kind === 'normal'
+        ? {
+          phase: plan.phase,
+          starPrice: plan.starPrice,
+          primaryBuyPrice: plan.buyPrice,
+          targetSellPrice: plan.targetSellPrice,
+        }
+        : {
+          isFirstDay: plan.isFirstDay,
+          referencePrice: plan.referencePrice,
+          returnToNormal: plan.returnToNormal,
+        },
+      buyOrders: compactOrders(plan.buyOrders),
+      sellOrders: compactOrders(plan.sellOrders),
+    },
+  };
 }
 
 function apiKey() {
@@ -242,8 +292,9 @@ export function terminalResponseError(response: OpenAIResponse) {
     : null;
 }
 
-export async function startChartAnalysis(symbol: SymbolCode, candles: MarketCandle[]) {
-  const normalized = normalizeMarketCandles(candles).slice(-756);
+export async function startChartAnalysis(state: StrategyState, candles: MarketCandle[]) {
+  const symbol = state.symbol;
+  const normalized = normalizeMarketCandles(candles).slice(-63);
   const snapshot = buildTechnicalSnapshot(candles);
   const forecastDates = nextNyseTradingDays(normalized.at(-1)!.date, 5);
   const input = {
@@ -259,6 +310,7 @@ export async function startChartAnalysis(symbol: SymbolCode, candles: MarketCand
     candleRange: { start: normalized[0].date, end: normalized.at(-1)!.date },
     forecastDates,
     technicalSnapshot: snapshot,
+    strategy: strategyContext(state, normalized.map((candle) => candle.close).reverse()),
     candles: normalized.map((candle) => [
       candle.date,
       candle.open,
@@ -284,7 +336,7 @@ export async function startChartAnalysis(symbol: SymbolCode, candles: MarketCand
       background: true,
       store: true,
       text: {
-        verbosity: 'high',
+        verbosity: 'low',
         format: {
           type: 'json_schema',
           name: 'chart_analysis',
