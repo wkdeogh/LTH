@@ -22,8 +22,7 @@ export function SupplementalOrders({ orders }: { orders: SupplementalOrder[] }) 
     <article className="supplemental-orders">
       <div className="supplemental-orders-head">
         <div>
-          <strong>하락 보완 1주 매수</strong>
-          <p>종가가 내려갈수록 1회 매수금을 채우는 LOC 주문입니다.</p>
+          <strong>하락 보완 매수</strong>
         </div>
         <span className="pill">LOC · {orders.length}건</span>
       </div>

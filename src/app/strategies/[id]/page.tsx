@@ -169,10 +169,6 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
             </div>
             <h2>현재 상태</h2>
           </div>
-          <div className={`return-block ${isNegative ? 'negative' : ''}`}>
-            <span>원금 대비 수익률</span>
-            <strong>{accountPerformance.profitRate === null ? '-' : signedValue(accountPerformance.profitRate, '%')}</strong>
-          </div>
         </div>
 
         <div className="price-line strategy-detail-price-line">
