@@ -68,7 +68,8 @@
 - 모델: `gpt-5.6-luna`
 - 추론 강도: `reasoning.effort: "xhigh"` (사용자 표현 “매우 높음”)
 - 출력: strict JSON Schema 기반 Structured Outputs
-- 보관: OpenAI 응답 자체는 `store: false`; 앱 DB에는 사용자에게 표시할 구조화 결과와 응답 ID·모델·캔들 범위만 저장
+- 실행: `background: true`로 요청해 페이지 연결과 무관하게 OpenAI에서 분석을 계속 수행
+- 보관: `store: true`로 완료 응답을 나중에 회수할 수 있게 하고, 앱 DB에는 응답 ID·상태·구조화 결과·모델·캔들 범위를 저장
 - 키: `OPENAI_API_KEY`를 서버 환경변수로만 읽으며 브라우저 번들·DB에 저장하지 않음
 
 OpenAI 공식 문서상 GPT-5.6 Luna는 Responses API, 구조화 출력, `xhigh` reasoning effort를 지원한다.
@@ -76,7 +77,8 @@ OpenAI 공식 문서상 GPT-5.6 Luna는 Responses API, 구조화 출력, `xhigh`
 ## 7. UI와 저장
 
 - 전략 상세의 차트 바로 아래에 `AI 차트 분석` 버튼을 둔다.
-- 실행 중 중복 클릭을 막고, 성공하면 결과 영역을 자동으로 연다.
+- 실행 중 중복 클릭을 막고, 완료하면 결과 영역을 자동으로 연다.
+- 브라우저가 열려 있으면 5초 간격으로 상태를 확인한다. 페이지를 닫아도 OpenAI 백그라운드 분석은 계속되며, 같은 전략에 다시 들어오면 저장된 응답 ID로 상태와 결과를 회수한다.
 - 결과는 기본적으로 접힌 `details`에 표시한다.
 - 표시 항목: 한국시간 분석 시각, 사용 모델/분석 데이터 범위, 핵심 요약, 시장 국면, 기술적 근거, 주요 가격대, 5거래일 예측 표, 위험요인, 한계 고지.
 - 매 실행은 `ai_chart_analyses`에 별도 행으로 저장하되 상세 화면에는 가장 최신 결과를 표시한다.
@@ -96,3 +98,4 @@ OpenAI 공식 문서상 GPT-5.6 Luna는 Responses API, 구조화 출력, `xhigh`
 - U.S. SEC, leveraged/inverse ETF 위험 설명: https://www.sec.gov/newsroom/speeches-statements/schock-statement-single-stock-levered-or-inverse-etfs-071122
 - OpenAI, GPT-5.6 Luna 모델: https://developers.openai.com/api/docs/models/gpt-5.6-luna
 - OpenAI, Responses API: https://developers.openai.com/api/reference/resources/responses/methods/create
+- OpenAI, Background mode: https://developers.openai.com/api/docs/guides/background

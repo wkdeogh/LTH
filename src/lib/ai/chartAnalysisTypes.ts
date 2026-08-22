@@ -37,7 +37,23 @@ export type StoredChartAnalysis = {
   result: ChartAnalysisResult;
 };
 
+export type ChartAnalysisJobStatus =
+  | 'queued'
+  | 'in_progress'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'incomplete';
+
+export type ChartAnalysisJob = {
+  id: string;
+  status: ChartAnalysisJobStatus;
+  createdAt: string;
+  errorMessage: string | null;
+};
+
 export type ChartAnalysisApiResponse = {
   analysis?: StoredChartAnalysis;
+  job?: ChartAnalysisJob;
   error?: string;
 };

@@ -51,10 +51,30 @@ create table if not exists ai_chart_analyses (
   candle_start date not null,
   candle_end date not null,
   candle_count integer not null check (candle_count >= 60),
-  analysis jsonb not null,
+  analysis jsonb,
   openai_response_id text,
+  status text not null default 'queued' check (status in ('queued', 'in_progress', 'completed', 'failed', 'cancelled', 'incomplete')),
+  error_message text,
+  completed_at timestamptz,
   created_at timestamptz not null default now()
 );
+
+alter table ai_chart_analyses add column if not exists status text;
+alter table ai_chart_analyses add column if not exists error_message text;
+alter table ai_chart_analyses add column if not exists completed_at timestamptz;
+alter table ai_chart_analyses alter column analysis drop not null;
+update ai_chart_analyses
+set status = case when analysis is not null then 'completed' else 'failed' end
+where status is null;
+update ai_chart_analyses
+set completed_at = coalesce(completed_at, created_at)
+where status in ('completed', 'failed', 'cancelled', 'incomplete');
+alter table ai_chart_analyses alter column status set default 'queued';
+alter table ai_chart_analyses alter column status set not null;
+alter table ai_chart_analyses drop constraint if exists ai_chart_analyses_status_check;
+alter table ai_chart_analyses
+  add constraint ai_chart_analyses_status_check
+  check (status in ('queued', 'in_progress', 'completed', 'failed', 'cancelled', 'incomplete'));
 
 create table if not exists trade_plans (
   id uuid primary key default gen_random_uuid(),
@@ -289,6 +309,8 @@ create index if not exists idx_strategies_active on strategies (is_archived, sor
 create index if not exists idx_daily_prices_strategy_date on daily_prices (strategy_id, trade_date desc);
 create index if not exists idx_market_candles_symbol_date on market_candles (symbol, trade_date desc);
 create index if not exists idx_ai_chart_analyses_strategy_date on ai_chart_analyses (strategy_id, created_at desc);
+create index if not exists idx_ai_chart_analyses_strategy_status on ai_chart_analyses (strategy_id, status, created_at desc);
+create unique index if not exists idx_ai_chart_analyses_openai_response on ai_chart_analyses (openai_response_id) where openai_response_id is not null;
 create index if not exists idx_trade_plans_strategy_date on trade_plans (strategy_id, plan_date desc);
 create index if not exists idx_executions_strategy_date on executions (strategy_id, executed_at desc);
 create index if not exists idx_executions_round on executions (round_id, executed_at desc);

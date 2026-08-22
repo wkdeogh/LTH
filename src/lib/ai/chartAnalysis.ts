@@ -1,6 +1,11 @@
 import 'server-only';
 
-import type { ChartAnalysisResult, StoredChartAnalysis } from '@/lib/ai/chartAnalysisTypes';
+import type {
+  ChartAnalysisJob,
+  ChartAnalysisJobStatus,
+  ChartAnalysisResult,
+  StoredChartAnalysis,
+} from '@/lib/ai/chartAnalysisTypes';
 import { buildTechnicalSnapshot, nextNyseTradingDays, normalizeMarketCandles } from '@/lib/marketData/technicalIndicators';
 import type { MarketCandle, SymbolCode } from '@/lib/types';
 
@@ -74,7 +79,7 @@ const chartAnalysisSchema = {
   ],
 } as const;
 
-type OpenAIResponse = {
+export type OpenAIResponse = {
   id?: string;
   status?: string;
   error?: { message?: string } | null;
@@ -83,6 +88,23 @@ type OpenAIResponse = {
     type?: string;
     content?: Array<{ type?: string; text?: string }>;
   }>;
+};
+
+export type ChartAnalysisRow = {
+  id: string;
+  strategy_id: string;
+  symbol: SymbolCode;
+  model: string;
+  reasoning_effort: string;
+  candle_start: string;
+  candle_end: string;
+  candle_count: number;
+  analysis: unknown | null;
+  openai_response_id: string | null;
+  status: ChartAnalysisJobStatus;
+  error_message: string | null;
+  completed_at: string | null;
+  created_at: string;
 };
 
 function responseText(response: OpenAIResponse) {
@@ -189,10 +211,38 @@ ${symbol}은 일일 레버리지 ETF이므로 여러 날 수익이 기초지수 
 모든 설명은 전문적이되 이해 가능한 한국어로 작성한다. 가격은 달러이며 소수점 넷째 자리 이내로 쓴다. forecast의 날짜와 순서는 반드시 ${forecastDates.join(', ')} 그대로 사용한다. 예상 범위는 low <= close <= high여야 한다. 신뢰도는 낮음/보통/높음 중 하나지만 차트 데이터만으로 높은 신뢰도를 남발하지 마라. 투자 권유나 매수·매도 명령은 하지 않는다.`;
 }
 
-export async function requestChartAnalysis(symbol: SymbolCode, candles: MarketCandle[]) {
+function apiKey() {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY가 설정되지 않아 AI 분석을 실행할 수 없습니다.');
+  return apiKey;
+}
 
+function responseErrorMessage(response: OpenAIResponse) {
+  return response.error?.message
+    ?? response.incomplete_details?.reason
+    ?? `OpenAI 응답이 ${response.status ?? '알 수 없는'} 상태로 종료되었습니다.`;
+}
+
+export function toJobStatus(status: string | undefined): ChartAnalysisJobStatus {
+  if (
+    status === 'queued'
+    || status === 'in_progress'
+    || status === 'completed'
+    || status === 'failed'
+    || status === 'cancelled'
+    || status === 'incomplete'
+  ) return status;
+  throw new Error(`지원하지 않는 OpenAI 응답 상태입니다: ${status ?? '없음'}`);
+}
+
+export function terminalResponseError(response: OpenAIResponse) {
+  const status = toJobStatus(response.status);
+  return status === 'failed' || status === 'cancelled' || status === 'incomplete'
+    ? responseErrorMessage(response)
+    : null;
+}
+
+export async function startChartAnalysis(symbol: SymbolCode, candles: MarketCandle[]) {
   const normalized = normalizeMarketCandles(candles).slice(-756);
   const snapshot = buildTechnicalSnapshot(candles);
   const forecastDates = nextNyseTradingDays(normalized.at(-1)!.date, 5);
@@ -222,7 +272,7 @@ export async function requestChartAnalysis(symbol: SymbolCode, candles: MarketCa
   const response = await fetch(OPENAI_RESPONSES_ENDPOINT, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey()}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -231,7 +281,8 @@ export async function requestChartAnalysis(symbol: SymbolCode, candles: MarketCa
       instructions: modelInstructions(symbol, forecastDates),
       input: JSON.stringify(input),
       max_output_tokens: 30_000,
-      store: false,
+      background: true,
+      store: true,
       text: {
         verbosity: 'high',
         format: {
@@ -243,7 +294,7 @@ export async function requestChartAnalysis(symbol: SymbolCode, candles: MarketCa
       },
     }),
     cache: 'no-store',
-    signal: AbortSignal.timeout(280_000),
+    signal: AbortSignal.timeout(20_000),
   });
 
   const payload = await response.json().catch(() => null) as OpenAIResponse | null;
@@ -251,12 +302,40 @@ export async function requestChartAnalysis(symbol: SymbolCode, candles: MarketCa
     const reason = payload?.error?.message;
     throw new Error(reason ? `OpenAI API 오류: ${reason}` : `OpenAI API 오류 (${response.status})`);
   }
-  if (!payload || payload.status !== 'completed') {
-    const reason = payload?.incomplete_details?.reason ?? payload?.error?.message ?? '응답이 완료되지 않았습니다.';
-    throw new Error(`AI 분석을 완료하지 못했습니다: ${reason}`);
-  }
+  if (!payload?.id) throw new Error('OpenAI API가 백그라운드 응답 ID를 반환하지 않았습니다.');
 
-  const text = responseText(payload);
+  return {
+    response: payload,
+    responseId: payload.id,
+    status: toJobStatus(payload.status),
+    candleStart: normalized[0].date,
+    candleEnd: normalized.at(-1)!.date,
+    candleCount: normalized.length,
+  };
+}
+
+export async function retrieveChartAnalysis(responseId: string) {
+  const response = await fetch(`${OPENAI_RESPONSES_ENDPOINT}/${encodeURIComponent(responseId)}`, {
+    headers: {
+      Authorization: `Bearer ${apiKey()}`,
+      'Content-Type': 'application/json',
+    },
+    cache: 'no-store',
+    signal: AbortSignal.timeout(20_000),
+  });
+  const payload = await response.json().catch(() => null) as OpenAIResponse | null;
+  if (!response.ok || !payload) {
+    const reason = payload?.error?.message;
+    throw new Error(reason ? `OpenAI API 오류: ${reason}` : `OpenAI API 오류 (${response.status})`);
+  }
+  return payload;
+}
+
+export function completedChartAnalysis(response: OpenAIResponse, candleEnd: string) {
+  if (response.status !== 'completed') {
+    throw new Error(`완료되지 않은 OpenAI 응답입니다: ${response.status ?? '상태 없음'}`);
+  }
+  const text = responseText(response);
   if (!text) throw new Error('OpenAI API가 분석 본문을 반환하지 않았습니다.');
 
   let parsed: unknown;
@@ -265,28 +344,10 @@ export async function requestChartAnalysis(symbol: SymbolCode, candles: MarketCa
   } catch {
     throw new Error('OpenAI API의 구조화 분석 응답을 해석하지 못했습니다.');
   }
-
-  return {
-    result: validateAnalysis(parsed, forecastDates),
-    responseId: payload.id ?? null,
-    candleStart: normalized[0].date,
-    candleEnd: normalized.at(-1)!.date,
-    candleCount: normalized.length,
-  };
+  return validateAnalysis(parsed, nextNyseTradingDays(candleEnd, 5));
 }
 
-export function toStoredChartAnalysis(row: {
-  id: string;
-  strategy_id: string;
-  symbol: SymbolCode;
-  model: string;
-  reasoning_effort: string;
-  candle_start: string;
-  candle_end: string;
-  candle_count: number;
-  analysis: unknown;
-  created_at: string;
-}): StoredChartAnalysis {
+export function toStoredChartAnalysis(row: ChartAnalysisRow): StoredChartAnalysis {
   const forecastDates = isRecord(row.analysis) && Array.isArray(row.analysis.forecast)
     ? row.analysis.forecast.map((item) => isRecord(item) && typeof item.date === 'string' ? item.date : '')
     : [];
@@ -301,5 +362,14 @@ export function toStoredChartAnalysis(row: {
     candleCount: row.candle_count,
     createdAt: row.created_at,
     result: validateAnalysis(row.analysis, forecastDates),
+  };
+}
+
+export function toChartAnalysisJob(row: ChartAnalysisRow): ChartAnalysisJob {
+  return {
+    id: row.id,
+    status: row.status,
+    createdAt: row.created_at,
+    errorMessage: row.error_message,
   };
 }

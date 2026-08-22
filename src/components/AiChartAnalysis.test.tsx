@@ -41,6 +41,7 @@ test('저장된 AI 분석은 기본 접힘 상태로 시각 요소를 모두 렌
   const html = renderToStaticMarkup(createElement(AiChartAnalysis, {
     strategyId: 'strategy-1',
     initialAnalysis: analysis,
+    initialJob: null,
     enabled: true,
   }));
 
@@ -50,4 +51,23 @@ test('저장된 AI 분석은 기본 접힘 상태로 시각 요소를 모두 렌
   assert.match(html, /gpt-5\.6-luna/);
   assert.match(html, /\$121\.00/);
   assert.doesNotMatch(html, /<details[^>]+open/);
+});
+
+test('진행 중인 분석은 페이지를 닫아도 계속된다는 상태를 표시한다', () => {
+  const html = renderToStaticMarkup(createElement(AiChartAnalysis, {
+    strategyId: 'strategy-1',
+    initialAnalysis: null,
+    initialJob: {
+      id: 'job-1',
+      status: 'in_progress',
+      createdAt: '2026-08-22T01:30:00.000Z',
+      errorMessage: null,
+    },
+    enabled: true,
+  }));
+
+  assert.match(html, /백그라운드 분석 중/);
+  assert.match(html, /페이지를 닫아도 분석은 계속됩니다/);
+  assert.match(html, /브라우저를 닫아도 중단되지 않습니다/);
+  assert.match(html, /<button[^>]+disabled/);
 });

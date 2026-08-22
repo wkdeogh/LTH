@@ -1507,6 +1507,17 @@ button.is-pending > span {
   padding: 10px 12px;
 }
 
+.ai-analysis-progress {
+  margin: 0 0 18px;
+  padding: 13px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
 .ai-analysis-result {
   background: linear-gradient(145deg, #f8fbff, #fff);
   border: 1px solid #dce7fb;

@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import type { ChartAnalysisApiResponse, StoredChartAnalysis } from '@/lib/ai/chartAnalysisTypes';
+import { useEffect, useRef, useState } from 'react';
+import type { ChartAnalysisApiResponse, ChartAnalysisJob, StoredChartAnalysis } from '@/lib/ai/chartAnalysisTypes';
 
 function usd(value: number) {
   return new Intl.NumberFormat('en-US', {
@@ -23,19 +23,65 @@ function koreaDateTime(value: string) {
 export function AiChartAnalysis({
   strategyId,
   initialAnalysis,
+  initialJob,
   enabled,
 }: {
   strategyId: string;
   initialAnalysis: StoredChartAnalysis | null;
+  initialJob: ChartAnalysisJob | null;
   enabled: boolean;
 }) {
   const [analysis, setAnalysis] = useState(initialAnalysis);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [job, setJob] = useState(initialJob);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(initialJob?.errorMessage ?? null);
   const detailsRef = useRef<HTMLDetailsElement>(null);
+  const active = job?.status === 'queued' || job?.status === 'in_progress';
+
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    async function poll() {
+      try {
+        const response = await fetch(`/api/strategies/${strategyId}/chart-analysis`, {
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+        });
+        const payload = await response.json().catch(() => null) as ChartAnalysisApiResponse | null;
+        if (!response.ok || !payload) {
+          throw new Error(payload?.error ?? 'AI 분석 상태를 확인하지 못했습니다.');
+        }
+        if (cancelled) return;
+        if (payload.job) setJob(payload.job);
+        if (payload.analysis) setAnalysis(payload.analysis);
+        if (payload.job?.errorMessage) setError(payload.job.errorMessage);
+        else setError(null);
+        if (payload.job?.status === 'completed' && payload.analysis) {
+          requestAnimationFrame(() => {
+            if (detailsRef.current) detailsRef.current.open = true;
+          });
+        }
+        if (payload.job?.status === 'queued' || payload.job?.status === 'in_progress') {
+          timer = setTimeout(poll, 5_000);
+        }
+      } catch (cause) {
+        if (cancelled) return;
+        setError(cause instanceof Error ? cause.message : 'AI 분석 상태 확인 중 오류가 발생했습니다.');
+        timer = setTimeout(poll, 10_000);
+      }
+    }
+
+    timer = setTimeout(poll, 1_000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [active, strategyId]);
 
   async function analyze() {
-    setPending(true);
+    setStarting(true);
     setError(null);
     try {
       const response = await fetch(`/api/strategies/${strategyId}/chart-analysis`, {
@@ -43,17 +89,21 @@ export function AiChartAnalysis({
         headers: { Accept: 'application/json' },
       });
       const payload = await response.json().catch(() => null) as ChartAnalysisApiResponse | null;
-      if (!response.ok || !payload?.analysis) {
-        throw new Error(payload?.error ?? 'AI 분석 결과를 받아오지 못했습니다.');
+      if (!response.ok || !payload || (!payload.job && !payload.analysis)) {
+        throw new Error(payload?.error ?? 'AI 분석 요청을 시작하지 못했습니다.');
       }
-      setAnalysis(payload.analysis);
-      requestAnimationFrame(() => {
-        if (detailsRef.current) detailsRef.current.open = true;
-      });
+      if (payload.job) setJob(payload.job);
+      if (payload.analysis) setAnalysis(payload.analysis);
+      if (payload.job?.errorMessage) setError(payload.job.errorMessage);
+      if (payload.job?.status === 'completed' && payload.analysis) {
+        requestAnimationFrame(() => {
+          if (detailsRef.current) detailsRef.current.open = true;
+        });
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'AI 분석 중 알 수 없는 오류가 발생했습니다.');
     } finally {
-      setPending(false);
+      setStarting(false);
     }
   }
 
@@ -64,18 +114,25 @@ export function AiChartAnalysis({
           className="button primary ai-analysis-button"
           type="button"
           onClick={analyze}
-          disabled={!enabled || pending}
-          aria-busy={pending}
+          disabled={!enabled || starting || active}
+          aria-busy={starting || active}
         >
-          {pending ? '심층 분석 중…' : analysis ? 'AI 차트 다시 분석' : 'AI 차트 분석'}
+          {starting ? '백그라운드 분석 시작 중…' : active ? '백그라운드 분석 중…' : analysis ? 'AI 차트 다시 분석' : 'AI 차트 분석'}
         </button>
         <p>
-          {enabled
+          {active
+            ? '페이지를 닫아도 분석은 계속됩니다. 다시 들어오면 완료 결과를 불러옵니다.'
+            : enabled
             ? 'GPT-5.6 Luna가 최근 일봉을 매우 높은 추론 강도로 분석합니다. 완료까지 시간이 걸릴 수 있어요.'
             : 'OPENAI_API_KEY를 서버 환경변수에 설정하면 사용할 수 있어요.'}
         </p>
       </div>
 
+      {active && (
+        <p className="ai-analysis-progress" role="status">
+          OpenAI에서 심층 분석을 진행하고 있어요. 이 페이지를 벗어나거나 브라우저를 닫아도 중단되지 않습니다.
+        </p>
+      )}
       {error && <p className="ai-analysis-error" role="alert">{error}</p>}
 
       {analysis && (

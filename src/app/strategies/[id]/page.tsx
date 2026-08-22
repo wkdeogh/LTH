@@ -5,10 +5,11 @@ import { compact, usd } from '@/components/Format';
 import { LazyMarketChart } from '@/components/LazyMarketChart';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
-import { toStoredChartAnalysis } from '@/lib/ai/chartAnalysis';
+import { toChartAnalysisJob, toStoredChartAnalysis } from '@/lib/ai/chartAnalysis';
+import type { ChartAnalysisRow } from '@/lib/ai/chartAnalysis';
 import { hasOpenAIEnv, hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { DailyPrice, Execution, MarketCandle, Strategy, SymbolCode } from '@/lib/types';
+import type { DailyPrice, Execution, MarketCandle, Strategy } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 import {
   buildMarketReferenceHistory,
@@ -24,19 +25,6 @@ import {
 function signedValue(value: number, suffix = '') {
   return `${value >= 0 ? '+' : ''}${compact(value, 2)}${suffix}`;
 }
-
-type AiChartAnalysisRow = {
-  id: string;
-  strategy_id: string;
-  symbol: SymbolCode;
-  model: string;
-  reasoning_effort: string;
-  candle_start: string;
-  candle_end: string;
-  candle_count: number;
-  analysis: unknown;
-  created_at: string;
-};
 
 export default async function StrategyPage({ params }: { params: Promise<{ id: string }> }) {
   if (!hasSupabaseEnv()) return <SetupNotice />;
@@ -77,21 +65,25 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
       .returns<Execution[]>(),
     supabase!
       .from('ai_chart_analyses')
-      .select('id, strategy_id, symbol, model, reasoning_effort, candle_start, candle_end, candle_count, analysis, created_at')
+      .select('id, strategy_id, symbol, model, reasoning_effort, candle_start, candle_end, candle_count, analysis, openai_response_id, status, error_message, completed_at, created_at')
       .eq('strategy_id', id)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle<AiChartAnalysisRow>(),
+      .limit(10)
+      .returns<ChartAnalysisRow[]>(),
   ]);
 
+  const aiAnalysisRows = aiAnalysisResult.data ?? [];
   let initialAiAnalysis = null;
-  if (aiAnalysisResult.data) {
+  for (const row of aiAnalysisRows) {
+    if (row.status !== 'completed' || !row.analysis) continue;
     try {
-      initialAiAnalysis = toStoredChartAnalysis(aiAnalysisResult.data);
+      initialAiAnalysis = toStoredChartAnalysis(row);
+      break;
     } catch (error) {
       console.error('저장된 AI 차트 분석을 불러오지 못했습니다:', error);
     }
   }
+  const initialAiJob = aiAnalysisRows[0] ? toChartAnalysisJob(aiAnalysisRows[0]) : null;
 
   const prices = priceResult.data ?? [];
   const references = buildMarketReferenceHistory(prices, candleResult.data ?? []);
@@ -267,6 +259,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
         <AiChartAnalysis
           strategyId={strategy.id}
           initialAnalysis={initialAiAnalysis}
+          initialJob={initialAiJob}
           enabled={hasOpenAIEnv()}
         />
       </section>
