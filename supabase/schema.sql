@@ -42,6 +42,20 @@ create table if not exists market_candles (
   unique(symbol, trade_date)
 );
 
+create table if not exists ai_chart_analyses (
+  id uuid primary key default gen_random_uuid(),
+  strategy_id uuid not null references strategies(id) on delete cascade,
+  symbol text not null check (symbol in ('TQQQ', 'SOXL')),
+  model text not null,
+  reasoning_effort text not null,
+  candle_start date not null,
+  candle_end date not null,
+  candle_count integer not null check (candle_count >= 60),
+  analysis jsonb not null,
+  openai_response_id text,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists trade_plans (
   id uuid primary key default gen_random_uuid(),
   strategy_id uuid not null references strategies(id) on delete cascade,
@@ -274,6 +288,7 @@ grant execute on function cancel_latest_execution(uuid, uuid) to service_role;
 create index if not exists idx_strategies_active on strategies (is_archived, sort_order, created_at);
 create index if not exists idx_daily_prices_strategy_date on daily_prices (strategy_id, trade_date desc);
 create index if not exists idx_market_candles_symbol_date on market_candles (symbol, trade_date desc);
+create index if not exists idx_ai_chart_analyses_strategy_date on ai_chart_analyses (strategy_id, created_at desc);
 create index if not exists idx_trade_plans_strategy_date on trade_plans (strategy_id, plan_date desc);
 create index if not exists idx_executions_strategy_date on executions (strategy_id, executed_at desc);
 create index if not exists idx_executions_round on executions (round_id, executed_at desc);

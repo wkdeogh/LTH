@@ -38,7 +38,10 @@ notify pgrst, 'reload schema';
 ```text
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+OPENAI_API_KEY=your-openai-api-key
 ```
+
+`OPENAI_API_KEY`는 전략 상세의 AI 차트 분석 기능에서만 서버 측으로 사용됩니다. 브라우저 코드에 넣거나 `NEXT_PUBLIC_` 접두사를 붙이지 마세요. 키가 없으면 나머지 앱은 정상 동작하고 AI 분석 버튼만 비활성화됩니다.
 
 ## 4. 개발 서버 실행
 

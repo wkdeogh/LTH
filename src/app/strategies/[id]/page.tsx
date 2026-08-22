@@ -1,12 +1,14 @@
 import { notFound } from 'next/navigation';
 import { addDailyPrice, deleteStrategy, refreshMarketChart, switchToNormal, switchToReverse, updateStrategy } from '@/app/actions';
+import { AiChartAnalysis } from '@/components/AiChartAnalysis';
 import { compact, usd } from '@/components/Format';
 import { LazyMarketChart } from '@/components/LazyMarketChart';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
-import { hasSupabaseEnv } from '@/lib/env';
+import { toStoredChartAnalysis } from '@/lib/ai/chartAnalysis';
+import { hasOpenAIEnv, hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { DailyPrice, Execution, MarketCandle, Strategy } from '@/lib/types';
+import type { DailyPrice, Execution, MarketCandle, Strategy, SymbolCode } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 import {
   buildMarketReferenceHistory,
@@ -23,6 +25,19 @@ function signedValue(value: number, suffix = '') {
   return `${value >= 0 ? '+' : ''}${compact(value, 2)}${suffix}`;
 }
 
+type AiChartAnalysisRow = {
+  id: string;
+  strategy_id: string;
+  symbol: SymbolCode;
+  model: string;
+  reasoning_effort: string;
+  candle_start: string;
+  candle_end: string;
+  candle_count: number;
+  analysis: unknown;
+  created_at: string;
+};
+
 export default async function StrategyPage({ params }: { params: Promise<{ id: string }> }) {
   if (!hasSupabaseEnv()) return <SetupNotice />;
 
@@ -35,7 +50,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
   chartStart.setUTCFullYear(chartStart.getUTCFullYear() - 3);
   chartStart.setUTCDate(chartStart.getUTCDate() - 14);
 
-  const [priceResult, candleResult, chartExecutionResult] = await Promise.all([
+  const [priceResult, candleResult, chartExecutionResult, aiAnalysisResult] = await Promise.all([
     supabase!
       .from('daily_prices')
       .select('*')
@@ -60,7 +75,23 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
       .order('created_at', { ascending: true })
       .limit(1000)
       .returns<Execution[]>(),
+    supabase!
+      .from('ai_chart_analyses')
+      .select('id, strategy_id, symbol, model, reasoning_effort, candle_start, candle_end, candle_count, analysis, created_at')
+      .eq('strategy_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<AiChartAnalysisRow>(),
   ]);
+
+  let initialAiAnalysis = null;
+  if (aiAnalysisResult.data) {
+    try {
+      initialAiAnalysis = toStoredChartAnalysis(aiAnalysisResult.data);
+    } catch (error) {
+      console.error('저장된 AI 차트 분석을 불러오지 못했습니다:', error);
+    }
+  }
 
   const prices = priceResult.data ?? [];
   const references = buildMarketReferenceHistory(prices, candleResult.data ?? []);
@@ -236,6 +267,11 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
           averagePrice={toNumber(strategy.avg_price)}
           starPrice={chartPlan?.starPrice ?? null}
           fullSellPrice={chartPlan?.targetSellPrice ?? null}
+        />
+        <AiChartAnalysis
+          strategyId={strategy.id}
+          initialAnalysis={initialAiAnalysis}
+          enabled={hasOpenAIEnv()}
         />
       </section>
 

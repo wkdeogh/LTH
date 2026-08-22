@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "test:calculations": "tsx --test src/lib/trading/calculations.test.ts",
+    "test:ai-analysis": "tsx --test src/lib/marketData/technicalIndicators.test.ts src/components/AiChartAnalysis.test.tsx",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },

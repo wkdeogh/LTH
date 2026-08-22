@@ -1472,6 +1472,316 @@ button.is-pending > span {
   width: 100%;
 }
 
+.ai-analysis-shell {
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
+.ai-analysis-action {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+}
+
+.ai-analysis-button {
+  flex: 0 0 auto;
+  min-width: 154px;
+}
+
+.ai-analysis-action p {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.ai-analysis-error {
+  background: var(--negative-soft);
+  border: 1px solid color-mix(in srgb, var(--negative), transparent 70%);
+  border-radius: 12px;
+  color: var(--negative);
+  font-size: 12px;
+  font-weight: 700;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+}
+
+.ai-analysis-result {
+  background: linear-gradient(145deg, #f8fbff, #fff);
+  border: 1px solid #dce7fb;
+  border-radius: 16px;
+  margin-top: 14px;
+  overflow: hidden;
+}
+
+.ai-analysis-result > summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  list-style: none;
+  min-height: 70px;
+  padding: 14px 16px;
+}
+
+.ai-analysis-result > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ai-analysis-result > summary > span:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.ai-analysis-result > summary strong {
+  font-size: 14px;
+}
+
+.ai-analysis-result > summary small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.ai-analysis-result > summary > span:last-child {
+  color: var(--accent);
+  font-size: 21px;
+  transition: transform var(--motion-base) var(--ease-touch);
+}
+
+.ai-analysis-result[open] > summary > span:last-child {
+  transform: rotate(45deg);
+}
+
+.ai-analysis-body {
+  border-top: 1px solid #dce7fb;
+  display: grid;
+  gap: 22px;
+  padding: 18px;
+}
+
+.ai-analysis-meta {
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 10px;
+  gap: 5px 14px;
+}
+
+.ai-analysis-hero {
+  background: var(--ink);
+  border-radius: 16px;
+  color: #fff;
+  padding: 20px;
+}
+
+.ai-analysis-hero .eyebrow {
+  color: #9ec0ff;
+}
+
+.ai-analysis-hero h3 {
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  margin: 5px 0 8px;
+}
+
+.ai-analysis-hero > p {
+  color: #d7dce3;
+  font-size: 13px;
+  margin: 0;
+  white-space: pre-line;
+}
+
+.ai-analysis-hero > div {
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  display: grid;
+  gap: 3px;
+  margin-top: 15px;
+  padding-top: 13px;
+}
+
+.ai-analysis-hero > div strong {
+  color: #9ec0ff;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.ai-analysis-hero > div span {
+  font-size: 12px;
+}
+
+.ai-analysis-section h4 {
+  font-size: 15px;
+  margin: 0 0 10px;
+}
+
+.ai-analysis-section ul {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ai-analysis-section li {
+  color: #374151;
+  font-size: 12px;
+  padding-left: 17px;
+  position: relative;
+}
+
+.ai-analysis-section li::before {
+  background: var(--accent);
+  border-radius: 999px;
+  content: '';
+  height: 6px;
+  left: 1px;
+  position: absolute;
+  top: 7px;
+  width: 6px;
+}
+
+.ai-key-levels {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ai-key-levels article {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  display: grid;
+  gap: 2px;
+  padding: 12px;
+}
+
+.ai-key-levels span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.ai-key-levels strong {
+  font-size: 16px;
+}
+
+.ai-key-levels p {
+  color: var(--muted);
+  font-size: 10px;
+  margin: 3px 0 0;
+}
+
+.ai-analysis-section-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ai-analysis-section-head h4 {
+  margin: 0;
+}
+
+.ai-analysis-section-head > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.ai-forecast-list {
+  display: grid;
+  gap: 8px;
+}
+
+.ai-forecast-list article {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 90px 130px 88px minmax(0, 1fr);
+  padding: 11px 12px;
+}
+
+.ai-forecast-day,
+.ai-forecast-price {
+  display: grid;
+  gap: 1px;
+}
+
+.ai-forecast-day span,
+.ai-forecast-price span,
+.ai-forecast-price small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.ai-forecast-day strong {
+  font-size: 12px;
+}
+
+.ai-forecast-price strong {
+  font-size: 16px;
+}
+
+.ai-confidence {
+  background: var(--accent-soft);
+  border-radius: 999px;
+  color: var(--accent-dark);
+  font-size: 9px;
+  font-weight: 800;
+  padding: 5px 7px;
+  text-align: center;
+}
+
+.ai-confidence.confidence-낮음 {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.ai-confidence.confidence-높음 {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+
+.ai-forecast-list article > p {
+  color: #4b5563;
+  font-size: 10px;
+  margin: 0;
+}
+
+.ai-risk-section {
+  background: var(--warning-soft);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.ai-risk-section li::before {
+  background: var(--warning);
+}
+
+.ai-analysis-disclaimer {
+  background: var(--surface-soft);
+  border-radius: 13px;
+  color: var(--muted);
+  display: grid;
+  font-size: 10px;
+  gap: 4px;
+  margin: 0;
+  padding: 13px;
+}
+
+.ai-analysis-disclaimer strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.ai-analysis-disclaimer span {
+  color: var(--negative);
+  font-weight: 700;
+}
+
 .two-column-grid,
 .grid {
   display: grid;
@@ -2988,6 +3298,48 @@ td {
 
   .chart-loading-toolbar .skeleton-block:last-child {
     width: 138px;
+  }
+
+  .ai-analysis-action {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .ai-analysis-button {
+    width: 100%;
+  }
+
+  .ai-analysis-body {
+    gap: 18px;
+    padding: 13px;
+  }
+
+  .ai-analysis-hero {
+    padding: 16px;
+  }
+
+  .ai-analysis-hero h3 {
+    font-size: 19px;
+  }
+
+  .ai-key-levels {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-forecast-list article {
+    grid-template-columns: 1fr auto;
+  }
+
+  .ai-forecast-price {
+    text-align: right;
+  }
+
+  .ai-confidence {
+    justify-self: start;
+  }
+
+  .ai-forecast-list article > p {
+    grid-column: 1 / -1;
   }
 
   .metric-grid,
