@@ -140,7 +140,7 @@ export function AiChartAnalysis({
           <summary>
             <span>
               <strong>최근 AI 분석 결과</strong>
-              <small>{koreaDateTime(analysis.createdAt)} · 기본적으로 접혀 있어요</small>
+              <small>{koreaDateTime(analysis.createdAt)}</small>
             </span>
             <span aria-hidden="true">＋</span>
           </summary>

@@ -50,6 +50,7 @@ test('저장된 AI 분석은 기본 접힘 상태로 시각 요소를 모두 렌
   assert.match(html, /앞으로 5거래일 종가 예측/);
   assert.match(html, /gpt-5\.6-luna/);
   assert.match(html, /\$121\.00/);
+  assert.doesNotMatch(html, /기본적으로 접혀 있어요/);
   assert.doesNotMatch(html, /<details[^>]+open/);
 });
 
