@@ -11,6 +11,7 @@ import type { Execution, SplitCount, Strategy, SymbolCode, TEffect, TradeMode } 
 import { toNumber, toStrategyState } from '@/lib/types';
 import {
   applyTEffect,
+  calculatePairedExecutionState,
   calculateRoundPerformance,
   shouldAutoEnterReverseMode,
   shouldAutoReturnToNormalMode,
@@ -499,6 +500,179 @@ export async function recordExecution(formData: FormData) {
         ? 'reverse-auto-started'
         : 'execution-saved';
   redirect(withNotice(redirectPath, notice));
+}
+
+export async function recordPairedExecution(formData: FormData) {
+  const supabase = supabaseOrThrow();
+  const strategyId = stringValue(formData, 'strategy_id');
+  const executedAt = stringValue(formData, 'executed_at', koreaDate(-1));
+  const { data: strategy, error: strategyError } = await supabase
+    .from('strategies')
+    .select('*')
+    .eq('id', strategyId)
+    .single<Strategy>();
+
+  if (strategyError) throw strategyError;
+
+  const state = toStrategyState(strategy);
+  if (state.mode !== 'normal') {
+    throw new Error('지정가매도 후 LOC 매수는 일반모드에서만 입력할 수 있습니다.');
+  }
+
+  const effect = stringValue(formData, 't_effect') as TEffect;
+  if (effect !== 'limit_sell_then_full_buy' && effect !== 'limit_sell_then_half_buy') {
+    throw new Error('지정가매도 후 LOC 매수의 T 반영 방식을 확인해 주세요.');
+  }
+
+  const sellQuantity = intValue(formData, 'sell_quantity');
+  const sellPrice = numberValue(formData, 'sell_avg_execution_price');
+  const buyQuantity = intValue(formData, 'buy_quantity');
+  const buyPrice = numberValue(formData, 'buy_avg_execution_price');
+
+  if (sellQuantity <= 0 || buyQuantity <= 0) {
+    throw new Error('매도·매수 체결 수량은 각각 1주 이상이어야 합니다.');
+  }
+  if (sellPrice <= 0 || buyPrice <= 0) {
+    throw new Error('매도·매수 평균 체결가는 각각 0보다 커야 합니다.');
+  }
+  if (sellQuantity > state.positionQty) {
+    throw new Error(`매도 수량(${sellQuantity}주)이 현재 보유수량(${state.positionQty}주)을 초과합니다.`);
+  }
+
+  const pairedState = calculatePairedExecutionState({
+    state,
+    sellQuantity,
+    sellPrice,
+    buyQuantity,
+    buyPrice,
+    effect,
+  });
+
+  if (pairedState.buyAmount > pairedState.cashAfterSell) {
+    throw new Error(`매수금액(${pairedState.buyAmount})이 매도대금 반영 후 현금(${pairedState.cashAfterSell})을 초과합니다.`);
+  }
+
+  const sellExecutionId = crypto.randomUUID();
+  const buyExecutionId = crypto.randomUUID();
+  const memo = stringValue(formData, 'memo') || null;
+  const sellCreatedAt = new Date();
+  const buyCreatedAt = new Date(sellCreatedAt.getTime() + 1);
+
+  const { error: snapshotError } = await supabase.from('strategy_snapshots').insert([
+    {
+      strategy_id: strategyId,
+      execution_id: sellExecutionId,
+      snapshot_date: koreaDate(),
+      principal: state.principal,
+      mode: state.mode,
+      cash_balance: state.cashBalance,
+      position_qty: state.positionQty,
+      avg_price: state.avgPrice,
+      t_value: state.tValue,
+      started_at: strategy.started_at,
+      reverse_started_at: state.reverseStartedAt,
+      reverse_first_sell_done: state.reverseFirstSellDone,
+      note: '복합 체결 매도 입력 전 상태',
+      created_at: sellCreatedAt.toISOString(),
+    },
+    {
+      strategy_id: strategyId,
+      execution_id: buyExecutionId,
+      snapshot_date: koreaDate(),
+      principal: state.principal,
+      mode: state.mode,
+      cash_balance: pairedState.cashAfterSell,
+      position_qty: pairedState.positionAfterSell,
+      avg_price: pairedState.positionAfterSell > 0 ? state.avgPrice : 0,
+      t_value: state.tValue,
+      started_at: strategy.started_at,
+      reverse_started_at: state.reverseStartedAt,
+      reverse_first_sell_done: state.reverseFirstSellDone,
+      note: '복합 체결 매수 입력 전 상태',
+      created_at: buyCreatedAt.toISOString(),
+    },
+  ]);
+  if (snapshotError) throw snapshotError;
+
+  const executionIds = [sellExecutionId, buyExecutionId];
+  const { error: executionError } = await supabase.from('executions').insert([
+    {
+      id: sellExecutionId,
+      strategy_id: strategyId,
+      executed_at: executedAt,
+      side: 'sell',
+      order_type: 'LIMIT',
+      quantity: sellQuantity,
+      avg_execution_price: sellPrice,
+      total_amount: pairedState.sellAmount,
+      t_effect: 'none',
+      memo,
+      created_at: sellCreatedAt.toISOString(),
+    },
+    {
+      id: buyExecutionId,
+      strategy_id: strategyId,
+      executed_at: executedAt,
+      side: 'buy',
+      order_type: 'LOC',
+      quantity: buyQuantity,
+      avg_execution_price: buyPrice,
+      total_amount: pairedState.buyAmount,
+      t_effect: effect,
+      memo,
+      created_at: buyCreatedAt.toISOString(),
+    },
+  ]);
+
+  if (executionError) {
+    await supabase.from('strategy_snapshots').delete().in('execution_id', executionIds);
+    throw executionError;
+  }
+
+  const autoEnteredReverse = shouldAutoEnterReverseMode({
+    currentMode: state.mode,
+    requestedMode: state.mode,
+    nextTValue: pairedState.finalT,
+    splitCount: state.splitCount,
+  });
+  const finalMode: TradeMode = autoEnteredReverse ? 'reverse' : state.mode;
+  const { error: updateError } = await supabase
+    .from('strategies')
+    .update({
+      cash_balance: pairedState.finalCashBalance,
+      position_qty: pairedState.finalPositionQty,
+      avg_price: pairedState.finalAvgPrice,
+      t_value: pairedState.finalT,
+      mode: finalMode,
+      reverse_first_sell_done: false,
+      reverse_started_at: finalMode === 'reverse' ? state.reverseStartedAt ?? koreaDate() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', strategyId);
+
+  if (updateError) {
+    await supabase.from('executions').delete().in('id', executionIds);
+    await supabase.from('strategy_snapshots').delete().in('execution_id', executionIds);
+    throw updateError;
+  }
+
+  after(async () => {
+    try {
+      await syncMarketData(state.symbol);
+      revalidatePath(`/strategies/${strategyId}`);
+    } catch (error) {
+      console.error(`${state.symbol} OHLC 백그라운드 갱신 실패`, error);
+    }
+  });
+
+  revalidatePath('/');
+  revalidatePath(`/strategies/${strategyId}`);
+  revalidatePath(`/strategies/${strategyId}/plan`);
+  revalidatePath(`/strategies/${strategyId}/rounds`);
+  redirect(withNotice(
+    autoEnteredReverse ? `/strategies/${strategyId}/plan` : `/strategies/${strategyId}`,
+    autoEnteredReverse ? 'reverse-auto-started' : 'paired-execution-saved',
+  ));
 }
 
 export async function cancelLatestExecution(formData: FormData) {

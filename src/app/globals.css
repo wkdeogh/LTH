@@ -1855,6 +1855,181 @@ button.is-pending > span {
   min-width: 0;
 }
 
+.execution-kind-switch {
+  background: #edf1f5;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+  margin-bottom: 18px;
+  padding: 4px;
+}
+
+.execution-kind-switch.single-option {
+  grid-template-columns: 1fr;
+}
+
+.execution-kind-switch button {
+  background: transparent;
+  border: 0;
+  border-radius: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  min-height: 44px;
+  padding: 9px 12px;
+  transition:
+    background var(--motion-base) var(--ease-touch),
+    box-shadow var(--motion-base) var(--ease-touch),
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--ease-touch);
+}
+
+.execution-kind-switch button.active {
+  background: var(--surface);
+  box-shadow: 0 3px 10px rgba(28, 39, 51, 0.08);
+  color: var(--ink);
+}
+
+.execution-kind-switch button:active {
+  transform: scale(0.98);
+}
+
+.execution-entry-form {
+  animation: execution-form-in var(--motion-base) var(--ease-touch);
+}
+
+@keyframes execution-form-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.paired-execution-date {
+  max-width: calc(50% - 7px);
+}
+
+.paired-execution-legs {
+  display: grid;
+  gap: 13px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.execution-leg {
+  --leg-color: var(--accent);
+  --leg-soft: var(--accent-soft);
+  background: color-mix(in srgb, var(--leg-soft), #fff 42%);
+  border: 1px solid color-mix(in srgb, var(--leg-color), #fff 72%);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: 16px;
+  overflow: hidden;
+  padding: 16px;
+  position: relative;
+}
+
+.execution-leg::before {
+  background: var(--leg-color);
+  content: "";
+  height: 3px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.execution-leg-sell {
+  --leg-color: var(--positive);
+  --leg-soft: var(--positive-soft);
+}
+
+.execution-leg > header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.execution-leg-mark {
+  align-items: center;
+  background: var(--leg-color);
+  border-radius: 10px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 17px;
+  font-weight: 900;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.execution-leg header > div {
+  display: grid;
+  gap: 0;
+}
+
+.execution-leg header strong {
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.execution-leg header span:last-child {
+  color: var(--leg-color);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+
+.execution-leg-fields {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+}
+
+.execution-leg input {
+  border-color: color-mix(in srgb, var(--leg-color), #fff 70%);
+}
+
+.execution-leg input:focus {
+  border-color: var(--leg-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--leg-color), transparent 90%);
+}
+
+.paired-execution-common {
+  align-items: stretch;
+  display: grid;
+  gap: 13px;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.45fr);
+}
+
+.paired-t-result {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  padding: 9px 13px;
+}
+
+.paired-t-result span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.paired-t-result strong {
+  color: var(--accent);
+  font-size: 21px;
+  letter-spacing: -0.03em;
+}
+
+.paired-t-result small {
+  color: var(--muted);
+  font-size: 10px;
+  grid-column: 1 / -1;
+}
+
 .inline-form-grid {
   display: grid;
   gap: 10px;
@@ -3419,6 +3594,29 @@ td {
   .form-grid,
   .inline-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .execution-kind-switch {
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  }
+
+  .execution-kind-switch button {
+    font-size: 12px;
+    padding-left: 7px;
+    padding-right: 7px;
+  }
+
+  .paired-execution-date {
+    max-width: none;
+  }
+
+  .paired-execution-legs,
+  .paired-execution-common {
+    grid-template-columns: 1fr;
+  }
+
+  .execution-leg {
+    padding: 15px;
   }
 
   input,

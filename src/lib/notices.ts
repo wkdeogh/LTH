@@ -9,6 +9,7 @@ export const noticeMessages = {
   'normal-restored': { message: '일반모드로 돌아왔어요.', tone: 'success' },
   'normal-auto-restored': { message: '최신 종가가 복귀 기준을 넘어 일반모드로 자동 전환했어요.', tone: 'success' },
   'execution-saved': { message: '체결을 저장했어요.', tone: 'success' },
+  'paired-execution-saved': { message: '매도·매수 체결을 함께 저장했어요.', tone: 'success' },
   'round-completed': { message: '이번 라운드 완료! 다음 라운드도 가보자고요.', tone: 'celebrate' },
   'execution-cancelled': { message: '최근 체결을 취소하고 이전 상태로 복원했어요.', tone: 'success' },
   'round-updated': { message: '라운드 기록을 수정했어요.', tone: 'success' },

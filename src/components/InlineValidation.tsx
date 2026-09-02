@@ -16,6 +16,10 @@ const fieldNames: Record<string, string> = {
   executed_at: '체결일',
   quantity: '수량',
   avg_execution_price: '평균 체결가',
+  sell_quantity: '매도 수량',
+  sell_avg_execution_price: '평균 매도가',
+  buy_quantity: '매수 수량',
+  buy_avg_execution_price: '평균 매수가',
   final_position_qty: '최종 보유수량',
   final_avg_price: '최종 평단',
   final_t_value: '최종 T값',
@@ -101,6 +105,28 @@ function applyBusinessRules(form: HTMLFormElement) {
       if (finalPosition !== null && finalPosition > 0 && finalAvg !== null && finalAvg <= 0) {
         setBusinessError(finalAvgControl, '최종 보유수량이 있으면 최종 평단을 0보다 크게 입력해 주세요.');
       }
+    }
+  }
+
+  if (kind === 'paired-execution') {
+    const sellQuantityControl = namedControl(form, 'sell_quantity');
+    const sellPriceControl = namedControl(form, 'sell_avg_execution_price');
+    const buyQuantityControl = namedControl(form, 'buy_quantity');
+    const buyPriceControl = namedControl(form, 'buy_avg_execution_price');
+    const sellQuantity = numericValue(sellQuantityControl) ?? 0;
+    const sellPrice = numericValue(sellPriceControl) ?? 0;
+    const buyQuantity = numericValue(buyQuantityControl) ?? 0;
+    const buyPrice = numericValue(buyPriceControl) ?? 0;
+    const currentCash = Number(form.dataset.currentCash ?? 0);
+    const currentPosition = Number(form.dataset.currentPosition ?? 0);
+
+    if (sellQuantity > currentPosition) {
+      setBusinessError(sellQuantityControl, `현재 보유수량 ${currentPosition}주보다 많이 매도할 수 없어요.`);
+    }
+
+    const cashAfterSell = currentCash + sellQuantity * sellPrice;
+    if (buyQuantity > 0 && buyPrice > 0 && buyQuantity * buyPrice > cashAfterSell) {
+      setBusinessError(buyPriceControl, `매수금액이 매도대금 반영 후 현금 $${cashAfterSell.toLocaleString('en-US')}을 초과해요.`);
     }
   }
 

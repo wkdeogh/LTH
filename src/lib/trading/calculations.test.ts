@@ -10,6 +10,7 @@ import {
   calculateFiveDayAverage,
   calculateNormalPlan,
   calculateOneUnitBudget,
+  calculatePairedExecutionState,
   calculatePositionPerformance,
   calculateReferenceAverage,
   calculateReversePlan,
@@ -176,6 +177,33 @@ test('일반·리버스 체결별 T값 공식이 일치한다', () => {
   assert.equal(applyTEffect(7, 'limit_sell_then_half_buy', 20), 2.25);
   assert.equal(applyTEffect(39.5, 'reverse_sell', 40), 37.525);
   assert.equal(applyTEffect(37.525, 'reverse_buy', 40), 38.14375);
+});
+
+test('지정가매도와 LOC 매수를 하나의 체결 묶음으로 계산한다', () => {
+  const result = calculatePairedExecutionState({
+    state: state({
+      cashBalance: 1_000,
+      positionQty: 100,
+      avgPrice: 50,
+      tValue: 12,
+    }),
+    sellQuantity: 75,
+    sellPrice: 60,
+    buyQuantity: 10,
+    buyPrice: 45,
+    effect: 'limit_sell_then_full_buy',
+  });
+
+  assert.deepEqual(result, {
+    sellAmount: 4_500,
+    buyAmount: 450,
+    positionAfterSell: 25,
+    cashAfterSell: 5_500,
+    finalPositionQty: 35,
+    finalCashBalance: 5_050,
+    finalAvgPrice: 48.5714,
+    finalT: 4,
+  });
 });
 
 test('리버스 5일 평균, 매도수량, 복귀 경계를 정확히 계산한다', () => {
