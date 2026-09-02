@@ -23,7 +23,7 @@ import {
   shouldReturnToNormalMode,
 } from '@/lib/trading';
 import { floorPrice, roundMoney, roundPrice } from '@/lib/trading/rounding';
-import { koreaDate } from '@/lib/date';
+import { inclusiveDateCount, koreaDate } from '@/lib/date';
 
 function state(overrides: Partial<StrategyState> = {}): StrategyState {
   return {
@@ -118,6 +118,11 @@ test('체결 후 현금과 보유수량을 종가에 반영해 일별 계좌 평
 test('체결일 기본값은 한국시간 기준 어제 날짜다', () => {
   assert.equal(koreaDate(-1, new Date('2026-07-23T15:30:00.000Z')), '2026-07-23');
   assert.equal(koreaDate(-1, new Date('2026-07-23T14:30:00.000Z')), '2026-07-22');
+});
+
+test('라운드 진행 일수는 시작일과 현재일을 모두 포함한다', () => {
+  assert.equal(inclusiveDateCount('2026-06-29', '2026-08-02'), 35);
+  assert.equal(inclusiveDateCount('2026-06-29', '2026-06-29'), 1);
 });
 
 test('문서의 SOXL 20분할 별지점 예시가 일치한다', () => {

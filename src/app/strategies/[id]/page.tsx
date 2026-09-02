@@ -7,6 +7,7 @@ import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
 import { toChartAnalysisJob, toStoredChartAnalysis } from '@/lib/ai/chartAnalysis';
 import type { ChartAnalysisRow } from '@/lib/ai/chartAnalysis';
+import { inclusiveDateCount, koreaDate } from '@/lib/date';
 import { hasOpenAIEnv, hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { DailyPrice, Execution, MarketCandle, Strategy } from '@/lib/types';
@@ -37,8 +38,9 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
   const chartStart = new Date();
   chartStart.setUTCFullYear(chartStart.getUTCFullYear() - 3);
   chartStart.setUTCDate(chartStart.getUTCDate() - 14);
+  const currentDate = koreaDate();
 
-  const [priceResult, candleResult, chartExecutionResult, aiAnalysisResult] = await Promise.all([
+  const [priceResult, candleResult, chartExecutionResult, aiAnalysisResult, roundTradingDayResult] = await Promise.all([
     supabase!
       .from('daily_prices')
       .select('*')
@@ -70,6 +72,12 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
       .order('created_at', { ascending: false })
       .limit(10)
       .returns<ChartAnalysisRow[]>(),
+    supabase!
+      .from('market_candles')
+      .select('trade_date', { count: 'exact', head: true })
+      .eq('symbol', strategy.symbol)
+      .gte('trade_date', strategy.started_at)
+      .lte('trade_date', currentDate),
   ]);
 
   const aiAnalysisRows = aiAnalysisResult.data ?? [];
@@ -86,6 +94,12 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
   const initialAiJob = aiAnalysisRows[0] ? toChartAnalysisJob(aiAnalysisRows[0]) : null;
 
   const prices = priceResult.data ?? [];
+  const roundCalendarDays = inclusiveDateCount(strategy.started_at, currentDate);
+  const roundTradingDays = roundTradingDayResult.count ?? new Set(
+    (candleResult.data ?? [])
+      .map((candle) => candle.trade_date)
+      .filter((date) => date >= strategy.started_at && date <= currentDate),
+  ).size;
   const references = buildMarketReferenceHistory(prices, candleResult.data ?? []);
   const reference = references[0];
   const positionPerformance = calculatePositionPerformance(
@@ -156,10 +170,12 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
 
       <section className="strategy-card strategy-detail-summary" aria-label="현재 전략 요약">
         <div className="strategy-card-head">
-          <div>
-            <div className="badge-row">
-            </div>
+          <div className="strategy-status-heading">
             <h2>현재 상태</h2>
+            <div className="round-progress-meta">
+              <span>라운드 시작 {strategy.started_at}</span>
+              <span>{roundCalendarDays}일 ({roundTradingDays}거래일) 진행중</span>
+            </div>
           </div>
         </div>
 

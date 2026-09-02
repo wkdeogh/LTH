@@ -1089,6 +1089,25 @@ button.is-pending > span {
   padding: 24px;
 }
 
+.strategy-status-heading {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  padding-top: 12px;
+}
+
+.strategy-card-head .strategy-status-heading h2 {
+  margin-top: 0;
+}
+
+.round-progress-meta {
+  color: var(--muted);
+  display: grid;
+  font-size: 10px;
+  gap: 2px;
+  line-height: 1.35;
+}
+
 .strategy-detail-price-line small {
   color: var(--muted);
   display: block;
@@ -3218,6 +3237,11 @@ td {
 
   .strategy-detail-summary {
     padding: 17px;
+  }
+
+  .strategy-status-heading {
+    align-items: flex-start;
+    gap: 10px;
   }
 
   .capital-visuals {
