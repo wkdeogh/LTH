@@ -6,13 +6,17 @@ import { compact } from '@/components/Format';
 import type { OrderType, SplitCount, TEffect, TradeMode, TradeSide } from '@/lib/types';
 import { applyTEffect } from '@/lib/trading';
 
-const singleEffectOptions = [
+const buyEffectOptions = [
   ['buy_full', '일반모드 1회 매수: T + 1'],
   ['buy_half', '일반모드 절반 매수: T + 0.5'],
+  ['reverse_buy', '리버스 매수'],
+  ['none', 'T값 변경 없음'],
+] as const satisfies ReadonlyArray<readonly [TEffect, string]>;
+
+const sellEffectOptions = [
   ['quarter_sell', '쿼터매도: T × 0.75'],
   ['full_sell', '전량매도: T = 0'],
   ['reverse_sell', '리버스 매도'],
-  ['reverse_buy', '리버스 매수'],
   ['none', 'T값 변경 없음'],
 ] as const satisfies ReadonlyArray<readonly [TEffect, string]>;
 
@@ -22,6 +26,18 @@ const pairedEffectOptions: ReadonlyArray<readonly [PairedEffect, string]> = [
   ['limit_sell_then_full_buy', '1회 매수'],
   ['limit_sell_then_half_buy', '절반 매수'],
 ];
+
+function effectFormula(effect: TEffect, splitCount: SplitCount) {
+  switch (effect) {
+    case 'buy_full': return 'T + 1';
+    case 'buy_half': return 'T + 0.5';
+    case 'quarter_sell': return 'T × 0.75';
+    case 'full_sell': return 'T = 0';
+    case 'reverse_buy': return `T + (${splitCount} − T) × 0.25`;
+    case 'reverse_sell': return `T × ${splitCount === 20 ? '0.9' : '0.95'}`;
+    default: return '변경 없음';
+  }
+}
 
 type Props = {
   strategyId: string;
@@ -61,9 +77,27 @@ export function ExecutionEntryForm({
 }: Props) {
   const [entryKind, setEntryKind] = useState<'single' | 'paired'>('single');
   const [executedAt, setExecutedAt] = useState(initialExecutedAt);
+  const [singleSide, setSingleSide] = useState<TradeSide>(singleDefaults.side);
+  const [singleOrderType, setSingleOrderType] = useState<OrderType>(singleDefaults.orderType);
+  const [singleEffect, setSingleEffect] = useState<TEffect>(singleDefaults.tEffect);
   const [pairedEffect, setPairedEffect] = useState<PairedEffect>(
     pairedDefaults?.tEffect ?? 'limit_sell_then_full_buy',
   );
+  const singleEffectOptions = singleSide === 'buy' ? buyEffectOptions : sellEffectOptions;
+
+  function chooseSingleSide(side: TradeSide) {
+    setSingleSide(side);
+    if (side === singleDefaults.side) {
+      setSingleOrderType(singleDefaults.orderType);
+      setSingleEffect(singleDefaults.tEffect);
+      return;
+    }
+
+    setSingleOrderType('LOC');
+    setSingleEffect(currentMode === 'reverse'
+      ? side === 'buy' ? 'reverse_buy' : 'reverse_sell'
+      : side === 'buy' ? 'buy_full' : 'quarter_sell');
+  }
 
   return (
     <>
@@ -99,25 +133,58 @@ export function ExecutionEntryForm({
           noValidate
         >
           <input type="hidden" name="strategy_id" value={strategyId} />
-          <div className="form-grid">
-            <label>체결일<input name="executed_at" type="date" value={executedAt} onChange={(event) => setExecutedAt(event.target.value)} required /></label>
-            <label>매수/매도<select name="side" defaultValue={singleDefaults.side}><option value="buy">매수</option><option value="sell">매도</option></select></label>
-            <input type="hidden" name="order_type" value={singleDefaults.orderType} />
-            <label>수량<input name="quantity" type="number" min="1" inputMode="numeric" defaultValue={singleDefaults.quantity || undefined} placeholder="체결 수량" required /></label>
-            <label>평균 체결가($)<input name="avg_execution_price" type="number" min="0.0001" step="0.0001" inputMode="decimal" defaultValue={latestClose} placeholder="예: 72.3500" required /></label>
-            <label>T 반영 방식<select name="t_effect" defaultValue={singleDefaults.tEffect}>{singleEffectOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+          <input type="hidden" name="side" value={singleSide} />
+
+          <label className="paired-execution-date">체결일<input name="executed_at" type="date" value={executedAt} onChange={(event) => setExecutedAt(event.target.value)} required /></label>
+
+          <div className="single-side-switch" role="group" aria-label="매수 또는 매도 선택">
+            <button
+              type="button"
+              className={singleSide === 'buy' ? 'buy active' : 'buy'}
+              aria-pressed={singleSide === 'buy'}
+              onClick={() => chooseSingleSide('buy')}
+            ><span aria-hidden="true">↑</span>매수</button>
+            <button
+              type="button"
+              className={singleSide === 'sell' ? 'sell active' : 'sell'}
+              aria-pressed={singleSide === 'sell'}
+              onClick={() => chooseSingleSide('sell')}
+            ><span aria-hidden="true">↓</span>매도</button>
           </div>
 
-          <details className="nested-disclosure compact-disclosure">
-            <summary><span><strong>T값 변화 미리 보기</strong><small>선택한 반영 방식의 결과</small></span><span aria-hidden="true">＋</span></summary>
-            <div className="disclosure-body">
-              <ul>
-                {singleEffectOptions.map(([value, label]) => (
-                  <li key={value}>{label}: {compact(applyTEffect(currentT, value, splitCount))}</li>
-                ))}
-              </ul>
+          <section className={`execution-leg single-execution-leg execution-leg-${singleSide}`}>
+            <header>
+              <div className="single-leg-title">
+                <span className="execution-leg-mark" aria-hidden="true">{singleSide === 'buy' ? '↑' : '↓'}</span>
+                <div><strong>{singleSide === 'buy' ? '매수 체결' : '매도 체결'}</strong><span>{singleOrderType}</span></div>
+              </div>
+              <label className="single-order-type"><span>주문 유형</span>
+                <select name="order_type" value={singleOrderType} onChange={(event) => setSingleOrderType(event.target.value as OrderType)}>
+                  <option value="LOC">LOC</option>
+                  <option value="LIMIT">지정가</option>
+                  <option value="MOC">MOC</option>
+                  <option value="MANUAL">직접 입력</option>
+                </select>
+              </label>
+            </header>
+            <div className="execution-leg-fields">
+              <label>{singleSide === 'buy' ? '매수 수량' : '매도 수량'}<input name="quantity" type="number" min="1" inputMode="numeric" defaultValue={singleDefaults.quantity || undefined} placeholder="체결 수량" required /></label>
+              <label>{singleSide === 'buy' ? '평균 매수가($)' : '평균 매도가($)'}<input name="avg_execution_price" type="number" min="0.0001" step="0.0001" inputMode="decimal" defaultValue={latestClose} placeholder="예: 72.3500" required /></label>
             </div>
-          </details>
+          </section>
+
+          <div className="paired-execution-common">
+            <label>T 반영 방식
+              <select name="t_effect" value={singleEffect} onChange={(event) => setSingleEffect(event.target.value as TEffect)}>
+                {singleEffectOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+              </select>
+            </label>
+            <div className="paired-t-result" aria-live="polite">
+              <span>반영 후 T</span>
+              <strong>{compact(applyTEffect(currentT, singleEffect, splitCount))}</strong>
+              <small>{effectFormula(singleEffect, splitCount)}</small>
+            </div>
+          </div>
 
           <details className="nested-disclosure">
             <summary><span><strong>체결 후 상태 직접 보정</strong><small>자동 계산값이 증권사와 다를 때만</small></span><span aria-hidden="true">＋</span></summary>

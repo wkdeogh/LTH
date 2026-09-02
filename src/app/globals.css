@@ -1897,6 +1897,63 @@ button.is-pending > span {
   transform: scale(0.98);
 }
 
+.single-side-switch {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 5px;
+}
+
+.single-side-switch button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  font-weight: 850;
+  gap: 7px;
+  justify-content: center;
+  min-height: 42px;
+  transition:
+    background var(--motion-base) var(--ease-touch),
+    box-shadow var(--motion-base) var(--ease-touch),
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--ease-touch);
+}
+
+.single-side-switch button span {
+  align-items: center;
+  background: color-mix(in srgb, currentColor, transparent 88%);
+  border-radius: 7px;
+  display: inline-flex;
+  font-size: 14px;
+  height: 25px;
+  justify-content: center;
+  width: 25px;
+}
+
+.single-side-switch button.buy.active {
+  background: var(--accent);
+  box-shadow: 0 5px 12px rgba(21, 94, 239, 0.2);
+  color: #fff;
+}
+
+.single-side-switch button.sell.active {
+  background: var(--positive);
+  box-shadow: 0 5px 12px rgba(8, 122, 85, 0.2);
+  color: #fff;
+}
+
+.single-side-switch button:active {
+  transform: scale(0.98);
+}
+
 .execution-entry-form {
   animation: execution-form-in var(--motion-base) var(--ease-touch);
 }
@@ -1950,6 +2007,21 @@ button.is-pending > span {
   gap: 10px;
 }
 
+.single-execution-leg > header {
+  justify-content: space-between;
+}
+
+.single-leg-title {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.single-leg-title > div {
+  display: grid;
+  gap: 0;
+}
+
 .execution-leg-mark {
   align-items: center;
   background: var(--leg-color);
@@ -1990,9 +2062,31 @@ button.is-pending > span {
   border-color: color-mix(in srgb, var(--leg-color), #fff 70%);
 }
 
-.execution-leg input:focus {
+.execution-leg input:focus,
+.execution-leg select:focus {
   border-color: var(--leg-color);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--leg-color), transparent 90%);
+}
+
+.single-order-type {
+  gap: 4px;
+  width: 116px;
+}
+
+.single-order-type > span {
+  color: var(--muted) !important;
+  font-size: 9px !important;
+  letter-spacing: 0 !important;
+}
+
+.single-order-type select {
+  border-color: color-mix(in srgb, var(--leg-color), #fff 70%);
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 38px;
+  padding-bottom: 7px;
+  padding-top: 7px;
 }
 
 .paired-execution-common {
