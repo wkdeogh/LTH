@@ -1093,7 +1093,9 @@ button.is-pending > span {
   align-items: center;
   display: flex;
   gap: 14px;
+  justify-content: space-between;
   padding-top: 12px;
+  width: 100%;
 }
 
 .strategy-card-head .strategy-status-heading h2 {
@@ -1106,6 +1108,7 @@ button.is-pending > span {
   font-size: 10px;
   gap: 2px;
   line-height: 1.35;
+  text-align: right;
 }
 
 .strategy-detail-price-line small {
@@ -3240,7 +3243,6 @@ td {
   }
 
   .strategy-status-heading {
-    align-items: flex-start;
     gap: 10px;
   }
 
