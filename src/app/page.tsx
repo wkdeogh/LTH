@@ -66,7 +66,16 @@ export default async function HomePage() {
               <article className={`strategy-card clickable-strategy-card${strategy.is_main ? ' main-strategy-card' : ''}`} key={strategy.id}>
                 <div className="strategy-primary-control">
                   {strategy.is_main ? (
-                    <span className="main-strategy-badge" role="img" aria-label="메인 전략">★</span>
+                    <svg className="main-strategy-badge" viewBox="0 0 24 24" role="img" aria-label="메인 전략">
+                      <defs>
+                        <linearGradient id={`main-star-${strategy.id}`} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                          <stop stopColor="#38bdf8" />
+                          <stop offset="0.5" stopColor="#6366f1" />
+                          <stop offset="1" stopColor="#a855f7" />
+                        </linearGradient>
+                      </defs>
+                      <path fill={`url(#main-star-${strategy.id})`} d="m12 2.5 2.94 5.96 6.58.96-4.76 4.64 1.12 6.55L12 17.52l-5.88 3.09 1.12-6.55L2.48 9.42l6.58-.96L12 2.5Z" />
+                    </svg>
                   ) : (
                     <form action={setMainStrategy}>
                       <input type="hidden" name="id" value={strategy.id} />

@@ -3930,19 +3930,18 @@ td {
 
 .main-strategy-card > .strategy-primary-control {
   position: absolute;
-  top: -12px;
-  right: 22px;
+  top: 7px;
+  right: 7px;
   min-height: 0;
   margin: 0;
 }
 
 .main-strategy-badge {
   display: block;
-  padding: 0 5px;
-  background: var(--surface);
-  color: #155eef;
-  font-size: 22px;
-  line-height: 24px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background: transparent;
 }
 
 button.main-strategy-select {
