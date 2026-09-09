@@ -15,6 +15,7 @@ export type AssetValuePoint = {
   positionValue: number;
   positionQty: number;
   closePrice: number;
+  marketClosePrice: number | null;
 };
 
 type AssetHistoryInput = {
@@ -95,6 +96,7 @@ export function buildAssetValueHistory({
       closeByDate.set(dailyPrice.trade_date, closePrice);
     }
   }
+  const marketCloseByDate = new Map(closeByDate);
   for (const execution of orderedExecutions) {
     if (!closeByDate.has(execution.executed_at)) {
       const executionPrice = toNumber(execution.avg_execution_price);
@@ -149,6 +151,7 @@ export function buildAssetValueHistory({
       positionValue,
       positionQty,
       closePrice,
+      marketClosePrice: marketCloseByDate.get(date) ?? null,
     });
   }
 

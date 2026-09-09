@@ -303,7 +303,7 @@ export default async function StrategyRoundsPage({
       </nav>
 
       {view === 'rounds' && <RoundRecords rounds={rounds} executionsByRound={executionsByRound} strategyId={id} />}
-      {view === 'assets' && <AssetValueChart points={assetPoints} />}
+      {view === 'assets' && <AssetValueChart points={assetPoints} symbol={strategy.symbol} />}
       {view === 'executions' && <ExecutionRecords executions={[...executions].reverse()} roundNumberById={roundNumberById} />}
     </div>
   );

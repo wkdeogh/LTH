@@ -110,9 +110,21 @@ test('체결 후 현금과 보유수량을 종가에 반영해 일별 계좌 평
   });
 
   assert.deepEqual(points, [
-    { date: '2026-07-01', accountValue: 1020, cashBalance: 800, positionValue: 220, positionQty: 2, closePrice: 110 },
-    { date: '2026-07-02', accountValue: 998, cashBalance: 710, positionValue: 288, positionQty: 3, closePrice: 96 },
-    { date: '2026-07-03', accountValue: 1010, cashBalance: 710, positionValue: 300, positionQty: 3, closePrice: 100 },
+    { date: '2026-07-01', accountValue: 1020, cashBalance: 800, positionValue: 220, positionQty: 2, closePrice: 110, marketClosePrice: 110 },
+    { date: '2026-07-02', accountValue: 998, cashBalance: 710, positionValue: 288, positionQty: 3, closePrice: 96, marketClosePrice: 96 },
+    { date: '2026-07-03', accountValue: 1010, cashBalance: 710, positionValue: 300, positionQty: 3, closePrice: 100, marketClosePrice: 100 },
+  ]);
+  const fallbackPoints = buildAssetValueHistory({
+    currentCashBalance: 710,
+    currentPositionQty: 3,
+    executions,
+    snapshots: [],
+    candles: [],
+    dailyPrices: [],
+  });
+  assert.deepEqual(fallbackPoints.map(({ closePrice, marketClosePrice }) => ({ closePrice, marketClosePrice })), [
+    { closePrice: 100, marketClosePrice: null },
+    { closePrice: 90, marketClosePrice: null },
   ]);
 });
 

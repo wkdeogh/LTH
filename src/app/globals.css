@@ -2760,11 +2760,27 @@ td {
   margin-bottom: 2px;
 }
 
-.asset-chart-value > strong {
+.asset-chart-metric > strong {
   display: block;
   font-size: 28px;
   letter-spacing: -0.045em;
 }
+
+.asset-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin-top: 10px;
+}
+
+.asset-chart-metric {
+  border-left: 3px solid currentColor;
+  padding-left: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.asset-chart-metric-account { color: #155eef; }
+.asset-chart-metric-close { color: #c55a11; }
 
 .asset-chart-breakdown {
   align-items: center;
@@ -3604,7 +3620,7 @@ td {
     margin-right: -15px;
   }
 
-  .asset-chart-value > strong {
+  .asset-chart-metric > strong {
     font-size: 25px;
   }
 
