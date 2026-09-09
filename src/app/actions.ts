@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidateReadData, revalidateAppPath as revalidatePath } from '@/lib/supabase/revalidate';
+import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { after } from 'next/server';
 import { syncMarketData } from '@/lib/marketData/candles';
@@ -643,5 +643,5 @@ export async function deleteCompletedRound(formData: FormData) {
 }
 
 export async function refreshReadData() {
-  invalidateReadData();
+  revalidatePath('/', 'layout');
 }
