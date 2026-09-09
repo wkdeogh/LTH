@@ -157,3 +157,17 @@ export function buildAssetValueHistory({
 
   return points;
 }
+
+export function buildAssetComparison(points: AssetValuePoint[]) {
+  const first = points[0];
+  const changePercent = (value: number | null, baseline: number | null | undefined) => {
+    if (value === null || !Number.isFinite(value) || baseline == null || !Number.isFinite(baseline) || baseline <= 0) return null;
+    return ((value - baseline) / baseline) * 100;
+  };
+
+  return points.map((point) => ({
+    ...point,
+    accountChangePercent: changePercent(point.accountValue, first?.accountValue),
+    marketChangePercent: changePercent(point.marketClosePrice, first?.marketClosePrice),
+  }));
+}

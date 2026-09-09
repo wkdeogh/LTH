@@ -2779,6 +2779,18 @@ td {
   font-variant-numeric: tabular-nums;
 }
 
+.asset-chart-value .asset-chart-baseline {
+  display: inline;
+  margin-left: 10px;
+}
+
+.asset-chart-value .asset-chart-change {
+  color: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 3px;
+}
+
 .asset-chart-metric-account { color: #155eef; }
 .asset-chart-metric-close { color: #c55a11; }
 

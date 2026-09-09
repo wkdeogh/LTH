@@ -6,6 +6,7 @@ import {
   buildMarketReferenceHistory,
   buildDownsideBuyOrders,
   buildAssetValueHistory,
+  buildAssetComparison,
   calculateAccountPerformance,
   calculateFiveDayAverage,
   calculateNormalPlan,
@@ -379,4 +380,21 @@ test('완료 기록 수정 시 수익금과 수익률을 시작 원금 기준으
     profitRate: -5,
   });
   assert.throws(() => calculateRoundPerformance(0, 10_000));
+});
+
+test('자산과 종가를 첫 거래일의 0%에서 같은 비율 축으로 비교한다', () => {
+  const point = (date: string, accountValue: number, marketClosePrice: number | null) => ({
+    date, accountValue, marketClosePrice, cashBalance: accountValue, positionQty: 0,
+    positionValue: 0, closePrice: marketClosePrice ?? 100,
+  });
+  const points = [point('2026-01-02', 10000, 100), point('2026-05-01', 11000, 120), point('2026-09-08', 9000, 80)];
+  const comparison = buildAssetComparison(points);
+  assert.deepEqual(comparison.map(({ accountChangePercent, marketChangePercent }) => [accountChangePercent, marketChangePercent]), [[0, 0], [10, 20], [-10, -20]]);
+  assert.equal(comparison[1].accountValue, 11000);
+  assert.equal(comparison[1].marketClosePrice, 120);
+  assert.equal(comparison.filter((item) => item.date >= '2026-05-01')[0].accountChangePercent, 10);
+  assert.deepEqual(buildAssetComparison([]), []);
+  assert.equal(buildAssetComparison([point('2026-01-02', 0, null), points[1]])[1].accountChangePercent, null);
+  assert.equal(buildAssetComparison([point('2026-01-02', 10000, null), points[1]])[1].marketChangePercent, null);
+  assert.equal(buildAssetComparison([points[0], point('2026-05-01', 11000, null), points[2]])[2].marketChangePercent, -20);
 });
