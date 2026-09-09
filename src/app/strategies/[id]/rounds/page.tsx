@@ -1,3 +1,6 @@
+import { StrategyAdjustmentHistory } from '@/components/StrategyAdjustmentHistory';
+import type { StrategyAdjustment } from '@/lib/trading/assetHistory';
+import { latestClosedMarketDate } from '@/lib/date';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AssetValueChart } from '@/components/AssetValueChart';
@@ -225,6 +228,9 @@ export default async function StrategyRoundsPage({
     );
   }
 
+  const { data: adjustmentData, error: adjustmentError } = await supabase!.from('strategy_adjustments').select('*').eq('strategy_id', id).order('effective_date', { ascending: false }).order('created_at', { ascending: false }).returns<StrategyAdjustment[]>();
+  if (adjustmentError) throw adjustmentError;
+  const adjustments = adjustmentData ?? [];
   const rounds = roundResult.data ?? [];
   const executions = executionResult.data ?? [];
   let assetPoints: AssetValuePoint[] = [];
@@ -234,7 +240,7 @@ export default async function StrategyRoundsPage({
     const [snapshotResult, candleResult, dailyPriceResult] = await Promise.all([
       supabase!
         .from('strategy_snapshots')
-        .select('execution_id, cash_balance, position_qty')
+        .select('execution_id, cash_balance, position_qty, after_cash_balance, after_position_qty')
         .eq('strategy_id', id)
         .not('execution_id', 'is', null)
         .returns<ExecutionSnapshot[]>(),
@@ -242,14 +248,14 @@ export default async function StrategyRoundsPage({
         .from('market_candles')
         .select('*')
         .eq('symbol', strategy.symbol)
-        .gte('trade_date', firstExecutionDate)
+        .gte('trade_date', firstExecutionDate).lte('trade_date', latestClosedMarketDate())
         .order('trade_date', { ascending: true })
         .returns<MarketCandle[]>(),
       supabase!
         .from('daily_prices')
         .select('*')
         .eq('strategy_id', id)
-        .gte('trade_date', firstExecutionDate)
+        .gte('trade_date', firstExecutionDate).lte('trade_date', latestClosedMarketDate())
         .order('trade_date', { ascending: true })
         .returns<DailyPrice[]>(),
     ]);
@@ -268,6 +274,7 @@ export default async function StrategyRoundsPage({
       currentPositionQty: strategy.position_qty,
       executions,
       snapshots: snapshotResult.data ?? [],
+      adjustments,
       candles: candleResult.data ?? [],
       dailyPrices: dailyPriceResult.data ?? [],
     });
@@ -304,6 +311,8 @@ export default async function StrategyRoundsPage({
 
       {view === 'rounds' && <RoundRecords rounds={rounds} executionsByRound={executionsByRound} strategyId={id} />}
       {view === 'assets' && <AssetValueChart points={assetPoints} symbol={strategy.symbol} />}
+      {view === 'executions' && <StrategyAdjustmentHistory adjustments={adjustments} />}
+      <div className="actions"><Link className="text-link" href="/rounds">전체 전략 라운드</Link></div>
       {view === 'executions' && <ExecutionRecords executions={[...executions].reverse()} roundNumberById={roundNumberById} />}
     </div>
   );

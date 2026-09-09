@@ -3953,3 +3953,12 @@ button.main-strategy-select:hover { color: #155eef; border-color: #9db9f7; }
 .main-strategy-protection button:disabled { cursor: not-allowed; opacity: 1; }
 .main-strategy-protection p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
 .main-strategy-protection a { color: #155eef; text-decoration: underline; }
+
+.home-order-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:16px; }
+.home-order { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; padding:14px; border:1px solid var(--border, #e2e8f0); border-radius:12px; }
+.home-order > span:first-child { flex-basis:100%; font-size:12px; }
+.home-order.buy > span:first-child { color:#2563eb; }
+.home-order.sell > span:first-child { color:#d97706; }
+@media(max-width:420px) { .home-order { padding:12px; } }
+.correction-row { align-items:flex-start; flex-wrap:wrap; gap:12px; }
+.correction-row > div { min-width:0; overflow-wrap:anywhere; }

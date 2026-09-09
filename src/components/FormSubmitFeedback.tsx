@@ -44,6 +44,8 @@ export function FormSubmitFeedback() {
         }
       }
 
+      if (submitter.form?.dataset.managedSubmit === 'true') return;
+
       if (submitter.dataset.pending === 'true') {
         event.preventDefault();
         return;

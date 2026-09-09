@@ -1,13 +1,16 @@
+import { loadStrategyReferences } from '@/lib/marketData/references';
+import { toStrategyState } from '@/lib/types';
+import type { Execution } from '@/lib/types';
+import { calculateNormalPlan, calculateReversePlan } from '@/lib/trading';
 import Link from 'next/link';
 import { setMainStrategy } from '@/app/actions';
 import { SetupNotice } from '@/components/SetupNotice';
 import { compact, usd } from '@/components/Format';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { CompletedRound, DailyPrice, MarketCandle, Strategy } from '@/lib/types';
+import type { Strategy } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 import {
-  buildMarketReferenceHistory,
   calculateAccountPerformance,
   modeLabel,
   referenceSourceLabel,
@@ -22,18 +25,6 @@ function signedUsd(value: number | string) {
 
 function signedPercent(value: number) {
   return `${value >= 0 ? '+' : ''}${compact(value, 2)}%`;
-}
-
-function groupByStrategy<T extends { strategy_id: string }>(rows: T[]) {
-  const grouped = new Map<string, T[]>();
-  for (const row of rows) grouped.set(row.strategy_id, [...(grouped.get(row.strategy_id) ?? []), row]);
-  return grouped;
-}
-
-function groupBySymbol<T extends { symbol: string }>(rows: T[]) {
-  const grouped = new Map<string, T[]>();
-  for (const row of rows) grouped.set(row.symbol, [...(grouped.get(row.symbol) ?? []), row]);
-  return grouped;
 }
 
 export default async function HomePage() {
@@ -58,62 +49,10 @@ export default async function HomePage() {
     );
   }
 
-  const strategyIds = (strategies ?? []).map((strategy) => strategy.id);
-  const strategySymbols = [...new Set((strategies ?? []).map((strategy) => strategy.symbol))];
-  let dailyPrices: DailyPrice[] = [];
-  let marketCandles: MarketCandle[] = [];
-  let rounds: CompletedRound[] = [];
+  const histories = new Map(await Promise.all((strategies ?? []).map(async strategy => [strategy.id, await loadStrategyReferences(supabase!, strategy.id, strategy.symbol)] as const)));
 
-  if (strategyIds.length > 0) {
-    const marketStart = new Date();
-    marketStart.setUTCDate(marketStart.getUTCDate() - 20);
-
-    const [priceResult, candleResult, roundResult] = await Promise.all([
-      supabase!
-        .from('daily_prices')
-        .select('*')
-        .in('strategy_id', strategyIds)
-        .order('trade_date', { ascending: false })
-        .returns<DailyPrice[]>(),
-      supabase!
-        .from('market_candles')
-        .select('*')
-        .in('symbol', strategySymbols)
-        .gte('trade_date', marketStart.toISOString().slice(0, 10))
-        .order('trade_date', { ascending: false })
-        .returns<MarketCandle[]>(),
-      supabase!
-        .from('completed_rounds')
-        .select('*')
-        .in('strategy_id', strategyIds)
-        .order('created_at', { ascending: false })
-        .limit(6)
-        .returns<CompletedRound[]>(),
-    ]);
-    dailyPrices = priceResult.data ?? [];
-    marketCandles = candleResult.data ?? [];
-    rounds = roundResult.data ?? [];
-  }
-
-  const pricesByStrategy = groupByStrategy(dailyPrices);
-  const candlesBySymbol = groupBySymbol(marketCandles);
-  const strategyNames = new Map((strategies ?? []).map((strategy) => [strategy.id, strategy.name]));
-
-  return (
-    <div className="stack page-stack">
-      <section className="hero home-hero">
-        <div>
-          <h1>HELLO DAEHO</h1>
-        </div>
-      </section>
-
-      {strategies && strategies.length > 0 ? (
-        <section className="strategy-list" aria-label="전략 목록">
-          {strategies.map((strategy) => {
-            const history = buildMarketReferenceHistory(
-              pricesByStrategy.get(strategy.id) ?? [],
-              candlesBySymbol.get(strategy.symbol) ?? [],
-            );
+  const renderStrategy = (strategy: Strategy) => {
+            const history = histories.get(strategy.id) ?? [];
             const reference = history[0];
             const performance = calculateAccountPerformance(
               toNumber(strategy.principal),
@@ -179,52 +118,37 @@ export default async function HomePage() {
                 </div>
               </article>
             );
-          })}
+  };
+  const main = strategies?.find(strategy => strategy.is_main);
+  const others = strategies?.filter(strategy => !strategy.is_main) ?? [];
+  const references = main ? histories.get(main.id) ?? [] : [];
+  const state = main ? toStrategyState(main) : null;
+  const plan = state ? state.mode === 'normal' ? calculateNormalPlan(state, references[0]?.price) : calculateReversePlan(state, references.slice(0,5).map(r => r.price), references[0]?.price) : null;
+  let recentExecutions: Execution[] = [];
+  if (main) {
+    const { data, error } = await supabase!.from('executions').select('*').eq('strategy_id', main.id).order('executed_at', { ascending: false }).order('created_at', { ascending: false }).limit(3).returns<Execution[]>();
+    if (error) throw error;
+    recentExecutions = data ?? [];
+  }
+  return (
+    <div className="stack page-stack">
+      <section className="hero home-hero"><div><h1>HELLO DAEHO</h1></div></section>
+      {main && <>
+        <section aria-label="메인 전략">{renderStrategy(main)}</section>
+        <section className="panel">
+          <div className="section-head"><h2>오늘 주문</h2><Link className="text-link" href={`/strategies/${main.id}/plan`}>전체 보기 →</Link></div>
+          <span className="subtle-label">{references[0] ? `${references[0].date} 종가 기준` : '기준가 없음'}</span>
+          <div className="home-order-grid">{plan && [ ...plan.buyOrders.filter(o => !o.isSupplemental).map(o => ({...o, side:'매수'})), ...plan.sellOrders.filter(o => !o.isSupplemental).map(o => ({...o, side:'매도'})) ].map((order,index) => <div className={`home-order ${order.side === '매수' ? 'buy' : 'sell'}`} key={index}><span>{order.side} · {order.orderType}</span><strong>{order.price ? usd(order.price) : '시장가'}</strong><span>{order.quantity}주</span></div>)}</div>
         </section>
-      ) : (
-        <section className="empty-state">
-          <span className="empty-number">01</span>
-          <h2>첫 전략을 만들어 보세요</h2>
-          <p>TQQQ 또는 SOXL을 선택하면 주문 계산을 시작할 수 있습니다.</p>
+        <section className="panel">
+          <div className="section-head"><h2>최근 체결</h2><Link className="text-link" href={`/strategies/${main.id}/rounds?view=assets`}>자산차트 →</Link></div>
+          <div className="round-list">{recentExecutions.map(e => <Link className="round-row" href={`/strategies/${main.id}/rounds`} key={e.id}><div><strong>{e.side === 'buy' ? '매수' : '매도'} {e.quantity}주</strong><span>{e.executed_at}</span></div><strong>{usd(e.avg_execution_price)}</strong></Link>)}</div>
+          {!recentExecutions.length && <p className="muted">아직 체결 기록이 없습니다.</p>}
         </section>
-      )}
-
-      <section className="add-strategy-panel">
-        <div>
-          <span className="eyebrow">NEW STRATEGY</span>
-          <h2>새 전략 추가</h2>
-        </div>
-        <Link className="button primary" href="/strategies/new">전략 추가하기</Link>
-      </section>
-
-      <section className="panel rounds-preview">
-        <div className="section-head">
-          <div>
-            <span className="eyebrow">HISTORY</span>
-            <h2>최근 완료 기록</h2>
-          </div>
-          <div className="section-head-actions">
-            <span className="subtle-label">최근 {Math.min(rounds.length, 6)}건</span>
-            <Link className="text-link" href="/rounds">전체 기록 관리 <span aria-hidden="true">→</span></Link>
-          </div>
-        </div>
-        {rounds.length > 0 ? (
-          <div className="round-list">
-            {rounds.map((round) => (
-              <Link className="round-row" href={`/strategies/${round.strategy_id}/rounds`} key={round.id}>
-                <div>
-                  <strong>{strategyNames.get(round.strategy_id) ?? round.symbol}</strong>
-                  <span>{round.round_number}라운드 · {round.started_at} ~ {round.ended_at}</span>
-                </div>
-                <div className={Number(round.profit_amount) >= 0 ? 'profit-positive' : 'profit-negative'}>
-                  <strong>{Number(round.profit_rate) >= 0 ? '+' : ''}{compact(round.profit_rate, 2)}%</strong>
-                  <span>{signedUsd(round.profit_amount)}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        ) : <p className="muted empty-copy">아직 완료된 라운드가 없습니다. 전량 매도를 기록하면 이곳에 자동으로 정리됩니다.</p>}
-      </section>
+      </>}
+      {others.length > 0 && <details className="panel disclosure"><summary><strong>다른 전략 {others.length}</strong><span aria-hidden="true">＋</span></summary><div className="disclosure-body strategy-list">{others.map(renderStrategy)}</div></details>}
+      {!strategies?.length && <section className="empty-state"><h2>첫 전략을 만들어 보세요</h2></section>}
+      <div className="actions"><Link className="button secondary" href="/strategies/new">새 전략 추가</Link><Link className="text-link" href="/rounds">전체 전략 라운드</Link></div>
     </div>
   );
 }

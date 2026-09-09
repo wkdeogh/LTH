@@ -1,11 +1,21 @@
-import type { DailyPrice, Execution, MarketCandle } from '@/lib/types';
+import type { DailyPrice, Execution, MarketCandle, Strategy } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 import { roundMoney } from '@/lib/trading/rounding';
 
 export type ExecutionSnapshot = {
   execution_id: string | null;
+  after_cash_balance?: number | string | null;
+  after_position_qty?: number | null;
   cash_balance: number | string;
   position_qty: number;
+};
+
+type AdjustmentState = Pick<Strategy, 'cash_balance' | 'position_qty'> & Partial<Strategy>;
+
+export type StrategyAdjustment = {
+  id: string; effective_date: string; created_at: string; kind: 'baseline' | 'correction'; reason: string;
+  before_state: AdjustmentState;
+  after_state: AdjustmentState;
 };
 
 export type AssetValuePoint = {
@@ -23,6 +33,7 @@ type AssetHistoryInput = {
   currentPositionQty: number;
   executions: Execution[];
   snapshots: ExecutionSnapshot[];
+  adjustments?: StrategyAdjustment[];
   candles: MarketCandle[];
   dailyPrices: DailyPrice[];
 };
@@ -62,6 +73,7 @@ export function buildAssetValueHistory({
   currentPositionQty,
   executions,
   snapshots,
+  adjustments = [],
   candles,
   dailyPrices,
 }: AssetHistoryInput): AssetValuePoint[] {
@@ -69,16 +81,18 @@ export function buildAssetValueHistory({
 
   const orderedExecutions = sortedExecutions(executions);
   const firstExecutionDate = orderedExecutions[0].executed_at;
+  adjustments = adjustments.filter(adjustment => adjustment.kind !== 'baseline' || orderedExecutions.some(execution => execution.created_at < adjustment.created_at));
   const snapshotsByExecution = new Map(
     snapshots
       .filter((snapshot) => snapshot.execution_id)
       .map((snapshot) => [snapshot.execution_id!, snapshot]),
   );
   const firstSnapshot = snapshotsByExecution.get(orderedExecutions[0].id);
+  const firstAdjustment = [...adjustments].sort((a,b) => a.effective_date.localeCompare(b.effective_date) || a.created_at.localeCompare(b.created_at))[0];
   const inferredState = inferStateBeforeFirstExecution(
-    currentCashBalance,
-    currentPositionQty,
-    orderedExecutions,
+    firstAdjustment ? toNumber(firstAdjustment.before_state.cash_balance) : currentCashBalance,
+    firstAdjustment ? firstAdjustment.before_state.position_qty : currentPositionQty,
+    firstAdjustment ? orderedExecutions.filter(e => e.executed_at <= firstAdjustment.effective_date && e.created_at < firstAdjustment.created_at) : orderedExecutions,
   );
   let cashBalance = firstSnapshot ? toNumber(firstSnapshot.cash_balance) : inferredState.cashBalance;
   let positionQty = firstSnapshot ? firstSnapshot.position_qty : inferredState.positionQty;
@@ -104,21 +118,37 @@ export function buildAssetValueHistory({
     }
   }
 
+  for (const adjustment of [...adjustments].sort((a,b) => a.effective_date.localeCompare(b.effective_date))) {
+    if (adjustment.effective_date < firstExecutionDate || closeByDate.has(adjustment.effective_date)) continue;
+    const previous = [...closeByDate.keys()].filter(date => date <= adjustment.effective_date).sort().at(-1);
+    if (previous) closeByDate.set(adjustment.effective_date, closeByDate.get(previous)!);
+  }
   const dates = [...closeByDate.keys()].sort((a, b) => a.localeCompare(b));
   const latestByDate = orderedExecutions.at(-1);
   const latestByCreatedAt = [...orderedExecutions].sort((a, b) => (
     b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id)
   ))[0];
-  const useCurrentStateAfterLatest = latestByDate?.id === latestByCreatedAt?.id;
+  const useCurrentStateAfterLatest = adjustments.length === 0 && latestByDate?.id === latestByCreatedAt?.id;
   const points: AssetValuePoint[] = [];
+  const events = [
+    ...orderedExecutions.map(execution => ({ date: execution.executed_at, created: execution.created_at, id: execution.id, execution, adjustment: null as StrategyAdjustment | null })),
+    ...adjustments.map(adjustment => ({ date: adjustment.effective_date, created: adjustment.created_at, id: adjustment.id, execution: null as Execution | null, adjustment })),
+  ].sort((a,b) => a.date.localeCompare(b.date) || a.created.localeCompare(b.created) || a.id.localeCompare(b.id));
   let executionIndex = 0;
 
   for (const date of dates) {
     while (
-      executionIndex < orderedExecutions.length
-      && orderedExecutions[executionIndex].executed_at <= date
+      executionIndex < events.length
+      && events[executionIndex].date <= date
     ) {
-      const execution = orderedExecutions[executionIndex];
+      const event = events[executionIndex];
+      if (event.adjustment) {
+        cashBalance = toNumber(event.adjustment.after_state.cash_balance);
+        positionQty = event.adjustment.after_state.position_qty;
+        executionIndex += 1;
+        continue;
+      }
+      const execution = event.execution!;
       const snapshot = snapshotsByExecution.get(execution.id);
       if (snapshot) {
         cashBalance = toNumber(snapshot.cash_balance);
@@ -134,7 +164,10 @@ export function buildAssetValueHistory({
         positionQty = Math.max(positionQty - execution.quantity, 0);
       }
 
-      if (useCurrentStateAfterLatest && execution.id === latestByDate?.id) {
+      if (snapshot?.after_cash_balance != null && snapshot.after_position_qty != null) {
+        cashBalance = toNumber(snapshot.after_cash_balance);
+        positionQty = snapshot.after_position_qty;
+      } else if (useCurrentStateAfterLatest && execution.id === latestByDate?.id) {
         cashBalance = currentCashBalance;
         positionQty = currentPositionQty;
       }

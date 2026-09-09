@@ -32,6 +32,7 @@ export type Strategy = {
   compounding_type: CompoundingType;
   is_archived: boolean;
   is_main: boolean;
+  version: number;
   sort_order: number;
   started_at: string;
   created_at: string;

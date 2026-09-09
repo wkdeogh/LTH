@@ -1,12 +1,15 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import { after } from 'next/server';
 import { syncMarketData } from '@/lib/marketData/candles';
 import { withNotice } from '@/lib/notices';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { koreaDate } from '@/lib/date';
+import { koreaDate, executionDateError } from '@/lib/date';
+import { loadStrategyReferences } from '@/lib/marketData/references';
+import { mutationErrorMessage, type MutationFeedback } from '@/lib/mutationFeedback';
+import type { NoticeKey } from '@/lib/notices';
 import type { Execution, SplitCount, Strategy, SymbolCode, TEffect, TradeMode } from '@/lib/types';
 import { toNumber, toStrategyState } from '@/lib/types';
 import {
@@ -116,26 +119,24 @@ export async function updateStrategy(formData: FormData) {
   }
   if (positionQty > 0 && avgPrice <= 0) throw new Error('보유수량이 있으면 평단을 입력해야 합니다.');
 
-  const { error } = await supabase
-    .from('strategies')
-    .update({
-      name: stringValue(formData, 'name'),
-      symbol: symbolValue(stringValue(formData, 'symbol')),
+  const { error } = await supabase.rpc('correct_strategy_state', {
+    p_strategy_id: id,
+    p_expected_version: stringValue(formData, 'expected_version'),
+    p_date: stringValue(formData, 'effective_date'),
+    p_reason: stringValue(formData, 'reason'),
+    p_state: {
+      name: stringValue(formData, 'name'), symbol: symbolValue(stringValue(formData, 'symbol')),
       split_count: intValue(formData, 'split_count') as SplitCount,
-      principal,
-      cash_balance: cashBalance,
-      position_qty: positionQty,
-      avg_price: avgPrice,
-      t_value: tValue,
+      principal, cash_balance: cashBalance, position_qty: positionQty, avg_price: avgPrice, t_value: tValue,
       mode: stringValue(formData, 'mode'),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id);
-
+    },
+  });
   if (error) throw error;
 
   revalidatePath('/');
   revalidatePath(`/strategies/${id}`);
+  revalidatePath(`/strategies/${id}/rounds`);
+  revalidatePath(`/strategies/${id}/plan`);
   redirect(withNotice(`/strategies/${id}`, 'strategy-updated'));
 }
 
@@ -278,19 +279,72 @@ export async function saveTradePlan(formData: FormData) {
   revalidatePath(`/strategies/${strategyId}/plan`);
 }
 
-export async function recordExecution(formData: FormData) {
+async function prepareExecution(formData: FormData) {
   const supabase = supabaseOrThrow();
   const strategyId = stringValue(formData, 'strategy_id');
-  const executedAt = stringValue(formData, 'executed_at', koreaDate(-1));
+  const requestId = stringValue(formData, 'request_id');
+  const expectedVersion = stringValue(formData, 'expected_version');
+  if (!/^[0-9a-f-]{36}$/i.test(requestId) || !/^\d+$/.test(expectedVersion)) throw new Error('화면을 새로고침한 후 다시 입력해 주세요.');
+  const input = Object.fromEntries([...formData.entries()].filter(([key]) => !key.startsWith('$ACTION_')).sort(([a], [b]) => a.localeCompare(b)));
+  const { data: saved, error: savedError } = await supabase.from('strategy_write_requests').select('strategy_id,input,result,cancelled').eq('id', requestId).maybeSingle();
+  if (savedError) throw savedError;
+  if (saved) {
+    if (saved.cancelled) throw new Error('REQUEST_CANCELLED');
+    const normalized = Object.fromEntries(Object.entries(saved.input).sort(([a], [b]) => a.localeCompare(b)));
+    if (saved.strategy_id !== strategyId || JSON.stringify(normalized) !== JSON.stringify(input)) throw new Error('REQUEST_CONFLICT');
+    redirect(withNotice(saved.result.path, saved.result.notice));
+  }
+  const executedAt = stringValue(formData, 'executed_at');
+  const [lastExecution, lastCorrection] = await Promise.all([
+    supabase.from('executions').select('executed_at').eq('strategy_id', strategyId).order('executed_at', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('strategy_adjustments').select('effective_date').eq('strategy_id', strategyId).eq('kind', 'correction').order('effective_date', { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (lastExecution.error) throw lastExecution.error;
+  if (lastCorrection.error) throw lastCorrection.error;
+  const earliest = [lastExecution.data?.executed_at, lastCorrection.data?.effective_date].filter(Boolean).sort().at(-1) ?? null;
+  const dateError = executionDateError(executedAt, earliest);
+  if (dateError) throw new Error(dateError);
+  return { supabase, strategyId, requestId, expectedVersion, input, executedAt };
+}
+
+async function commitExecution(context: Awaited<ReturnType<typeof prepareExecution>>, executions: unknown[], snapshots: unknown[], finalState: unknown, round: unknown, result: { path: string; notice: NoticeKey }) {
+  const { error } = await context.supabase.rpc('commit_strategy_execution', {
+    p_strategy_id: context.strategyId, p_request_id: context.requestId, p_expected_version: context.expectedVersion,
+    p_input: context.input, p_executions: executions, p_snapshots: snapshots, p_final: finalState, p_round: round, p_result: result,
+  });
+  if (error) throw error;
+}
+
+export async function submitExecution(_previous: MutationFeedback, formData: FormData): Promise<MutationFeedback> {
+  try { await recordExecution(formData); return { error: null }; }
+  catch (error) { unstable_rethrow(error); return { error: mutationErrorMessage(error) }; }
+}
+
+export async function submitPairedExecution(_previous: MutationFeedback, formData: FormData): Promise<MutationFeedback> {
+  try { await recordPairedExecution(formData); return { error: null }; }
+  catch (error) { unstable_rethrow(error); return { error: mutationErrorMessage(error) }; }
+}
+
+export async function submitStrategyCorrection(_previous: MutationFeedback, formData: FormData): Promise<MutationFeedback> {
+  try { await updateStrategy(formData); return { error: null }; }
+  catch (error) { unstable_rethrow(error); return { error: mutationErrorMessage(error) }; }
+}
+
+export async function recordExecution(formData: FormData) {
+  const context = await prepareExecution(formData);
+  const { supabase, strategyId, executedAt } = context;
   const side = stringValue(formData, 'side');
+  if (side !== 'buy' && side !== 'sell') throw new Error('매수·매도 구분을 확인해 주세요.');
   const { data: strategy, error: strategyError } = await supabase
     .from('strategies')
     .select('*')
     .eq('id', strategyId)
+    .eq('is_archived', false)
     .single<Strategy>();
 
   if (strategyError) throw strategyError;
 
+  if (String(strategy.version) !== context.expectedVersion) throw new Error('STALE_STRATEGY');
   const state = toStrategyState(strategy);
   const effect = stringValue(formData, 't_effect', 'none') as TEffect;
   const computedT = applyTEffect(state.tValue, effect, state.splitCount);
@@ -341,119 +395,8 @@ export async function recordExecution(formData: FormData) {
     state.mode === 'reverse' && effect === 'reverse_sell' ? true : state.reverseFirstSellDone;
   let latestClose: number | undefined;
   if (!isCompletedRound && state.mode === 'reverse') {
-    const { data: latestCandle, error: latestCandleError } = await supabase
-      .from('market_candles')
-      .select('close_price')
-      .eq('symbol', state.symbol)
-      .order('trade_date', { ascending: false })
-      .limit(1)
-      .maybeSingle<{ close_price: number | string }>();
-    if (latestCandleError) throw latestCandleError;
-    latestClose = latestCandle ? toNumber(latestCandle.close_price) : undefined;
-  }
-
-  const executionId = crypto.randomUUID();
-
-  const { error: snapshotError } = await supabase.from('strategy_snapshots').insert({
-    strategy_id: strategyId,
-    execution_id: executionId,
-    snapshot_date: koreaDate(),
-    principal: state.principal,
-    mode: state.mode,
-    cash_balance: state.cashBalance,
-    position_qty: state.positionQty,
-    avg_price: state.avgPrice,
-    t_value: state.tValue,
-    started_at: strategy.started_at,
-    reverse_started_at: state.reverseStartedAt,
-    reverse_first_sell_done: state.reverseFirstSellDone,
-    note: '체결 입력 전 상태',
-  });
-  if (snapshotError) throw snapshotError;
-
-  const { error: executionError } = await supabase.from('executions').insert({
-    id: executionId,
-    strategy_id: strategyId,
-    executed_at: executedAt,
-    side,
-    order_type: stringValue(formData, 'order_type'),
-    quantity,
-    avg_execution_price: avgExecutionPrice,
-    total_amount: totalAmount,
-    t_effect: effect,
-    memo: stringValue(formData, 'memo') || null,
-  });
-
-  if (executionError) {
-    await supabase.from('strategy_snapshots').delete().eq('execution_id', executionId);
-    throw executionError;
-  }
-
-  if (isCompletedRound) {
-    const roundStartedAt = strategy.started_at ?? executedAt;
-    const { data: activeExecutions, error: activeExecutionsError } = await supabase
-      .from('executions')
-      .select('*')
-      .eq('strategy_id', strategyId)
-      .is('round_id', null)
-      .gte('executed_at', roundStartedAt)
-      .lte('executed_at', executedAt)
-      .returns<Execution[]>();
-
-    if (activeExecutionsError) throw activeExecutionsError;
-
-    const executions = activeExecutions ?? [];
-    const buyExecutions = executions.filter((execution) => execution.side === 'buy');
-    const sellExecutions = executions.filter((execution) => execution.side === 'sell');
-    const totalBuyAmount = roundMoney(buyExecutions.reduce((sum, execution) => sum + toNumber(execution.total_amount), 0));
-    const totalSellAmount = roundMoney(sellExecutions.reduce((sum, execution) => sum + toNumber(execution.total_amount), 0));
-    const startedPrincipal = state.principal;
-    const { profitAmount, profitRate } = calculateRoundPerformance(startedPrincipal, finalCashBalance);
-
-    const { data: lastRound, error: lastRoundError } = await supabase
-      .from('completed_rounds')
-      .select('round_number')
-      .eq('strategy_id', strategyId)
-      .order('round_number', { ascending: false })
-      .limit(1)
-      .maybeSingle<{ round_number: number }>();
-
-    if (lastRoundError) throw lastRoundError;
-
-    const { data: completedRound, error: completedRoundError } = await supabase
-      .from('completed_rounds')
-      .insert({
-        strategy_id: strategyId,
-        round_number: (lastRound?.round_number ?? 0) + 1,
-        symbol: state.symbol,
-        split_count: state.splitCount,
-        started_at: roundStartedAt,
-        ended_at: executedAt,
-        started_principal: startedPrincipal,
-        ending_cash_balance: finalCashBalance,
-        profit_amount: profitAmount,
-        profit_rate: profitRate,
-        execution_count: executions.length,
-        buy_count: buyExecutions.length,
-        sell_count: sellExecutions.length,
-        total_buy_amount: totalBuyAmount,
-        total_sell_amount: totalSellAmount,
-        ending_t_value: finalT,
-      })
-      .select('id')
-      .single<{ id: string }>();
-
-    if (completedRoundError) throw completedRoundError;
-
-    const executionIds = executions.map((execution) => execution.id);
-    if (executionIds.length > 0) {
-      const { error: roundLinkError } = await supabase
-        .from('executions')
-        .update({ round_id: completedRound.id })
-        .in('id', executionIds);
-
-      if (roundLinkError) throw roundLinkError;
-    }
+    const references = await loadStrategyReferences(supabase, strategyId, state.symbol);
+    latestClose = references[0]?.price;
   }
 
   const autoReturnedToNormal = !isCompletedRound
@@ -479,23 +422,23 @@ export async function recordExecution(formData: FormData) {
 
   const nextPrincipal = isCompletedRound && strategy.compounding_type === 'compound' ? finalCashBalance : state.principal;
 
-  const { error: updateError } = await supabase
-    .from('strategies')
-    .update({
-      principal: nextPrincipal,
-      cash_balance: finalCashBalance,
-      position_qty: isCompletedRound ? 0 : finalPositionQty,
-      avg_price: isCompletedRound ? 0 : finalAvgPrice,
-      t_value: isCompletedRound ? 0 : finalT,
-      mode: finalMode,
-      reverse_first_sell_done: isCompletedRound ? false : finalMode === 'reverse' ? reverseFirstSellDone : false,
-      reverse_started_at: isCompletedRound ? null : finalMode === 'reverse' ? state.reverseStartedAt ?? koreaDate() : null,
-      started_at: isCompletedRound ? executedAt : strategy.started_at,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', strategyId);
-
-  if (updateError) throw updateError;
+  const redirectPath = autoEnteredReverse || autoReturnedToNormal ? `/strategies/${strategyId}/plan` : `/strategies/${strategyId}`;
+  const notice: NoticeKey = isCompletedRound ? 'round-completed' : autoReturnedToNormal ? 'normal-auto-restored' : autoEnteredReverse ? 'reverse-auto-started' : 'execution-saved';
+  const roundPerformance = isCompletedRound ? calculateRoundPerformance(state.principal, finalCashBalance) : null;
+  await commitExecution(context, [{
+    id: crypto.randomUUID(), executed_at: executedAt, side, order_type: stringValue(formData, 'order_type'),
+    quantity, avg_execution_price: avgExecutionPrice, total_amount: totalAmount, t_effect: effect, memo: stringValue(formData, 'memo') || null,
+  }], [{
+    cash_balance: state.cashBalance, position_qty: state.positionQty, avg_price: state.avgPrice, t_value: state.tValue,
+    after_cash_balance: finalCashBalance, after_position_qty: finalPositionQty,
+  }], {
+    principal: nextPrincipal, cash_balance: finalCashBalance, position_qty: isCompletedRound ? 0 : finalPositionQty,
+    avg_price: isCompletedRound ? 0 : finalAvgPrice, t_value: isCompletedRound ? 0 : finalT, mode: finalMode,
+    reverse_first_sell_done: isCompletedRound ? false : finalMode === 'reverse' ? reverseFirstSellDone : false,
+    reverse_started_at: isCompletedRound ? null : finalMode === 'reverse' ? state.reverseStartedAt ?? executedAt : null,
+    started_at: isCompletedRound ? executedAt : strategy.started_at,
+  }, roundPerformance ? { profit_amount: roundPerformance.profitAmount, profit_rate: roundPerformance.profitRate, ending_t_value: finalT } : null,
+  { path: redirectPath, notice });
 
   after(async () => {
     try {
@@ -510,31 +453,22 @@ export async function recordExecution(formData: FormData) {
   revalidatePath(`/strategies/${strategyId}`);
   revalidatePath(`/strategies/${strategyId}/plan`);
   revalidatePath(`/strategies/${strategyId}/rounds`);
-  const redirectPath = autoEnteredReverse || autoReturnedToNormal
-    ? `/strategies/${strategyId}/plan`
-    : `/strategies/${strategyId}`;
-  const notice = isCompletedRound
-    ? 'round-completed'
-    : autoReturnedToNormal
-      ? 'normal-auto-restored'
-      : autoEnteredReverse
-        ? 'reverse-auto-started'
-        : 'execution-saved';
   redirect(withNotice(redirectPath, notice));
 }
 
 export async function recordPairedExecution(formData: FormData) {
-  const supabase = supabaseOrThrow();
-  const strategyId = stringValue(formData, 'strategy_id');
-  const executedAt = stringValue(formData, 'executed_at', koreaDate(-1));
+  const context = await prepareExecution(formData);
+  const { supabase, strategyId, executedAt } = context;
   const { data: strategy, error: strategyError } = await supabase
     .from('strategies')
     .select('*')
     .eq('id', strategyId)
+    .eq('is_archived', false)
     .single<Strategy>();
 
   if (strategyError) throw strategyError;
 
+  if (String(strategy.version) !== context.expectedVersion) throw new Error('STALE_STRATEGY');
   const state = toStrategyState(strategy);
   if (state.mode !== 'normal') {
     throw new Error('지정가매도 후 LOC 매수는 일반모드에서만 입력할 수 있습니다.');
@@ -573,83 +507,6 @@ export async function recordPairedExecution(formData: FormData) {
     throw new Error(`매수금액(${pairedState.buyAmount})이 매도대금 반영 후 현금(${pairedState.cashAfterSell})을 초과합니다.`);
   }
 
-  const sellExecutionId = crypto.randomUUID();
-  const buyExecutionId = crypto.randomUUID();
-  const memo = stringValue(formData, 'memo') || null;
-  const sellCreatedAt = new Date();
-  const buyCreatedAt = new Date(sellCreatedAt.getTime() + 1);
-
-  const { error: snapshotError } = await supabase.from('strategy_snapshots').insert([
-    {
-      strategy_id: strategyId,
-      execution_id: sellExecutionId,
-      snapshot_date: koreaDate(),
-      principal: state.principal,
-      mode: state.mode,
-      cash_balance: state.cashBalance,
-      position_qty: state.positionQty,
-      avg_price: state.avgPrice,
-      t_value: state.tValue,
-      started_at: strategy.started_at,
-      reverse_started_at: state.reverseStartedAt,
-      reverse_first_sell_done: state.reverseFirstSellDone,
-      note: '복합 체결 매도 입력 전 상태',
-      created_at: sellCreatedAt.toISOString(),
-    },
-    {
-      strategy_id: strategyId,
-      execution_id: buyExecutionId,
-      snapshot_date: koreaDate(),
-      principal: state.principal,
-      mode: state.mode,
-      cash_balance: pairedState.cashAfterSell,
-      position_qty: pairedState.positionAfterSell,
-      avg_price: pairedState.positionAfterSell > 0 ? state.avgPrice : 0,
-      t_value: state.tValue,
-      started_at: strategy.started_at,
-      reverse_started_at: state.reverseStartedAt,
-      reverse_first_sell_done: state.reverseFirstSellDone,
-      note: '복합 체결 매수 입력 전 상태',
-      created_at: buyCreatedAt.toISOString(),
-    },
-  ]);
-  if (snapshotError) throw snapshotError;
-
-  const executionIds = [sellExecutionId, buyExecutionId];
-  const { error: executionError } = await supabase.from('executions').insert([
-    {
-      id: sellExecutionId,
-      strategy_id: strategyId,
-      executed_at: executedAt,
-      side: 'sell',
-      order_type: 'LIMIT',
-      quantity: sellQuantity,
-      avg_execution_price: sellPrice,
-      total_amount: pairedState.sellAmount,
-      t_effect: 'none',
-      memo,
-      created_at: sellCreatedAt.toISOString(),
-    },
-    {
-      id: buyExecutionId,
-      strategy_id: strategyId,
-      executed_at: executedAt,
-      side: 'buy',
-      order_type: 'LOC',
-      quantity: buyQuantity,
-      avg_execution_price: buyPrice,
-      total_amount: pairedState.buyAmount,
-      t_effect: effect,
-      memo,
-      created_at: buyCreatedAt.toISOString(),
-    },
-  ]);
-
-  if (executionError) {
-    await supabase.from('strategy_snapshots').delete().in('execution_id', executionIds);
-    throw executionError;
-  }
-
   const autoEnteredReverse = shouldAutoEnterReverseMode({
     currentMode: state.mode,
     requestedMode: state.mode,
@@ -657,25 +514,19 @@ export async function recordPairedExecution(formData: FormData) {
     splitCount: state.splitCount,
   });
   const finalMode: TradeMode = autoEnteredReverse ? 'reverse' : state.mode;
-  const { error: updateError } = await supabase
-    .from('strategies')
-    .update({
-      cash_balance: pairedState.finalCashBalance,
-      position_qty: pairedState.finalPositionQty,
-      avg_price: pairedState.finalAvgPrice,
-      t_value: pairedState.finalT,
-      mode: finalMode,
-      reverse_first_sell_done: false,
-      reverse_started_at: finalMode === 'reverse' ? state.reverseStartedAt ?? koreaDate() : null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', strategyId);
-
-  if (updateError) {
-    await supabase.from('executions').delete().in('id', executionIds);
-    await supabase.from('strategy_snapshots').delete().in('execution_id', executionIds);
-    throw updateError;
-  }
+  const memo = stringValue(formData, 'memo') || null;
+  await commitExecution(context, [
+    { id: crypto.randomUUID(), executed_at: executedAt, side: 'sell', order_type: 'LIMIT', quantity: sellQuantity, avg_execution_price: sellPrice, total_amount: pairedState.sellAmount, t_effect: 'none', memo },
+    { id: crypto.randomUUID(), executed_at: executedAt, side: 'buy', order_type: 'LOC', quantity: buyQuantity, avg_execution_price: buyPrice, total_amount: pairedState.buyAmount, t_effect: effect, memo },
+  ], [
+    { cash_balance: state.cashBalance, position_qty: state.positionQty, avg_price: state.avgPrice, t_value: state.tValue, after_cash_balance: pairedState.cashAfterSell, after_position_qty: pairedState.positionAfterSell },
+    { cash_balance: pairedState.cashAfterSell, position_qty: pairedState.positionAfterSell, avg_price: pairedState.positionAfterSell > 0 ? state.avgPrice : 0, t_value: state.tValue, after_cash_balance: pairedState.finalCashBalance, after_position_qty: pairedState.finalPositionQty },
+  ], {
+    principal: state.principal, cash_balance: pairedState.finalCashBalance, position_qty: pairedState.finalPositionQty,
+    avg_price: pairedState.finalAvgPrice, t_value: pairedState.finalT, mode: finalMode,
+    reverse_first_sell_done: false, reverse_started_at: finalMode === 'reverse' ? state.reverseStartedAt ?? executedAt : null,
+    started_at: strategy.started_at,
+  }, null, { path: autoEnteredReverse ? `/strategies/${strategyId}/plan` : `/strategies/${strategyId}`, notice: autoEnteredReverse ? 'reverse-auto-started' : 'paired-execution-saved' });
 
   after(async () => {
     try {

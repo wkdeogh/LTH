@@ -86,7 +86,7 @@ export function AssetValueChart({ points, symbol }: { points: AssetValuePoint[];
       crosshairMarkerBackgroundColor: '#155eef',
       crosshairMarkerBorderColor: '#ffffff',
       priceLineVisible: false,
-      priceFormat: { type: 'percent', precision: 2, minMove: 0.01 },
+      priceFormat: { type: 'custom', minMove: 0.01, formatter: (value: number) => `${value.toFixed(2)}%` },
     });
     series.setData(chartData);
     series.createPriceLine({
@@ -103,7 +103,7 @@ export function AssetValueChart({ points, symbol }: { points: AssetValuePoint[];
       priceLineVisible: false,
       crosshairMarkerBackgroundColor: '#c55a11',
       crosshairMarkerBorderColor: '#ffffff',
-      priceFormat: { type: 'percent', precision: 2, minMove: 0.01 },
+      priceFormat: { type: 'custom', minMove: 0.01, formatter: (value: number) => `${value.toFixed(2)}%` },
     });
     closeSeries.setData(closeData);
 

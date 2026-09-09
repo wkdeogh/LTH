@@ -1,4 +1,6 @@
 import 'server-only';
+import { latestClosedMarketDate } from '@/lib/date';
+import { loadStrategyReferences } from '@/lib/marketData/references';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { shouldAutoReturnToNormalMode } from '@/lib/trading/reverseMode';
@@ -91,8 +93,10 @@ export async function syncMarketData(symbol: SymbolCode) {
   const adjustedCloses = result?.indicators?.adjclose?.[0]?.adjclose ?? [];
   if (!quote || timestamps.length === 0) throw new Error(`${symbol} OHLC 데이터가 비어 있습니다.`);
 
+  const cutoff = latestClosedMarketDate();
   const fetchedAt = new Date().toISOString();
   const rows = timestamps.flatMap((timestamp, index) => {
+    if (newYorkTradeDate(timestamp) > cutoff) return [];
     const open = quote.open?.[index];
     const high = quote.high?.[index];
     const low = quote.low?.[index];
@@ -133,23 +137,10 @@ export async function syncMarketData(symbol: SymbolCode) {
     .returns<Strategy[]>();
   if (reverseStrategiesError) throw reverseStrategiesError;
 
-  const strategyIds = (reverseStrategies ?? [])
-    .filter((strategy) => shouldAutoReturnToNormalMode(
-      toStrategyState(strategy),
-      latestRow.close_price,
-    ))
-    .map((strategy) => strategy.id);
-
-  if (strategyIds.length === 0) return;
-
-  const { error: restoreError } = await supabase
-    .from('strategies')
-    .update({
-      mode: 'normal',
-      reverse_started_at: null,
-      reverse_first_sell_done: false,
-      updated_at: new Date().toISOString(),
-    })
-    .in('id', strategyIds);
-  if (restoreError) throw restoreError;
+  for (const strategy of reverseStrategies ?? []) {
+    const references = await loadStrategyReferences(supabase, strategy.id, strategy.symbol);
+    if (!shouldAutoReturnToNormalMode(toStrategyState(strategy), references[0]?.price)) continue;
+    const { error } = await supabase.from('strategies').update({ mode: 'normal', reverse_started_at: null, reverse_first_sell_done: false }).eq('id', strategy.id).eq('version', strategy.version);
+    if (error) throw error;
+  }
 }

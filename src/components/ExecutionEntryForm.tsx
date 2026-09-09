@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { recordExecution, recordPairedExecution } from '@/app/actions';
+import { useRetainedForm } from '@/components/useRetainedForm';
+import { useActionState, useState } from 'react';
+import { submitExecution, submitPairedExecution } from '@/app/actions';
+import { executionDateError } from '@/lib/date';
 import { compact } from '@/components/Format';
 import type { OrderType, SplitCount, TEffect, TradeMode, TradeSide } from '@/lib/types';
 import { applyTEffect } from '@/lib/trading';
@@ -41,6 +43,11 @@ function effectFormula(effect: TEffect, splitCount: SplitCount) {
 
 type Props = {
   strategyId: string;
+  requestId: string;
+  pairedRequestId: string;
+  expectedVersion: number;
+  earliestDate: string | null;
+  latestDate: string;
   executedAt: string;
   currentCash: number;
   currentPosition: number;
@@ -64,7 +71,7 @@ type Props = {
 };
 
 export function ExecutionEntryForm({
-  strategyId,
+  strategyId, requestId, pairedRequestId, expectedVersion, earliestDate, latestDate,
   executedAt: initialExecutedAt,
   currentCash,
   currentPosition,
@@ -75,6 +82,10 @@ export function ExecutionEntryForm({
   singleDefaults,
   pairedDefaults,
 }: Props) {
+  const [singleFeedback, singleAction, singlePending] = useActionState(submitExecution, { error: null });
+  const [pairedFeedback, pairedAction, pairedPending] = useActionState(submitPairedExecution, { error: null });
+  const singleForm = useRetainedForm(singleFeedback);
+  const pairedForm = useRetainedForm(pairedFeedback);
   const [entryKind, setEntryKind] = useState<'single' | 'paired'>('single');
   const [executedAt, setExecutedAt] = useState(initialExecutedAt);
   const [singleSide, setSingleSide] = useState<TradeSide>(singleDefaults.side);
@@ -83,6 +94,7 @@ export function ExecutionEntryForm({
   const [pairedEffect, setPairedEffect] = useState<PairedEffect>(
     pairedDefaults?.tEffect ?? 'limit_sell_then_full_buy',
   );
+  const dateError = executionDateError(executedAt, earliestDate, latestDate);
   const singleEffectOptions = singleSide === 'buy' ? buyEffectOptions : sellEffectOptions;
 
   function chooseSingleSide(side: TradeSide) {
@@ -125,7 +137,8 @@ export function ExecutionEntryForm({
       {entryKind === 'single' || !pairedDefaults ? (
         <form
           className="form execution-entry-form"
-          action={recordExecution}
+          action={singleAction} {...singleForm}
+          data-managed-submit="true"
           data-current-cash={currentCash}
           data-current-position={currentPosition}
           data-inline-validation
@@ -133,9 +146,11 @@ export function ExecutionEntryForm({
           noValidate
         >
           <input type="hidden" name="strategy_id" value={strategyId} />
+          <input type="hidden" name="expected_version" value={expectedVersion} />
+          <input type="hidden" name="request_id" value={requestId} />
           <input type="hidden" name="side" value={singleSide} />
 
-          <label className="paired-execution-date">체결일<input name="executed_at" type="date" value={executedAt} onChange={(event) => setExecutedAt(event.target.value)} required /></label>
+          <label className="paired-execution-date">체결일<input name="executed_at" type="date" min={earliestDate ?? undefined} max={latestDate} value={executedAt} onChange={(event) => setExecutedAt(event.target.value)} required /></label>
 
           <div className="single-side-switch" role="group" aria-label="매수 또는 매도 선택">
             <button
@@ -202,12 +217,14 @@ export function ExecutionEntryForm({
           </details>
 
           <label>메모<textarea name="memo" rows={3} placeholder="예: 별지점 LOC 매수" /></label>
-          <div className="sticky-form-actions"><button type="submit" className="primary">체결 저장하기</button></div>
+          <p className="danger-text" role="alert">{singleFeedback.error ?? dateError}</p>
+          <div className="sticky-form-actions"><button type="submit" className="primary" disabled={singlePending || !!dateError}>{singlePending ? '저장 중...' : '체결 저장하기'}</button></div>
         </form>
       ) : (
         <form
           className="form execution-entry-form paired-execution-form"
-          action={recordPairedExecution}
+          action={pairedAction} {...pairedForm}
+          data-managed-submit="true"
           data-current-cash={currentCash}
           data-current-position={currentPosition}
           data-inline-validation
@@ -215,8 +232,10 @@ export function ExecutionEntryForm({
           noValidate
         >
           <input type="hidden" name="strategy_id" value={strategyId} />
+          <input type="hidden" name="expected_version" value={expectedVersion} />
+          <input type="hidden" name="request_id" value={pairedRequestId} />
 
-          <label className="paired-execution-date">체결일<input name="executed_at" type="date" value={executedAt} onChange={(event) => setExecutedAt(event.target.value)} required /></label>
+          <label className="paired-execution-date">체결일<input name="executed_at" type="date" min={earliestDate ?? undefined} max={latestDate} value={executedAt} onChange={(event) => setExecutedAt(event.target.value)} required /></label>
 
           <div className="paired-execution-legs">
             <section className="execution-leg execution-leg-sell">
@@ -256,7 +275,8 @@ export function ExecutionEntryForm({
           </div>
 
           <label>메모<textarea name="memo" rows={3} placeholder="선택 입력" /></label>
-          <div className="sticky-form-actions"><button type="submit" className="primary">매도·매수 함께 저장</button></div>
+          <p className="danger-text" role="alert">{pairedFeedback.error ?? dateError}</p>
+          <div className="sticky-form-actions"><button type="submit" className="primary" disabled={pairedPending || !!dateError}>{pairedPending ? '저장 중...' : '매도·매수 함께 저장'}</button></div>
         </form>
       )}
     </>

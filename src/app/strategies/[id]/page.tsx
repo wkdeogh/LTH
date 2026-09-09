@@ -1,6 +1,8 @@
+import { StrategyCorrectionForm } from '@/components/StrategyCorrectionForm';
+import { latestClosedMarketDate } from '@/lib/date';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { addDailyPrice, deleteStrategy, refreshMarketChart, switchToNormal, switchToReverse, updateStrategy } from '@/app/actions';
+import { addDailyPrice, deleteStrategy, refreshMarketChart, switchToNormal, switchToReverse } from '@/app/actions';
 import { AiChartAnalysis } from '@/components/AiChartAnalysis';
 import { compact, usd } from '@/components/Format';
 import { LazyMarketChart } from '@/components/LazyMarketChart';
@@ -44,14 +46,14 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
   const [priceResult, candleResult, chartExecutionResult, aiAnalysisResult, roundTradingDayResult] = await Promise.all([
     supabase!
       .from('daily_prices')
-      .select('*')
+      .select('*').lte('trade_date', latestClosedMarketDate())
       .eq('strategy_id', id)
       .order('trade_date', { ascending: false })
       .limit(7)
       .returns<DailyPrice[]>(),
     supabase!
       .from('market_candles')
-      .select('*')
+      .select('*').lte('trade_date', latestClosedMarketDate())
       .eq('symbol', strategy.symbol)
       .gte('trade_date', chartStart.toISOString().slice(0, 10))
       .order('trade_date', { ascending: true })
@@ -322,21 +324,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
           <span><strong>현재 상태 직접 수정</strong><small>증권사 값과 다를 때만 사용하세요</small></span>
           <span aria-hidden="true">＋</span>
         </summary>
-        <form className="form disclosure-body" action={updateStrategy} data-inline-validation data-validation-kind="strategy" noValidate>
-          <input type="hidden" name="id" value={strategy.id} />
-          <div className="form-grid">
-            <label>전략명<input name="name" defaultValue={strategy.name} required /></label>
-            <label>종목<select name="symbol" defaultValue={strategy.symbol}><option>TQQQ</option><option>SOXL</option></select></label>
-            <label>분할 수<select name="split_count" defaultValue={strategy.split_count}><option value="20">20</option><option value="40">40</option></select></label>
-            <label>원금($)<input name="principal" type="number" min="0.0001" step="0.0001" inputMode="decimal" defaultValue={String(strategy.principal)} required /></label>
-            <label>현금($)<input name="cash_balance" type="number" min="0" step="0.0001" inputMode="decimal" defaultValue={String(strategy.cash_balance)} required /></label>
-            <label>보유수량<input name="position_qty" type="number" min="0" inputMode="numeric" defaultValue={strategy.position_qty} required /></label>
-            <label>평단($)<input name="avg_price" type="number" min="0" step="0.0001" inputMode="decimal" defaultValue={String(strategy.avg_price)} required /></label>
-            <label>T값<input name="t_value" type="number" min="0" step="0.0000000001" inputMode="decimal" defaultValue={String(strategy.t_value)} required /></label>
-            <label>모드<select name="mode" defaultValue={strategy.mode}><option value="normal">일반모드</option><option value="reverse">리버스모드</option></select></label>
-          </div>
-          <div className="actions"><button type="submit">상태 저장</button></div>
-        </form>
+        <StrategyCorrectionForm strategy={strategy} />
       </details>
 
       <details className="panel disclosure danger-zone">

@@ -1,3 +1,4 @@
+import { loadStrategyReferences } from '@/lib/marketData/references';
 import { notFound } from 'next/navigation';
 import { AutoNormalTransition } from '@/components/AutoNormalTransition';
 import { AutoReverseTransition } from '@/components/AutoReverseTransition';
@@ -7,10 +8,9 @@ import { StrategyTabs } from '@/components/StrategyTabs';
 import { SupplementalOrders } from '@/components/SupplementalOrders';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { DailyPrice, MarketCandle, Strategy } from '@/lib/types';
+import type { Strategy } from '@/lib/types';
 import { toStrategyState } from '@/lib/types';
 import {
-  buildMarketReferenceHistory,
   calculateNormalPlan,
   calculatePositionPerformance,
   calculateReferenceAverage,
@@ -60,25 +60,8 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();
 
-  const [priceResult, candleResult] = await Promise.all([
-    supabase!
-      .from('daily_prices')
-      .select('*')
-      .eq('strategy_id', id)
-      .order('trade_date', { ascending: false })
-      .limit(7)
-      .returns<DailyPrice[]>(),
-    supabase!
-      .from('market_candles')
-      .select('*')
-      .eq('symbol', strategy.symbol)
-      .order('trade_date', { ascending: false })
-      .limit(7)
-      .returns<MarketCandle[]>(),
-  ]);
-
   const state = toStrategyState(strategy);
-  const references = buildMarketReferenceHistory(priceResult.data ?? [], candleResult.data ?? []);
+  const references = await loadStrategyReferences(supabase!, id, strategy.symbol);
   const recentCloses = references.slice(0, 5).map((reference) => reference.price);
   const recentAverage = calculateReferenceAverage(references);
   const currentReference = references[0];

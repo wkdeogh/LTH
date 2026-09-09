@@ -1,3 +1,4 @@
+import { MainRecordsLink } from '@/components/MainRecordsLink';
 import { Suspense } from 'react';
 import type { Metadata, Viewport } from 'next';
 import Image from 'next/image';
@@ -39,7 +40,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             </Link>
             <nav className="global-nav" aria-label="주요 메뉴">
               <Link href="/">전략</Link>
-              <Link href="/rounds">기록</Link>
+              <Suspense fallback={<Link href="/rounds">기록</Link>}><MainRecordsLink /></Suspense>
               <Link href="/guide">사용법</Link>
             </nav>
           </header>

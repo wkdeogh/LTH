@@ -6,9 +6,11 @@ import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { koreaDate } from '@/lib/date';
-import type { Execution, MarketCandle, Strategy } from '@/lib/types';
-import { toNumber, toStrategyState } from '@/lib/types';
+import { latestClosedMarketDate } from '@/lib/date';
+import { randomUUID } from 'node:crypto';
+import { loadStrategyReferences } from '@/lib/marketData/references';
+import type { Execution, Strategy } from '@/lib/types';
+import { toStrategyState } from '@/lib/types';
 import {
   calculateNormalPlan,
   calculateReversePlan,
@@ -24,30 +26,20 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();
 
-  const [latestExecutionResult, recentCandlesResult] = await Promise.all([
-    supabase!
-      .from('executions')
-      .select('*')
-      .eq('strategy_id', id)
-      .order('created_at', { ascending: false })
-      .order('id', { ascending: false })
-      .limit(1)
-      .maybeSingle<Execution>(),
-    supabase!
-      .from('market_candles')
-      .select('*')
-      .eq('symbol', strategy.symbol)
-      .order('trade_date', { ascending: false })
-      .limit(5)
-      .returns<MarketCandle[]>(),
+  const [latestExecutionResult, correctionResult, references] = await Promise.all([
+    supabase!.from('executions').select('*').eq('strategy_id', id).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(1).maybeSingle<Execution>(),
+    supabase!.from('strategy_adjustments').select('effective_date').eq('strategy_id', id).eq('kind', 'correction').order('effective_date', { ascending: false }).limit(1).maybeSingle(),
+    loadStrategyReferences(supabase!, id, strategy.symbol),
   ]);
+  if (latestExecutionResult.error) throw latestExecutionResult.error;
+  if (correctionResult.error) throw correctionResult.error;
   const latestExecution = latestExecutionResult.data;
-  const recentCandles = recentCandlesResult.data ?? [];
-  const latestCandle = recentCandles[0];
-
+  const { data: lastDatedExecution, error: dateQueryError } = await supabase!.from('executions').select('executed_at').eq('strategy_id', id).order('executed_at', { ascending: false }).limit(1).maybeSingle();
+  if (dateQueryError) throw dateQueryError;
+  const earliestDate = [lastDatedExecution?.executed_at, correctionResult.data?.effective_date].filter(Boolean).sort().at(-1) ?? null;
   const state = toStrategyState(strategy);
-  const latestClose = latestCandle ? toNumber(latestCandle.close_price) : undefined;
-  const recentCloses = recentCandles.map((candle) => toNumber(candle.close_price));
+  const latestClose = references[0]?.price;
+  const recentCloses = references.slice(0, 5).map(reference => reference.price);
   const plan = state.mode === 'normal'
     ? calculateNormalPlan(state, latestClose)
     : calculateReversePlan(state, recentCloses, latestClose);
@@ -79,11 +71,16 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
       <section className="panel">
         <div className="section-head">
           <div><span className="eyebrow">EXECUTION</span><h2>체결 입력</h2></div>
-          <span className="required-note">모두 필수</span>
+          <span className="subtle-label">{references[0] ? `${references[0].date} 종가 기준` : '종가 미등록'}</span>
         </div>
         <ExecutionEntryForm
           strategyId={id}
-          executedAt={koreaDate(-1)}
+          executedAt={references[0]?.date ?? ''}
+          requestId={randomUUID()}
+          pairedRequestId={randomUUID()}
+          expectedVersion={strategy.version}
+          earliestDate={earliestDate}
+          latestDate={latestClosedMarketDate()}
           currentCash={state.cashBalance}
           currentPosition={state.positionQty}
           currentT={state.tValue}
@@ -117,7 +114,7 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
         <summary>
           <span>
             <strong>최근 체결 취소</strong>
-            <small>{latestExecution ? '최근 입력 1건만 취소할 수 있습니다' : '취소할 체결 기록이 없습니다'}</small>
+            <small>{latestExecution ? '최근 입력 묶음을 취소할 수 있습니다' : '취소할 체결 기록이 없습니다'}</small>
           </span>
           <span aria-hidden="true">＋</span>
         </summary>
@@ -133,7 +130,7 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
                 <input name="execution_id" type="hidden" value={latestExecution.id} />
                 <button
                   className="danger"
-                  data-confirm={`${latestExecution.executed_at} ${latestExecution.side === 'buy' ? '매수' : '매도'} ${latestExecution.quantity}주 체결을 취소하고 직전 상태로 되돌릴까요?`}
+                  data-confirm={`${latestExecution.executed_at} ${latestExecution.side === 'buy' ? '매수' : '매도'} ${latestExecution.quantity}주 체결이 포함된 최근 입력을 취소하고 직전 상태로 되돌릴까요?`}
                   type="submit"
                 >최근 체결 취소</button>
               </form>
