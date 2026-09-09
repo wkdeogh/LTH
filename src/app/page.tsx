@@ -66,7 +66,7 @@ export default async function HomePage() {
               <article className={`strategy-card clickable-strategy-card${strategy.is_main ? ' main-strategy-card' : ''}`} key={strategy.id}>
                 <div className="strategy-primary-control">
                   {strategy.is_main ? (
-                    <span className="main-strategy-badge"><span aria-hidden="true">★</span> 메인 전략</span>
+                    <span className="main-strategy-badge" role="img" aria-label="메인 전략">★</span>
                   ) : (
                     <form action={setMainStrategy}>
                       <input type="hidden" name="id" value={strategy.id} />

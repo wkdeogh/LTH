@@ -3915,6 +3915,7 @@ td {
 }
 
 .main-strategy-card {
+  position: relative;
   border-color: #9db9f7;
   box-shadow: 0 8px 28px rgba(21, 94, 239, 0.08);
 }
@@ -3927,16 +3928,21 @@ td {
   margin-bottom: 12px;
 }
 
+.main-strategy-card > .strategy-primary-control {
+  position: absolute;
+  top: -12px;
+  right: 22px;
+  min-height: 0;
+  margin: 0;
+}
+
 .main-strategy-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 11px;
-  border-radius: 999px;
-  background: #edf3ff;
+  display: block;
+  padding: 0 5px;
+  background: var(--surface);
   color: #155eef;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 22px;
+  line-height: 24px;
 }
 
 button.main-strategy-select {
