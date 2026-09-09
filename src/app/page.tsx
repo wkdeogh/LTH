@@ -7,7 +7,7 @@ import { setMainStrategy } from '@/app/actions';
 import { SetupNotice } from '@/components/SetupNotice';
 import { compact, usd } from '@/components/Format';
 import { hasSupabaseEnv } from '@/lib/env';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseReadClient } from '@/lib/supabase/read';
 import type { Strategy } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 import {
@@ -16,7 +16,6 @@ import {
   referenceSourceLabel,
 } from '@/lib/trading';
 
-export const dynamic = 'force-dynamic';
 
 function signedUsd(value: number | string) {
   const number = typeof value === 'string' ? Number(value) : value;
@@ -30,7 +29,7 @@ function signedPercent(value: number) {
 export default async function HomePage() {
   if (!hasSupabaseEnv()) return <SetupNotice />;
 
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseReadClient();
   const { data: strategies, error } = await supabase!
     .from('strategies')
     .select('*')
@@ -49,7 +48,14 @@ export default async function HomePage() {
     );
   }
 
-  const histories = new Map(await Promise.all((strategies ?? []).map(async strategy => [strategy.id, await loadStrategyReferences(supabase!, strategy.id, strategy.symbol)] as const)));
+  const main = strategies?.find(strategy => strategy.is_main);
+  const [historyEntries, recentResult] = await Promise.all([
+    Promise.all((strategies ?? []).map(async strategy => [strategy.id, await loadStrategyReferences(supabase!, strategy.id, strategy.symbol)] as const)),
+    main ? supabase!.from('executions').select('*').eq('strategy_id', main.id).order('executed_at', { ascending: false }).order('created_at', { ascending: false }).limit(3).returns<Execution[]>() : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (recentResult.error) throw recentResult.error;
+  const recentExecutions = recentResult.data ?? [];
+  const histories = new Map(historyEntries);
 
   const renderStrategy = (strategy: Strategy) => {
             const history = histories.get(strategy.id) ?? [];
@@ -128,17 +134,10 @@ export default async function HomePage() {
               </article>
             );
   };
-  const main = strategies?.find(strategy => strategy.is_main);
   const others = strategies?.filter(strategy => !strategy.is_main) ?? [];
   const references = main ? histories.get(main.id) ?? [] : [];
   const state = main ? toStrategyState(main) : null;
   const plan = state ? state.mode === 'normal' ? calculateNormalPlan(state, references[0]?.price) : calculateReversePlan(state, references.slice(0,5).map(r => r.price), references[0]?.price) : null;
-  let recentExecutions: Execution[] = [];
-  if (main) {
-    const { data, error } = await supabase!.from('executions').select('*').eq('strategy_id', main.id).order('executed_at', { ascending: false }).order('created_at', { ascending: false }).limit(3).returns<Execution[]>();
-    if (error) throw error;
-    recentExecutions = data ?? [];
-  }
   return (
     <div className="stack page-stack">
       <section className="hero home-hero"><div><h1>HELLO DAEHO</h1></div></section>

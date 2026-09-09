@@ -3967,3 +3967,12 @@ button.main-strategy-select:hover { color: #155eef; border-color: #9db9f7; }
 @media(max-width:420px) { .home-order { padding:12px; } }
 .correction-row { align-items:flex-start; flex-wrap:wrap; gap:12px; }
 .correction-row > div { min-width:0; overflow-wrap:anywhere; }
+
+.page-transition { min-width: 0; }
+.market-chart-placeholder { display:block; width:100%; height:450px; border-radius:12px; }
+@media (max-width: 640px) { .market-chart-placeholder { height:360px; } }
+
+.page-transition :is(.strategy-list, .order-list, .records-list, .round-list) > * { animation: none; }
+
+.market-section { min-height:700px; }
+@media (max-width:640px) { .market-section { min-height:756px; } }

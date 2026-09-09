@@ -1,24 +1,20 @@
+import { Suspense } from 'react';
+import { loadStrategyReferences } from '@/lib/marketData/references';
+import { loadStrategyChart, MarketSectionSkeleton, StrategyMarketSection } from '@/components/StrategyMarketSection';
 import { StrategyCorrectionForm } from '@/components/StrategyCorrectionForm';
-import { latestClosedMarketDate } from '@/lib/date';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { addDailyPrice, deleteStrategy, refreshMarketChart, switchToNormal, switchToReverse } from '@/app/actions';
-import { AiChartAnalysis } from '@/components/AiChartAnalysis';
+import { addDailyPrice, deleteStrategy, switchToNormal, switchToReverse } from '@/app/actions';
 import { compact, usd } from '@/components/Format';
-import { LazyMarketChart } from '@/components/LazyMarketChart';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
-import { toChartAnalysisJob, toStoredChartAnalysis } from '@/lib/ai/chartAnalysis';
-import type { ChartAnalysisRow } from '@/lib/ai/chartAnalysis';
 import { inclusiveDateCount, koreaDate } from '@/lib/date';
-import { hasOpenAIEnv, hasSupabaseEnv } from '@/lib/env';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { DailyPrice, Execution, MarketCandle, Strategy } from '@/lib/types';
+import { hasSupabaseEnv } from '@/lib/env';
+import { createSupabaseReadClient } from '@/lib/supabase/read';
+import type { Strategy } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 import {
-  buildMarketReferenceHistory,
   calculateAccountPerformance,
-  calculateNormalPlan,
   calculatePositionPerformance,
   calculateReferenceAverage,
   calculateStarPercent,
@@ -34,76 +30,20 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
   if (!hasSupabaseEnv()) return <SetupNotice />;
 
   const { id } = await params;
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseReadClient();
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();
 
-  const chartStart = new Date();
-  chartStart.setUTCFullYear(chartStart.getUTCFullYear() - 3);
-  chartStart.setUTCDate(chartStart.getUTCDate() - 14);
   const currentDate = koreaDate();
-
-  const [priceResult, candleResult, chartExecutionResult, aiAnalysisResult, roundTradingDayResult] = await Promise.all([
-    supabase!
-      .from('daily_prices')
-      .select('*').lte('trade_date', latestClosedMarketDate())
-      .eq('strategy_id', id)
-      .order('trade_date', { ascending: false })
-      .limit(7)
-      .returns<DailyPrice[]>(),
-    supabase!
-      .from('market_candles')
-      .select('*').lte('trade_date', latestClosedMarketDate())
-      .eq('symbol', strategy.symbol)
-      .gte('trade_date', chartStart.toISOString().slice(0, 10))
-      .order('trade_date', { ascending: true })
-      .limit(900)
-      .returns<MarketCandle[]>(),
-    supabase!
-      .from('executions')
-      .select('*')
-      .eq('strategy_id', id)
-      .gte('executed_at', chartStart.toISOString().slice(0, 10))
-      .order('executed_at', { ascending: true })
-      .order('created_at', { ascending: true })
-      .limit(1000)
-      .returns<Execution[]>(),
-    supabase!
-      .from('ai_chart_analyses')
-      .select('id, strategy_id, symbol, model, reasoning_effort, candle_start, candle_end, candle_count, analysis, openai_response_id, status, error_message, completed_at, created_at')
-      .eq('strategy_id', id)
-      .order('created_at', { ascending: false })
-      .limit(10)
-      .returns<ChartAnalysisRow[]>(),
-    supabase!
-      .from('market_candles')
-      .select('trade_date', { count: 'exact', head: true })
-      .eq('symbol', strategy.symbol)
-      .gte('trade_date', strategy.started_at)
-      .lte('trade_date', currentDate),
+  const chartData = loadStrategyChart(strategy);
+  const [references, roundTradingDayResult] = await Promise.all([
+    loadStrategyReferences(supabase!, id, strategy.symbol),
+    supabase!.from('market_candles').select('trade_date', { count: 'exact', head: true })
+      .eq('symbol', strategy.symbol).gte('trade_date', strategy.started_at).lte('trade_date', currentDate),
   ]);
-
-  const aiAnalysisRows = aiAnalysisResult.data ?? [];
-  let initialAiAnalysis = null;
-  for (const row of aiAnalysisRows) {
-    if (row.status !== 'completed' || !row.analysis) continue;
-    try {
-      initialAiAnalysis = toStoredChartAnalysis(row);
-      break;
-    } catch (error) {
-      console.error('저장된 AI 차트 분석을 불러오지 못했습니다:', error);
-    }
-  }
-  const initialAiJob = aiAnalysisRows[0] ? toChartAnalysisJob(aiAnalysisRows[0]) : null;
-
-  const prices = priceResult.data ?? [];
+  if (roundTradingDayResult.error) throw roundTradingDayResult.error;
   const roundCalendarDays = inclusiveDateCount(strategy.started_at, currentDate);
-  const roundTradingDays = roundTradingDayResult.count ?? new Set(
-    (candleResult.data ?? [])
-      .map((candle) => candle.trade_date)
-      .filter((date) => date >= strategy.started_at && date <= currentDate),
-  ).size;
-  const references = buildMarketReferenceHistory(prices, candleResult.data ?? []);
+  const roundTradingDays = roundTradingDayResult.count ?? 0;
   const reference = references[0];
   const positionPerformance = calculatePositionPerformance(
     strategy.position_qty,
@@ -140,23 +80,6 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
   const currentStarPercent = strategy.mode === 'normal'
     ? calculateStarPercent(strategy.symbol, strategy.split_count, toNumber(strategy.t_value)) * 100
     : null;
-  const chartPlan = strategy.mode === 'normal'
-    ? calculateNormalPlan({
-      id: strategy.id,
-      name: strategy.name,
-      symbol: strategy.symbol,
-      splitCount: strategy.split_count,
-      principal: toNumber(strategy.principal),
-      cashBalance: toNumber(strategy.cash_balance),
-      positionQty: strategy.position_qty,
-      avgPrice: toNumber(strategy.avg_price),
-      tValue: toNumber(strategy.t_value),
-      mode: strategy.mode,
-      reverseStartedAt: strategy.reverse_started_at,
-      reverseFirstSellDone: strategy.reverse_first_sell_done,
-    }, reference?.price)
-    : null;
-
   return (
     <div className="stack page-stack">
       <section className="hero compact-hero">
@@ -254,34 +177,9 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
         </div>
       </section>
 
-      <section className="panel chart-panel" id="market-chart">
-        <div className="section-head chart-section-head">
-          <div>
-            <span className="eyebrow">{strategy.symbol} MARKET</span>
-            <h2>{strategy.symbol} 차트와 체결 지점</h2>
-          </div>
-          <div className="section-head-actions">
-            <form action={refreshMarketChart}>
-              <input name="strategy_id" type="hidden" value={strategy.id} />
-              <button className="button ghost chart-refresh-button" type="submit">캔들 즉시 갱신</button>
-            </form>
-          </div>
-        </div>
-        <LazyMarketChart
-          symbol={strategy.symbol}
-          candles={candleResult.data ?? []}
-          executions={chartExecutionResult.data ?? []}
-          averagePrice={toNumber(strategy.avg_price)}
-          starPrice={chartPlan?.starPrice ?? null}
-          fullSellPrice={chartPlan?.targetSellPrice ?? null}
-        />
-        <AiChartAnalysis
-          strategyId={strategy.id}
-          initialAnalysis={initialAiAnalysis}
-          initialJob={initialAiJob}
-          enabled={hasOpenAIEnv()}
-        />
-      </section>
+      <Suspense fallback={<MarketSectionSkeleton symbol={strategy.symbol} />}>
+        <StrategyMarketSection strategy={strategy} data={chartData} referencePrice={reference?.price} />
+      </Suspense>
 
       <section className="panel">
         <div className="section-head">

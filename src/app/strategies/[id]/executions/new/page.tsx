@@ -5,7 +5,7 @@ import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseReadClient } from '@/lib/supabase/read';
 import { latestClosedMarketDate } from '@/lib/date';
 import { randomUUID } from 'node:crypto';
 import { loadStrategyReferences } from '@/lib/marketData/references';
@@ -22,19 +22,20 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
   if (!hasSupabaseEnv()) return <SetupNotice />;
 
   const { id } = await params;
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseReadClient();
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();
 
-  const [latestExecutionResult, correctionResult, references] = await Promise.all([
+  const [latestExecutionResult, correctionResult, references, lastDatedResult] = await Promise.all([
     supabase!.from('executions').select('*').eq('strategy_id', id).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(1).maybeSingle<Execution>(),
     supabase!.from('strategy_adjustments').select('effective_date').eq('strategy_id', id).eq('kind', 'correction').order('effective_date', { ascending: false }).limit(1).maybeSingle(),
     loadStrategyReferences(supabase!, id, strategy.symbol),
+    supabase!.from('executions').select('executed_at').eq('strategy_id', id).order('executed_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (latestExecutionResult.error) throw latestExecutionResult.error;
   if (correctionResult.error) throw correctionResult.error;
   const latestExecution = latestExecutionResult.data;
-  const { data: lastDatedExecution, error: dateQueryError } = await supabase!.from('executions').select('executed_at').eq('strategy_id', id).order('executed_at', { ascending: false }).limit(1).maybeSingle();
+  const { data: lastDatedExecution, error: dateQueryError } = lastDatedResult;
   if (dateQueryError) throw dateQueryError;
   const earliestDate = [lastDatedExecution?.executed_at, correctionResult.data?.effective_date].filter(Boolean).sort().at(-1) ?? null;
   const state = toStrategyState(strategy);

@@ -1,3 +1,4 @@
+import { PageTransition } from '@/components/PageTransition';
 import { MainRecordsLink } from '@/components/MainRecordsLink';
 import { Suspense } from 'react';
 import type { Metadata, Viewport } from 'next';
@@ -44,7 +45,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <Link href="/guide">사용법</Link>
             </nav>
           </header>
-          {children}
+          <Suspense fallback={children}><PageTransition>{children}</PageTransition></Suspense>
           <footer className="footer">
             <p>개인용 무한매수법 V4.0 주문 가이드</p>
             <Link href="/guide">전략 사용법</Link>

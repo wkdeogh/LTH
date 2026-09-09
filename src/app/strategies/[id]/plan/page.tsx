@@ -7,7 +7,7 @@ import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
 import { SupplementalOrders } from '@/components/SupplementalOrders';
 import { hasSupabaseEnv } from '@/lib/env';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseReadClient } from '@/lib/supabase/read';
 import type { Strategy } from '@/lib/types';
 import { toStrategyState } from '@/lib/types';
 import {
@@ -55,7 +55,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
   if (!hasSupabaseEnv()) return <SetupNotice />;
 
   const { id } = await params;
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseReadClient();
 
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();

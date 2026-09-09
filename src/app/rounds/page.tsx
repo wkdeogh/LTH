@@ -3,7 +3,7 @@ import { compact, usd } from '@/components/Format';
 import { CompletedRoundEditor } from '@/components/CompletedRoundEditor';
 import { SetupNotice } from '@/components/SetupNotice';
 import { hasSupabaseEnv } from '@/lib/env';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseReadClient } from '@/lib/supabase/read';
 import type { CompletedRound } from '@/lib/types';
 
 type StrategySummary = {
@@ -20,7 +20,7 @@ function signedUsd(value: number | string) {
 export default async function AllRoundsPage() {
   if (!hasSupabaseEnv()) return <SetupNotice />;
 
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseReadClient();
   const [roundResult, strategyResult] = await Promise.all([
     supabase!
       .from('completed_rounds')

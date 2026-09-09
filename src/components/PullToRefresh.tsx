@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { refreshReadData } from '@/app/actions';
 import { useRouter } from 'next/navigation';
 
 type RefreshPhase = 'idle' | 'pulling' | 'ready' | 'refreshing' | 'done';
@@ -81,7 +82,8 @@ export function PullToRefresh() {
     setDistance(60);
     if ('vibrate' in navigator) navigator.vibrate(14);
 
-    startTransition(() => {
+    startTransition(async () => {
+      await refreshReadData();
       router.refresh();
     });
 

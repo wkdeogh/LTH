@@ -9,7 +9,7 @@ import { CompletedRoundEditor } from '@/components/CompletedRoundEditor';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseReadClient } from '@/lib/supabase/read';
 import type { CompletedRound, DailyPrice, Execution, MarketCandle, Strategy, TEffect } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 import { buildAssetValueHistory, type AssetValuePoint, type ExecutionSnapshot } from '@/lib/trading';
@@ -198,12 +198,12 @@ export default async function StrategyRoundsPage({
 
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const view: RecordView = query.view === 'rounds' || query.view === 'assets' ? query.view : 'executions';
-  const supabase = createSupabaseServerClient();
-  const [strategyResult, roundResult, executionResult] = await Promise.all([
+  const supabase = createSupabaseReadClient();
+  const [strategyResult, roundResult, executionResult, adjustmentResult, snapshotResult] = await Promise.all([
     supabase!.from('strategies').select('*').eq('id', id).single<Strategy>(),
     supabase!
       .from('completed_rounds')
-      .select('*')
+      .select('*', { count: 'exact', head: view === 'assets' })
       .eq('strategy_id', id)
       .order('round_number', { ascending: false })
       .returns<CompletedRound[]>(),
@@ -214,6 +214,12 @@ export default async function StrategyRoundsPage({
       .order('executed_at', { ascending: true })
       .order('created_at', { ascending: true })
       .returns<Execution[]>(),
+    view !== 'rounds'
+      ? supabase!.from('strategy_adjustments').select('*').eq('strategy_id', id).order('effective_date', { ascending: false }).order('created_at', { ascending: false }).returns<StrategyAdjustment[]>()
+      : Promise.resolve({ data: [], error: null }),
+    view === 'assets'
+      ? supabase!.from('strategy_snapshots').select('execution_id, cash_balance, position_qty, after_cash_balance, after_position_qty').eq('strategy_id', id).not('execution_id', 'is', null).returns<ExecutionSnapshot[]>()
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   const strategy = strategyResult.data;
@@ -228,22 +234,16 @@ export default async function StrategyRoundsPage({
     );
   }
 
-  const { data: adjustmentData, error: adjustmentError } = await supabase!.from('strategy_adjustments').select('*').eq('strategy_id', id).order('effective_date', { ascending: false }).order('created_at', { ascending: false }).returns<StrategyAdjustment[]>();
-  if (adjustmentError) throw adjustmentError;
-  const adjustments = adjustmentData ?? [];
+  if (adjustmentResult.error) throw adjustmentResult.error;
+  if (snapshotResult.error) throw snapshotResult.error;
+  const adjustments = adjustmentResult.data ?? [];
   const rounds = roundResult.data ?? [];
   const executions = executionResult.data ?? [];
   let assetPoints: AssetValuePoint[] = [];
 
   if (view === 'assets' && executions.length > 0) {
     const firstExecutionDate = executions[0].executed_at;
-    const [snapshotResult, candleResult, dailyPriceResult] = await Promise.all([
-      supabase!
-        .from('strategy_snapshots')
-        .select('execution_id, cash_balance, position_qty, after_cash_balance, after_position_qty')
-        .eq('strategy_id', id)
-        .not('execution_id', 'is', null)
-        .returns<ExecutionSnapshot[]>(),
+    const [candleResult, dailyPriceResult] = await Promise.all([
       supabase!
         .from('market_candles')
         .select('*')
@@ -260,11 +260,11 @@ export default async function StrategyRoundsPage({
         .returns<DailyPrice[]>(),
     ]);
 
-    if (snapshotResult.error || candleResult.error || dailyPriceResult.error) {
+    if (candleResult.error || dailyPriceResult.error) {
       return (
         <section className="panel">
           <h1>자산 기록을 불러오지 못했습니다</h1>
-          <p className="danger-text">{snapshotResult.error?.message ?? candleResult.error?.message ?? dailyPriceResult.error?.message}</p>
+          <p className="danger-text">{candleResult.error?.message ?? dailyPriceResult.error?.message}</p>
         </section>
       );
     }
@@ -305,7 +305,7 @@ export default async function StrategyRoundsPage({
           <span>자산차트</span>
         </Link>
         <Link className={`record-view-tab ${view === 'rounds' ? 'active' : ''}`} href={`/strategies/${id}/rounds?view=rounds`}>
-          <span>라운드 기록</span><strong>{rounds.length}</strong>
+          <span>라운드 기록</span><strong>{roundResult.count ?? rounds.length}</strong>
         </Link>
       </nav>
 

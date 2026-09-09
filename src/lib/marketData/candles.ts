@@ -1,4 +1,5 @@
 import 'server-only';
+import { revalidateMarketData } from '@/lib/supabase/revalidate';
 import { latestClosedMarketDate } from '@/lib/date';
 import { loadStrategyReferences } from '@/lib/marketData/references';
 
@@ -121,6 +122,7 @@ export async function syncMarketData(symbol: SymbolCode) {
       .from('market_candles')
       .upsert(rows.slice(index, index + 500), { onConflict: 'symbol,trade_date' });
     if (error) throw error;
+    revalidateMarketData();
   }
 
   const latestRow = rows.reduce<(typeof rows)[number] | null>((latest, row) => (
