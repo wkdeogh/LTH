@@ -3901,3 +3901,43 @@ td {
     transition: none !important;
   }
 }
+
+.main-strategy-card {
+  border-color: #9db9f7;
+  box-shadow: 0 8px 28px rgba(21, 94, 239, 0.08);
+}
+
+.strategy-primary-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 36px;
+  margin-bottom: 12px;
+}
+
+.main-strategy-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: #edf3ff;
+  color: #155eef;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+button.main-strategy-select {
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+button.main-strategy-select:hover { color: #155eef; border-color: #9db9f7; }
+.main-strategy-protection { flex-basis: 100%; }
+.main-strategy-protection button:disabled { cursor: not-allowed; opacity: 1; }
+.main-strategy-protection p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+.main-strategy-protection a { color: #155eef; text-decoration: underline; }

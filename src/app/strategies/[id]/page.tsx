@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { addDailyPrice, deleteStrategy, refreshMarketChart, switchToNormal, switchToReverse, updateStrategy } from '@/app/actions';
 import { AiChartAnalysis } from '@/components/AiChartAnalysis';
@@ -346,7 +347,14 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
         <div className="actions disclosure-body">
           <form action={switchToReverse}><input type="hidden" name="id" value={id} /><button type="submit" className="secondary">리버스모드로 전환</button></form>
           <form action={switchToNormal}><input type="hidden" name="id" value={id} /><button type="submit" className="secondary">일반모드로 복귀</button></form>
-          <form action={deleteStrategy}><input type="hidden" name="id" value={id} /><button type="submit" className="danger">전략 삭제</button></form>
+          {strategy.is_main ? (
+            <div className="main-strategy-protection">
+              <button type="button" className="secondary" disabled aria-describedby="main-strategy-delete-hint">메인 전략 · 삭제 불가</button>
+              <p id="main-strategy-delete-hint"><Link href="/">전략 목록</Link>에서 다른 전략을 메인으로 설정한 후 삭제할 수 있습니다.</p>
+            </div>
+          ) : (
+            <form action={deleteStrategy}><input type="hidden" name="id" value={id} /><button type="submit" className="danger">전략 삭제</button></form>
+          )}
         </div>
       </details>
     </div>

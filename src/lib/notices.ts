@@ -1,4 +1,7 @@
 export const noticeMessages = {
+  'main-strategy-updated': { message: '메인 전략을 변경했어요.', tone: 'success' },
+  'main-strategy-protected': { message: '다른 전략을 메인으로 설정한 후 삭제할 수 있어요.', tone: 'warning' },
+  'main-strategy-unavailable': { message: '사용 중인 전략만 메인으로 설정할 수 있어요.', tone: 'warning' },
   'strategy-created': { message: '새 전략을 만들었어요.', tone: 'success' },
   'strategy-updated': { message: '현재 상태를 저장했어요.', tone: 'success' },
   'strategy-deleted': { message: '전략을 목록에서 정리했어요.', tone: 'success' },

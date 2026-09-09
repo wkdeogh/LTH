@@ -35,7 +35,7 @@ export function Toast() {
   const notice = noticeMessages[noticeKey];
   return (
     <div className="app-toast" data-tone={notice.tone} role="status" aria-live="polite">
-      <span className="app-toast-icon" aria-hidden="true">{notice.tone === 'celebrate' ? '★' : '✓'}</span>
+      <span className="app-toast-icon" aria-hidden="true">{notice.tone === 'celebrate' ? '★' : notice.tone === 'warning' ? '!' : '✓'}</span>
       <span>{notice.message}</span>
       <button className="app-toast-close" onClick={() => setNoticeKey(null)} type="button" aria-label="알림 닫기">×</button>
     </div>

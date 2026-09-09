@@ -139,11 +139,32 @@ export async function updateStrategy(formData: FormData) {
   redirect(withNotice(`/strategies/${id}`, 'strategy-updated'));
 }
 
+export async function setMainStrategy(formData: FormData) {
+  const supabase = supabaseOrThrow();
+  const id = stringValue(formData, 'id');
+  const { error } = await supabase.rpc('set_main_strategy', { target_id: id });
+  if (error?.message === 'STRATEGY_NOT_ACTIVE') {
+    redirect(withNotice('/', 'main-strategy-unavailable'));
+  }
+  if (error) throw error;
+
+  revalidatePath('/', 'layout');
+  redirect(withNotice('/', 'main-strategy-updated'));
+}
+
 export async function deleteStrategy(formData: FormData) {
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');
 
-  const { error } = await supabase.from('strategies').update({ is_archived: true }).eq('id', id);
+  const { data, error } = await supabase.from('strategies')
+    .update({ is_archived: true })
+    .eq('id', id)
+    .eq('is_main', false)
+    .eq('is_archived', false)
+    .select('id');
+  if (error?.message === 'MAIN_STRATEGY_PROTECTED' || (!error && !data?.length)) {
+    redirect(withNotice(`/strategies/${id}`, 'main-strategy-protected'));
+  }
   if (error) throw error;
 
   revalidatePath('/');

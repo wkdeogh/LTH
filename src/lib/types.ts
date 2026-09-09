@@ -31,6 +31,7 @@ export type Strategy = {
   reverse_first_sell_done: boolean;
   compounding_type: CompoundingType;
   is_archived: boolean;
+  is_main: boolean;
   sort_order: number;
   started_at: string;
   created_at: string;

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { setMainStrategy } from '@/app/actions';
 import { SetupNotice } from '@/components/SetupNotice';
 import { compact, usd } from '@/components/Format';
 import { hasSupabaseEnv } from '@/lib/env';
@@ -43,6 +44,7 @@ export default async function HomePage() {
     .from('strategies')
     .select('*')
     .eq('is_archived', false)
+    .order('is_main', { ascending: false })
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
     .returns<Strategy[]>();
@@ -122,7 +124,17 @@ export default async function HomePage() {
             const progress = Math.min(Math.max((toNumber(strategy.t_value) / strategy.split_count) * 100, 0), 100);
 
             return (
-              <article className="strategy-card clickable-strategy-card" key={strategy.id}>
+              <article className={`strategy-card clickable-strategy-card${strategy.is_main ? ' main-strategy-card' : ''}`} key={strategy.id}>
+                <div className="strategy-primary-control">
+                  {strategy.is_main ? (
+                    <span className="main-strategy-badge"><span aria-hidden="true">★</span> 메인 전략</span>
+                  ) : (
+                    <form action={setMainStrategy}>
+                      <input type="hidden" name="id" value={strategy.id} />
+                      <button type="submit" className="main-strategy-select" aria-label={`${strategy.name} 메인으로 설정`}>메인으로 설정</button>
+                    </form>
+                  )}
+                </div>
                 <Link className="strategy-card-main-link" href={`/strategies/${strategy.id}`} aria-label={`${strategy.name} 상세 보기`}>
                   <div className="strategy-card-head">
                     <div>
