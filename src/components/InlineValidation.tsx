@@ -108,6 +108,16 @@ function applyBusinessRules(form: HTMLFormElement) {
     }
   }
 
+  if (kind === 'dual-sell') {
+    const locQuantity = numericValue(namedControl(form, 'loc_quantity')) ?? 0;
+    const limitControl = namedControl(form, 'limit_quantity');
+    const limitQuantity = numericValue(limitControl) ?? 0;
+    const position = Number(form.dataset.currentPosition ?? 0);
+    if (locQuantity + limitQuantity > position) {
+      setBusinessError(limitControl, `매도 합계가 현재 보유수량 ${position}주를 초과해요.`);
+    }
+  }
+
   if (kind === 'paired-execution') {
     const sellQuantityControl = namedControl(form, 'sell_quantity');
     const sellPriceControl = namedControl(form, 'sell_avg_execution_price');

@@ -1866,6 +1866,10 @@ button.is-pending > span {
   padding: 4px;
 }
 
+.execution-kind-switch .dual-sell-option {
+  grid-column: 1 / -1;
+}
+
 .execution-kind-switch.single-option {
   grid-template-columns: 1fr;
 }

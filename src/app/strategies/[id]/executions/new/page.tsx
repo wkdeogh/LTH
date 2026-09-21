@@ -48,6 +48,7 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
   const pairedFinalSell = plan.kind === 'normal'
     ? plan.sellOrders.find((order) => order.orderType === 'LIMIT')
     : undefined;
+  const quarterSell = plan.kind === 'normal' ? plan.sellOrders.find(order => order.orderType === 'LOC') : undefined;
   const pairedDefaults = state.mode === 'normal' && state.positionQty > 0 && pairedFinalSell
     ? {
         sellQuantity: pairedFinalSell.quantity,
@@ -79,6 +80,12 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
           executedAt={references[0]?.date ?? ''}
           requestId={randomUUID()}
           pairedRequestId={randomUUID()}
+          dualSellRequestId={randomUUID()}
+          dualSellDefaults={pairedFinalSell && quarterSell && pairedFinalSell.quantity > 0 && quarterSell.quantity > 0 ? {
+            limitQuantity: pairedFinalSell.quantity, limitPrice: pairedFinalSell.price ?? undefined,
+            locQuantity: quarterSell.quantity, locPrice: latestClose,
+            selected: executionDefaults?.tEffect === 'full_sell',
+          } : undefined}
           expectedVersion={strategy.version}
           earliestDate={earliestDate}
           latestDate={latestClosedMarketDate()}

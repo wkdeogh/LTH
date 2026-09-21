@@ -19,6 +19,7 @@ import {
   shouldAutoEnterReverseMode,
   shouldAutoReturnToNormalMode,
 } from '@/lib/trading';
+import { calculateDualSellExecution } from '@/lib/trading/dualSellExecution';
 import { roundMoney } from '@/lib/trading/rounding';
 
 function supabaseOrThrow() {
@@ -346,10 +347,14 @@ export async function recordExecution(formData: FormData) {
 
   if (String(strategy.version) !== context.expectedVersion) throw new Error('STALE_STRATEGY');
   const state = toStrategyState(strategy);
-  const effect = stringValue(formData, 't_effect', 'none') as TEffect;
+  const dualSell = stringValue(formData, 'entry_kind') === 'dual-sell'
+    ? calculateDualSellExecution(state, numberValue(formData, 'limit_quantity'), numberValue(formData, 'limit_price'), numberValue(formData, 'loc_quantity'), numberValue(formData, 'loc_price'))
+    : null;
+  if (dualSell && side !== 'sell') throw new Error('매도 입력을 확인해 주세요.');
+  const effect = dualSell?.effect ?? stringValue(formData, 't_effect', 'none') as TEffect;
   const computedT = applyTEffect(state.tValue, effect, state.splitCount);
-  const quantity = intValue(formData, 'quantity');
-  const avgExecutionPrice = numberValue(formData, 'avg_execution_price');
+  const quantity = dualSell?.quantity ?? intValue(formData, 'quantity');
+  const avgExecutionPrice = dualSell ? dualSell.totalAmount / quantity : numberValue(formData, 'avg_execution_price');
 
   if (quantity <= 0) throw new Error('체결 수량은 1주 이상이어야 합니다.');
   if (avgExecutionPrice <= 0) throw new Error('평균 체결가는 0보다 커야 합니다.');
@@ -357,7 +362,7 @@ export async function recordExecution(formData: FormData) {
     throw new Error(`매도 수량(${quantity}주)이 현재 보유수량(${state.positionQty}주)을 초과합니다.`);
   }
 
-  const totalAmount = roundMoney(quantity * avgExecutionPrice);
+  const totalAmount = dualSell?.totalAmount ?? roundMoney(quantity * avgExecutionPrice);
   if (side === 'buy' && totalAmount > state.cashBalance) {
     throw new Error(`매수금액(${totalAmount})이 현재 현금(${state.cashBalance})을 초과합니다.`);
   }
@@ -372,7 +377,7 @@ export async function recordExecution(formData: FormData) {
     : autoPositionQty > 0
       ? state.avgPrice
       : 0;
-  const useFinalState = formData.get('use_final_state') === 'on';
+  const useFinalState = !dualSell && formData.get('use_final_state') === 'on';
   const finalT = useFinalState && stringValue(formData, 'final_t_value') ? numberValue(formData, 'final_t_value') : computedT;
   const requestedFinalMode = (useFinalState ? stringValue(formData, 'final_mode', state.mode) : state.mode) as TradeMode;
   const finalCashBalance = autoCashBalance;
@@ -425,10 +430,10 @@ export async function recordExecution(formData: FormData) {
   const redirectPath = autoEnteredReverse || autoReturnedToNormal ? `/strategies/${strategyId}/plan` : `/strategies/${strategyId}`;
   const notice: NoticeKey = isCompletedRound ? 'round-completed' : autoReturnedToNormal ? 'normal-auto-restored' : autoEnteredReverse ? 'reverse-auto-started' : 'execution-saved';
   const roundPerformance = isCompletedRound ? calculateRoundPerformance(state.principal, finalCashBalance) : null;
-  await commitExecution(context, [{
+  await commitExecution(context, dualSell ? dualSell.legs.map(leg => ({ ...leg, id: crypto.randomUUID(), executed_at: executedAt, memo: stringValue(formData, 'memo') || null })) : [{
     id: crypto.randomUUID(), executed_at: executedAt, side, order_type: stringValue(formData, 'order_type'),
     quantity, avg_execution_price: avgExecutionPrice, total_amount: totalAmount, t_effect: effect, memo: stringValue(formData, 'memo') || null,
-  }], [{
+  }], dualSell?.snapshots ?? [{
     cash_balance: state.cashBalance, position_qty: state.positionQty, avg_price: state.avgPrice, t_value: state.tValue,
     after_cash_balance: finalCashBalance, after_position_qty: finalPositionQty,
   }], {

@@ -1,5 +1,6 @@
 'use client';
 
+import { DualSellExecutionForm, type DualSellDefaults } from './DualSellExecutionForm';
 import { useRetainedForm } from '@/components/useRetainedForm';
 import { useActionState, useState } from 'react';
 import { submitExecution, submitPairedExecution } from '@/app/actions';
@@ -45,6 +46,8 @@ type Props = {
   strategyId: string;
   requestId: string;
   pairedRequestId: string;
+  dualSellRequestId: string;
+  dualSellDefaults?: DualSellDefaults;
   expectedVersion: number;
   earliestDate: string | null;
   latestDate: string;
@@ -71,7 +74,7 @@ type Props = {
 };
 
 export function ExecutionEntryForm({
-  strategyId, requestId, pairedRequestId, expectedVersion, earliestDate, latestDate,
+  strategyId, requestId, pairedRequestId, dualSellRequestId, dualSellDefaults, expectedVersion, earliestDate, latestDate,
   executedAt: initialExecutedAt,
   currentCash,
   currentPosition,
@@ -86,7 +89,7 @@ export function ExecutionEntryForm({
   const [pairedFeedback, pairedAction, pairedPending] = useActionState(submitPairedExecution, { error: null });
   const singleForm = useRetainedForm(singleFeedback);
   const pairedForm = useRetainedForm(pairedFeedback);
-  const [entryKind, setEntryKind] = useState<'single' | 'paired'>('single');
+  const [entryKind, setEntryKind] = useState<'single' | 'paired' | 'dual-sell'>(dualSellDefaults?.selected ? 'dual-sell' : 'single');
   const [executedAt, setExecutedAt] = useState(initialExecutedAt);
   const [singleSide, setSingleSide] = useState<TradeSide>(singleDefaults.side);
   const [singleOrderType, setSingleOrderType] = useState<OrderType>(singleDefaults.orderType);
@@ -113,7 +116,7 @@ export function ExecutionEntryForm({
 
   return (
     <>
-      <div className={`execution-kind-switch ${pairedDefaults ? '' : 'single-option'}`} role="group" aria-label="체결 입력 방식">
+      <div className={`execution-kind-switch ${pairedDefaults || dualSellDefaults ? '' : 'single-option'}`} role="group" aria-label="체결 입력 방식">
         <button
           type="button"
           className={entryKind === 'single' ? 'active' : ''}
@@ -132,9 +135,14 @@ export function ExecutionEntryForm({
             지정가 매도 + LOC 매수
           </button>
         )}
+        {dualSellDefaults && <button type="button" className={entryKind === 'dual-sell' ? 'dual-sell-option active' : 'dual-sell-option'} aria-pressed={entryKind === 'dual-sell'} onClick={() => setEntryKind('dual-sell')}>쿼터·지정가 매도</button>}
       </div>
 
-      {entryKind === 'single' || !pairedDefaults ? (
+      {entryKind === 'dual-sell' && dualSellDefaults ? (
+        <DualSellExecutionForm strategyId={strategyId} requestId={dualSellRequestId} expectedVersion={expectedVersion}
+          executedAt={executedAt} onDateChange={setExecutedAt} earliestDate={earliestDate} latestDate={latestDate}
+          dateError={dateError} currentPosition={currentPosition} currentT={currentT} splitCount={splitCount} defaults={dualSellDefaults} />
+      ) : entryKind === 'single' || !pairedDefaults ? (
         <form
           className="form execution-entry-form"
           action={singleAction} {...singleForm}
