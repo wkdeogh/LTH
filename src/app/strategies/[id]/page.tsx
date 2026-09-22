@@ -1,3 +1,5 @@
+import { InitialPrincipalReturn } from '@/components/InitialPrincipalReturn';
+import { loadInitialPrincipal } from '@/lib/supabase/initialPrincipal';
 import { Suspense } from 'react';
 import { loadStrategyReferences } from '@/lib/marketData/references';
 import { loadStrategyChart, MarketSectionSkeleton, StrategyMarketSection } from '@/components/StrategyMarketSection';
@@ -36,10 +38,11 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
 
   const currentDate = koreaDate();
   const chartData = loadStrategyChart(strategy);
-  const [references, roundTradingDayResult] = await Promise.all([
+  const [references, roundTradingDayResult, initialPrincipal] = await Promise.all([
     loadStrategyReferences(supabase!, id, strategy.symbol),
     supabase!.from('market_candles').select('trade_date', { count: 'exact', head: true })
       .eq('symbol', strategy.symbol).gte('trade_date', strategy.started_at).lte('trade_date', currentDate),
+    loadInitialPrincipal(supabase!, id, toNumber(strategy.principal)),
   ]);
   if (roundTradingDayResult.error) throw roundTradingDayResult.error;
   const roundCalendarDays = inclusiveDateCount(strategy.started_at, currentDate);
@@ -172,9 +175,10 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
 
         <div className="strategy-mini-stats strategy-detail-quick-stats">
           <div><span>보유</span><strong>{strategy.position_qty}주</strong></div>
-          <div><span>계좌손익</span><strong className={accountPerformance.profitAmount !== null && accountPerformance.profitAmount < 0 ? 'profit-negative' : 'profit-positive'}>{accountPerformance.profitAmount === null ? '-' : `${accountPerformance.profitAmount >= 0 ? '+' : '-'}${usd(Math.abs(accountPerformance.profitAmount))}`}</strong></div>
+          <div><span>현재 라운드 손익</span><strong className={accountPerformance.profitAmount !== null && accountPerformance.profitAmount < 0 ? 'profit-negative' : 'profit-positive'}>{accountPerformance.profitAmount === null ? '-' : `${accountPerformance.profitAmount >= 0 ? '+' : '-'}${usd(Math.abs(accountPerformance.profitAmount))}`}</strong></div>
           <div><span>보유분 평단 대비</span><strong className={positionPerformance.profitRate !== null && positionPerformance.profitRate < 0 ? 'profit-negative' : 'profit-positive'}>{positionPerformance.profitRate === null ? '-' : signedValue(positionPerformance.profitRate, '%')}</strong></div>
         </div>
+        <InitialPrincipalReturn principal={initialPrincipal} cash={cashBalance} quantity={strategy.position_qty} price={reference?.price} />
       </section>
 
       <Suspense fallback={<MarketSectionSkeleton symbol={strategy.symbol} />}>

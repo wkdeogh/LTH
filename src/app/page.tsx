@@ -1,3 +1,5 @@
+import { InitialPrincipalReturn } from '@/components/InitialPrincipalReturn';
+import { loadInitialPrincipal } from '@/lib/supabase/initialPrincipal';
 import { loadStrategyReferences } from '@/lib/marketData/references';
 import { toStrategyState } from '@/lib/types';
 import type { Execution } from '@/lib/types';
@@ -49,13 +51,15 @@ export default async function HomePage() {
   }
 
   const main = strategies?.find(strategy => strategy.is_main);
-  const [historyEntries, recentResult] = await Promise.all([
+  const [historyEntries, recentResult, initialEntries] = await Promise.all([
     Promise.all((strategies ?? []).map(async strategy => [strategy.id, await loadStrategyReferences(supabase!, strategy.id, strategy.symbol)] as const)),
     main ? supabase!.from('executions').select('*').eq('strategy_id', main.id).order('executed_at', { ascending: false }).order('created_at', { ascending: false }).limit(3).returns<Execution[]>() : Promise.resolve({ data: [], error: null }),
+    Promise.all((strategies ?? []).map(async strategy => [strategy.id, await loadInitialPrincipal(supabase!, strategy.id, toNumber(strategy.principal))] as const)),
   ]);
   if (recentResult.error) throw recentResult.error;
   const recentExecutions = recentResult.data ?? [];
   const histories = new Map(historyEntries);
+  const initialPrincipals = new Map(initialEntries);
 
   const renderStrategy = (strategy: Strategy) => {
             const history = histories.get(strategy.id) ?? [];
@@ -123,8 +127,9 @@ export default async function HomePage() {
                   <div className="strategy-mini-stats">
                     <div><span>보유</span><strong>{strategy.position_qty}주</strong></div>
                     <div><span>현금</span><strong>{usd(strategy.cash_balance)}</strong></div>
-                    <div><span>계좌손익</span><strong className={performance.profitAmount !== null && performance.profitAmount < 0 ? 'profit-negative' : 'profit-positive'}>{performance.profitAmount === null ? '-' : signedUsd(performance.profitAmount)}</strong></div>
+                    <div><span>현재 라운드 손익</span><strong className={performance.profitAmount !== null && performance.profitAmount < 0 ? 'profit-negative' : 'profit-positive'}>{performance.profitAmount === null ? '-' : signedUsd(performance.profitAmount)}</strong></div>
                   </div>
+                  <InitialPrincipalReturn principal={initialPrincipals.get(strategy.id) ?? toNumber(strategy.principal)} cash={toNumber(strategy.cash_balance)} quantity={strategy.position_qty} price={reference?.price} />
                 </Link>
 
                 <div className="card-actions">

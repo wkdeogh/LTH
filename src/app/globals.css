@@ -4008,3 +4008,25 @@ button.main-strategy-select:hover { color: #155eef; border-color: #9db9f7; }
 
 .market-section { min-height:700px; }
 @media (max-width:640px) { .market-section { min-height:756px; } }
+
+.initial-principal-return {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 14px;
+}
+
+.initial-principal-return > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.initial-principal-return > div:last-child { text-align: right; }
+.initial-principal-return span { font-size: 12px; font-weight: 700; }
+.initial-principal-return small { color: var(--muted); font-size: 11px; }
+.initial-principal-return strong { font-size: 16px; }
