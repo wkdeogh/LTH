@@ -2594,6 +2594,34 @@ td {
   font-size: 13px;
 }
 
+.strategy-records-page {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.completed-round-card,
+.completed-round-card .title-row > div,
+.completed-round-card .round-details {
+  min-width: 0;
+}
+
+.completed-round-card .title-row {
+  align-items: flex-start;
+}
+
+.completed-round-card .title-row .pill {
+  flex-shrink: 0;
+}
+
+.completed-round-card .title-row p {
+  overflow-wrap: anywhere;
+}
+
+.completed-round-card .table-wrap {
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+}
+
 .round-details {
   margin-top: 16px;
 }

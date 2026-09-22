@@ -138,7 +138,7 @@ function RoundRecords({
     const profitRate = Number(round.profit_rate);
 
     return (
-      <section className="panel" key={round.id}>
+      <section className="panel completed-round-card" key={round.id}>
         <div className="title-row">
           <div>
             <span className="eyebrow">COMPLETED</span>
@@ -289,7 +289,7 @@ export default async function StrategyRoundsPage({
   }
 
   return (
-    <div className="stack page-stack">
+    <div className="stack page-stack strategy-records-page">
       <section className="hero compact-hero">
         <span className="eyebrow">STRATEGY HISTORY</span>
         <h1>{strategy.name} 전략 기록</h1>
