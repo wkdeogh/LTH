@@ -22,7 +22,7 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
   if (!hasSupabaseEnv()) return <SetupNotice />;
 
   const { id } = await params;
-  const supabase = createSupabaseReadClient();
+  const supabase = await createSupabaseReadClient();
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();
 

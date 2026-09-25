@@ -198,7 +198,7 @@ export default async function StrategyRoundsPage({
 
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const view: RecordView = query.view === 'rounds' || query.view === 'assets' ? query.view : 'executions';
-  const supabase = createSupabaseReadClient();
+  const supabase = await createSupabaseReadClient();
   const [strategyResult, roundResult, executionResult, adjustmentResult, snapshotResult] = await Promise.all([
     supabase!.from('strategies').select('*').eq('id', id).single<Strategy>(),
     supabase!

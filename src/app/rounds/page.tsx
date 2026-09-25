@@ -20,7 +20,7 @@ function signedUsd(value: number | string) {
 export default async function AllRoundsPage() {
   if (!hasSupabaseEnv()) return <SetupNotice />;
 
-  const supabase = createSupabaseReadClient();
+  const supabase = await createSupabaseReadClient();
   const [roundResult, strategyResult] = await Promise.all([
     supabase!
       .from('completed_rounds')

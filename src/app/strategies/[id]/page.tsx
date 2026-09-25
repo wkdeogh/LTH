@@ -32,7 +32,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
   if (!hasSupabaseEnv()) return <SetupNotice />;
 
   const { id } = await params;
-  const supabase = createSupabaseReadClient();
+  const supabase = await createSupabaseReadClient();
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();
 
@@ -123,7 +123,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
             <div className="turn-progress-title">
               <span>T 진행도</span>
               {currentStarPercent === null ? (
-                <small className="reverse">리버스 · 5일 평균 기준</small>
+                <small className="reverse">리버스 · 별지점 기준</small>
               ) : (
                 <small>별% {signedValue(currentStarPercent, '%')}</small>
               )}

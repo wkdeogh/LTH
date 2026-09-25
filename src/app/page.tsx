@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { setMainStrategy } from '@/app/actions';
 import { SetupNotice } from '@/components/SetupNotice';
 import { compact, usd } from '@/components/Format';
-import { hasSupabaseEnv } from '@/lib/env';
+import { getAppDisplayName, hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseReadClient } from '@/lib/supabase/read';
 import type { Strategy } from '@/lib/types';
 import { toNumber } from '@/lib/types';
@@ -31,7 +31,7 @@ function signedPercent(value: number) {
 export default async function HomePage() {
   if (!hasSupabaseEnv()) return <SetupNotice />;
 
-  const supabase = createSupabaseReadClient();
+  const supabase = await createSupabaseReadClient();
   const { data: strategies, error } = await supabase!
     .from('strategies')
     .select('*')
@@ -145,7 +145,7 @@ export default async function HomePage() {
   const plan = state ? state.mode === 'normal' ? calculateNormalPlan(state, references[0]?.price) : calculateReversePlan(state, references.slice(0,5).map(r => r.price), references[0]?.price) : null;
   return (
     <div className="stack page-stack">
-      <section className="hero home-hero"><div><h1>HELLO DAEHO</h1></div></section>
+      <section className="hero home-hero"><div><h1>HELLO {getAppDisplayName()}</h1></div></section>
       {main && <>
         <section aria-label="메인 전략">{renderStrategy(main)}</section>
         <section className="panel">

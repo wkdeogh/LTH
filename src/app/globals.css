@@ -4030,3 +4030,9 @@ button.main-strategy-select:hover { color: #155eef; border-color: #9db9f7; }
 .initial-principal-return span { font-size: 12px; font-weight: 700; }
 .initial-principal-return small { color: var(--muted); font-size: 11px; }
 .initial-principal-return strong { font-size: 16px; }
+
+.access-panel { max-width: 420px; margin: 48px auto; }
+.access-panel h1 { overflow-wrap: anywhere; }
+.access-form { display: grid; gap: 14px; margin-top: 24px; }
+.access-form input { width: 100%; min-width: 0; }
+.access-form .danger-text { margin: 0; }

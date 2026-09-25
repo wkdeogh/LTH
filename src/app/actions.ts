@@ -1,5 +1,6 @@
 'use server';
 
+import { requireAppAccess } from '@/lib/access/server';
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { after } from 'next/server';
@@ -57,6 +58,7 @@ function internalReturnPath(formData: FormData) {
 }
 
 export async function createStrategy(formData: FormData) {
+  await requireAppAccess();
   const supabase = supabaseOrThrow();
   const principal = numberValue(formData, 'principal');
   const cashBalance = numberValue(formData, 'cash_balance', principal);
@@ -106,6 +108,7 @@ export async function createStrategy(formData: FormData) {
 }
 
 export async function updateStrategy(formData: FormData) {
+  await requireAppAccess();
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');
   const principal = numberValue(formData, 'principal');
@@ -142,6 +145,7 @@ export async function updateStrategy(formData: FormData) {
 }
 
 export async function setMainStrategy(formData: FormData) {
+  await requireAppAccess();
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');
   const { error } = await supabase.rpc('set_main_strategy', { target_id: id });
@@ -155,6 +159,7 @@ export async function setMainStrategy(formData: FormData) {
 }
 
 export async function deleteStrategy(formData: FormData) {
+  await requireAppAccess();
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');
 
@@ -174,6 +179,7 @@ export async function deleteStrategy(formData: FormData) {
 }
 
 export async function addDailyPrice(formData: FormData) {
+  await requireAppAccess();
   const supabase = supabaseOrThrow();
   const strategyId = stringValue(formData, 'strategy_id');
   const tradeDate = stringValue(formData, 'trade_date', new Date().toISOString().slice(0, 10));
@@ -195,6 +201,7 @@ export async function addDailyPrice(formData: FormData) {
 }
 
 export async function refreshMarketChart(formData: FormData) {
+  await requireAppAccess();
   const supabase = supabaseOrThrow();
   const strategyId = stringValue(formData, 'strategy_id');
   if (!strategyId) throw new Error('차트를 갱신할 전략을 찾을 수 없습니다.');
@@ -212,6 +219,7 @@ export async function refreshMarketChart(formData: FormData) {
 }
 
 export async function switchToReverse(formData: FormData) {
+  await requireAppAccess();
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');
   const automatic = stringValue(formData, 'automatic') === '1';
@@ -233,6 +241,7 @@ export async function switchToReverse(formData: FormData) {
 }
 
 export async function switchToNormal(formData: FormData) {
+  await requireAppAccess();
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');
   const automatic = stringValue(formData, 'automatic') === '1';
@@ -254,6 +263,7 @@ export async function switchToNormal(formData: FormData) {
 }
 
 export async function saveTradePlan(formData: FormData) {
+  await requireAppAccess();
   const supabase = supabaseOrThrow();
   const strategyId = stringValue(formData, 'strategy_id');
   const guidance = JSON.parse(stringValue(formData, 'guidance', '{}'));
@@ -317,21 +327,25 @@ async function commitExecution(context: Awaited<ReturnType<typeof prepareExecuti
 }
 
 export async function submitExecution(_previous: MutationFeedback, formData: FormData): Promise<MutationFeedback> {
+  await requireAppAccess();
   try { await recordExecution(formData); return { error: null }; }
   catch (error) { unstable_rethrow(error); return { error: mutationErrorMessage(error) }; }
 }
 
 export async function submitPairedExecution(_previous: MutationFeedback, formData: FormData): Promise<MutationFeedback> {
+  await requireAppAccess();
   try { await recordPairedExecution(formData); return { error: null }; }
   catch (error) { unstable_rethrow(error); return { error: mutationErrorMessage(error) }; }
 }
 
 export async function submitStrategyCorrection(_previous: MutationFeedback, formData: FormData): Promise<MutationFeedback> {
+  await requireAppAccess();
   try { await updateStrategy(formData); return { error: null }; }
   catch (error) { unstable_rethrow(error); return { error: mutationErrorMessage(error) }; }
 }
 
 export async function recordExecution(formData: FormData) {
+  await requireAppAccess();
   const context = await prepareExecution(formData);
   const { supabase, strategyId, executedAt } = context;
   const side = stringValue(formData, 'side');
@@ -462,6 +476,7 @@ export async function recordExecution(formData: FormData) {
 }
 
 export async function recordPairedExecution(formData: FormData) {
+  await requireAppAccess();
   const context = await prepareExecution(formData);
   const { supabase, strategyId, executedAt } = context;
   const { data: strategy, error: strategyError } = await supabase
@@ -553,6 +568,7 @@ export async function recordPairedExecution(formData: FormData) {
 }
 
 export async function cancelLatestExecution(formData: FormData) {
+  await requireAppAccess();
   const supabase = supabaseOrThrow();
   const strategyId = stringValue(formData, 'strategy_id');
   const executionId = stringValue(formData, 'execution_id');
@@ -574,6 +590,7 @@ export async function cancelLatestExecution(formData: FormData) {
 }
 
 export async function updateCompletedRound(formData: FormData) {
+  await requireAppAccess();
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');
   const strategyId = stringValue(formData, 'strategy_id');
@@ -619,6 +636,7 @@ export async function updateCompletedRound(formData: FormData) {
 }
 
 export async function deleteCompletedRound(formData: FormData) {
+  await requireAppAccess();
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');
   const strategyId = stringValue(formData, 'strategy_id');
@@ -648,5 +666,6 @@ export async function deleteCompletedRound(formData: FormData) {
 }
 
 export async function refreshReadData() {
+  await requireAppAccess();
   revalidatePath('/', 'layout');
 }

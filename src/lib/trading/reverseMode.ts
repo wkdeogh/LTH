@@ -1,6 +1,6 @@
 import type { StrategyState } from '@/lib/types';
 import { floorShares, roundMoney, roundPrice } from '@/lib/trading/rounding';
-import type { OrderGuide } from '@/lib/trading/normalMode';
+import { calculateStarPercent, type OrderGuide } from '@/lib/trading/normalMode';
 
 export type ReversePlan = {
   kind: 'reverse';
@@ -40,24 +40,28 @@ export function shouldAutoReturnToNormalMode(
     && shouldReturnToNormalMode(state, closePrice);
 }
 
-export function calculateReversePlan(state: StrategyState, recentCloses: number[], closePrice?: number): ReversePlan {
-  const referencePrice = calculateFiveDayAverage(recentCloses);
+export function calculateReversePlan(state: StrategyState, _recentCloses: number[], closePrice?: number): ReversePlan {
+  const starPrice = roundPrice(state.avgPrice * (1 + calculateStarPercent(state.symbol, state.splitCount, state.tValue)));
+  const referencePrice = starPrice > 0 ? starPrice : null;
+  const buyPrice = referencePrice ? roundPrice(referencePrice - 0.01) : null;
   const isFirstDay = !state.reverseFirstSellDone;
   const warnings: string[] = [];
   const formulas: string[] = [];
   const sellQty = reverseSellQuantity(state);
   const buyBudget = roundMoney(state.cashBalance * 0.25);
+  const buyQuantity = buyPrice && buyPrice > 0 ? floorShares(buyBudget / buyPrice) : 0;
+  const isExhausted = buyPrice !== null && buyPrice > 0 && buyQuantity === 0;
   const returnToNormal = shouldAutoReturnToNormalMode(state, closePrice);
 
   if (!referencePrice && !isFirstDay) {
-    warnings.push('리버스모드 둘째 날 이후 계산에는 최근 5거래일 종가가 필요합니다.');
+    warnings.push('리버스 주문을 계산할 수 있는 별지점이 없습니다.');
   }
 
   formulas.push(`리버스 매도수량 = floor(보유수량 / ${state.splitCount === 20 ? 10 : 20})`);
   formulas.push('리버스 매수금 = 현재 현금 × 0.25');
-  formulas.push('매수 수량 = 매수금 / 리버스 기준가');
+  formulas.push('매수 수량 = 매수금 / (별지점 - 0.01)');
 
-  if (isFirstDay) {
+  if (isFirstDay || isExhausted) {
     return {
       kind: 'reverse',
       isFirstDay,
@@ -66,7 +70,7 @@ export function calculateReversePlan(state: StrategyState, recentCloses: number[
       buyOrders: [],
       sellOrders: [
         {
-          label: '리버스모드 첫날 매도',
+          label: isFirstDay ? '리버스모드 첫날 매도' : '리버스모드 매도',
           side: 'sell',
           orderType: 'MOC',
           price: null,
@@ -90,10 +94,10 @@ export function calculateReversePlan(state: StrategyState, recentCloses: number[
         label: '리버스모드 매수',
         side: 'buy',
         orderType: 'LOC',
-        price: referencePrice,
-        quantity: referencePrice ? floorShares(buyBudget / referencePrice) : 0,
+        price: buyPrice,
+        quantity: buyQuantity,
         amount: buyBudget,
-        note: '종가가 리버스 기준가보다 낮을 때 현금의 1/4로 LOC 매수합니다.',
+        note: '종가가 별지점보다 낮을 때 현금의 1/4로 LOC 매수합니다.',
       },
     ],
     sellOrders: [
@@ -103,7 +107,7 @@ export function calculateReversePlan(state: StrategyState, recentCloses: number[
         orderType: 'LOC',
         price: referencePrice,
         quantity: sellQty,
-        note: '종가가 리버스 기준가보다 높을 때 일부 수량을 LOC 매도합니다.',
+        note: '종가가 별지점보다 높을 때 일부 수량을 LOC 매도합니다.',
       },
     ],
     returnToNormal,

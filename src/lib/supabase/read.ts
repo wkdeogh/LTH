@@ -1,2 +1,8 @@
 import 'server-only';
-export { createSupabaseServerClient as createSupabaseReadClient } from './server';
+import { requireAppAccess } from '@/lib/access/server';
+import { createSupabaseServerClient } from './server';
+
+export async function createSupabaseReadClient() {
+  await requireAppAccess();
+  return createSupabaseServerClient();
+}

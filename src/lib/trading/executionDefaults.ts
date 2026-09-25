@@ -26,7 +26,7 @@ export function inferExecutionDefaultsFromClose(
   if (!closePrice || closePrice <= 0) return null;
 
   if (plan.kind === 'reverse') {
-    if (plan.isFirstDay) {
+    if (plan.sellOrders[0]?.orderType === 'MOC') {
       return fromOrder(plan.sellOrders[0], 'reverse_sell');
     }
 

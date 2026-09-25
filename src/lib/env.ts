@@ -15,3 +15,7 @@ export function getRequiredEnv(name: 'SUPABASE_URL' | 'SUPABASE_SERVICE_ROLE_KEY
 
   return value;
 }
+
+export function getAppDisplayName() {
+  return process.env.APP_DISPLAY_NAME?.trim() || 'DAEHO';
+}

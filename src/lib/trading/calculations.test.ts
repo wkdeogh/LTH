@@ -247,7 +247,7 @@ test('리버스모드에서는 첫날 매도 여부와 관계없이 일반모드
   }), 32.01), true);
 });
 
-test('리버스 주문은 첫날 매도만 MOC이고 둘째 날부터 매수·매도 모두 LOC다', () => {
+test('매수 여력이 있는 리버스 주문은 첫날 MOC이고 둘째 날부터 LOC다', () => {
   const firstDayPlan = calculateReversePlan(
     state({ mode: 'reverse', positionQty: 200, reverseFirstSellDone: false }),
     [40, 39, 38, 37, 36],
@@ -256,7 +256,7 @@ test('리버스 주문은 첫날 매도만 MOC이고 둘째 날부터 매수·�
   assert.equal(firstDayPlan.buyOrders.length, 0);
 
   const laterPlan = calculateReversePlan(
-    state({ mode: 'reverse', positionQty: 200, reverseFirstSellDone: true }),
+    state({ mode: 'reverse', positionQty: 200, avgPrice: 40, reverseFirstSellDone: true }),
     [40, 39, 38, 37, 36],
   );
   assert.equal(laterPlan.buyOrders[0]?.orderType, 'LOC');
@@ -290,9 +290,9 @@ test('일반모드 체결 입력 기본값을 종가와 주문 가이드로 자�
   });
 });
 
-test('리버스모드 체결 입력 기본값을 첫날과 5일 평균 기준으로 자동 결정한다', () => {
+test('리버스모드 체결 입력 기본값을 첫날과 별지점 기준으로 자동 결정한다', () => {
   const reverseState = state({
-    mode: 'reverse', splitCount: 20, cashBalance: 4_000, positionQty: 200, tValue: 19.5,
+    mode: 'reverse', splitCount: 20, cashBalance: 4_000, positionQty: 200, avgPrice: 40, tValue: 19.5,
   });
   const firstDayPlan = calculateReversePlan(reverseState, [40, 39, 38, 37, 36], 37);
   assert.deepEqual(inferExecutionDefaultsFromClose(firstDayPlan, 37), {
@@ -304,13 +304,13 @@ test('리버스모드 체결 입력 기본값을 첫날과 5일 평균 기준으
     [40, 39, 38, 37, 36],
     37,
   );
-  assert.deepEqual(inferExecutionDefaultsFromClose(laterPlan, 37), {
-    side: 'buy', orderType: 'LOC', quantity: 26, tEffect: 'reverse_buy',
+  assert.deepEqual(inferExecutionDefaultsFromClose(laterPlan, 34), {
+    side: 'buy', orderType: 'LOC', quantity: 29, tEffect: 'reverse_buy',
   });
   assert.deepEqual(inferExecutionDefaultsFromClose(laterPlan, 39), {
     side: 'sell', orderType: 'LOC', quantity: 20, tEffect: 'reverse_sell',
   });
-  assert.equal(inferExecutionDefaultsFromClose(laterPlan, 38), null);
+  assert.equal(inferExecutionDefaultsFromClose(laterPlan, 34.3), null);
 });
 
 test('차트 종가를 사용하고 같은 날짜의 직접 입력 종가를 우선한다', () => {
@@ -397,4 +397,45 @@ test('자산과 종가를 첫 거래일의 0%에서 같은 비율 축으로 비�
   assert.equal(buildAssetComparison([point('2026-01-02', 0, null), points[1]])[1].accountChangePercent, null);
   assert.equal(buildAssetComparison([point('2026-01-02', 10000, null), points[1]])[1].marketChangePercent, null);
   assert.equal(buildAssetComparison([points[0], point('2026-05-01', 11000, null), points[2]])[2].marketChangePercent, -20);
+});
+
+test('리버스는 T 기준 초과 후에도 별지점 아래에서 쿼터매수를 계속한다', () => {
+  for (const splitCount of [20, 40] as const) {
+    const plan = calculateReversePlan(state({
+      symbol: 'SOXL', splitCount, tValue: splitCount - 0.5,
+      mode: 'reverse', reverseFirstSellDone: true,
+      avgPrice: 100, positionQty: 200, cashBalance: 1_000,
+    }), []);
+    const star = splitCount === 20 ? 81 : 80.5;
+    assert.equal(plan.referencePrice, star);
+    assert.equal(plan.buyOrders[0].price, star - 0.01);
+    assert.equal(plan.buyOrders[0].quantity, 3);
+    assert.equal(plan.sellOrders[0].price, star);
+    assert.equal(plan.sellOrders[0].orderType, 'LOC');
+    assert.equal(inferExecutionDefaultsFromClose(plan, star), null);
+    assert.equal(inferExecutionDefaultsFromClose(plan, star - 0.01)?.side, 'buy');
+    assert.equal(inferExecutionDefaultsFromClose(plan, star + 0.01)?.side, 'sell');
+  }
+});
+
+test('쿼터매수로 1주를 살 수 있는 경계와 소진 후 MOC 기본값을 처리한다', () => {
+  const base = state({ symbol: 'SOXL', mode: 'reverse', reverseFirstSellDone: true,
+    splitCount: 40, tValue: 40, avgPrice: 50, positionQty: 200 });
+  for (const cashBalance of [0, 159.95, 159.96, 160]) {
+    const plan = calculateReversePlan({ ...base, cashBalance }, []);
+    assert.equal(plan.referencePrice, 40);
+    if (cashBalance < 159.96) {
+      assert.deepEqual(plan.buyOrders, []);
+      assert.equal(plan.sellOrders[0].orderType, 'MOC');
+      assert.equal(plan.sellOrders[0].price, null);
+      for (const close of [30, 40, 45]) {
+        assert.deepEqual(inferExecutionDefaultsFromClose(plan, close), {
+          side: 'sell', orderType: 'MOC', quantity: 10, tEffect: 'reverse_sell',
+        });
+      }
+    } else {
+      assert.equal(plan.buyOrders[0].quantity, 1);
+      assert.equal(plan.sellOrders[0].orderType, 'LOC');
+    }
+  }
 });

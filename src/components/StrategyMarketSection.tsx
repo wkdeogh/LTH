@@ -9,8 +9,8 @@ import { createSupabaseReadClient } from '@/lib/supabase/read';
 import { calculateNormalPlan } from '@/lib/trading';
 import { toNumber, type Execution, type MarketCandle, type Strategy } from '@/lib/types';
 
-export function loadStrategyChart(strategy: Strategy) {
-  const supabase = createSupabaseReadClient()!;
+export async function loadStrategyChart(strategy: Strategy) {
+  const supabase = (await createSupabaseReadClient())!;
   const start = new Date();
   start.setUTCFullYear(start.getUTCFullYear() - 3);
   start.setUTCDate(start.getUTCDate() - 14);
@@ -32,7 +32,8 @@ export function MarketSectionSkeleton({ symbol }: { symbol: string }) {
 export async function StrategyMarketSection({ strategy, data, referencePrice }: {
   strategy: Strategy; data: ReturnType<typeof loadStrategyChart>; referencePrice?: number;
 }) {
-  const [candleResult, chartExecutionResult] = await data.chart;
+  const resolved = await data;
+  const [candleResult, chartExecutionResult] = await resolved.chart;
   if (candleResult.error || chartExecutionResult.error) {
     return <section className="panel"><h2>{strategy.symbol} 차트</h2><p className="danger-text">차트를 불러오지 못했습니다. 새로고침해 주세요.</p></section>;
   }
@@ -76,14 +77,14 @@ export async function StrategyMarketSection({ strategy, data, referencePrice }: 
           fullSellPrice={chartPlan?.targetSellPrice ?? null}
         />
         <Suspense fallback={null}>
-          <StrategyChartAnalysis strategyId={strategy.id} data={data.analysis} />
+          <StrategyChartAnalysis strategyId={strategy.id} data={resolved.analysis} />
         </Suspense>
       </section>
   );
 }
 
 async function StrategyChartAnalysis({ strategyId, data }: {
-  strategyId: string; data: ReturnType<typeof loadStrategyChart>['analysis'];
+  strategyId: string; data: Awaited<ReturnType<typeof loadStrategyChart>>['analysis'];
 }) {
   const aiAnalysisResult = await data;
   const aiAnalysisRows = aiAnalysisResult.data ?? [];

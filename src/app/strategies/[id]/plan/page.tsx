@@ -55,7 +55,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
   if (!hasSupabaseEnv()) return <SetupNotice />;
 
   const { id } = await params;
-  const supabase = createSupabaseReadClient();
+  const supabase = await createSupabaseReadClient();
 
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();
@@ -119,7 +119,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
           <h2>리버스모드 결과</h2>
           <div className="stat-grid">
             <div className="stat"><span>첫날 여부</span><strong>{plan.isFirstDay ? '첫날' : '둘째 날 이후'}</strong></div>
-            <div className="stat"><span>5일 평균</span><strong>{plan.referencePrice ? usd(plan.referencePrice) : '-'}</strong></div>
+            <div className="stat"><span>별지점</span><strong>{plan.referencePrice ? usd(plan.referencePrice) : '-'}</strong></div>
             <div className="stat"><span>매수금</span><strong>{usd(plan.buyBudget)}</strong></div>
             <div className="stat"><span>현재 기준가</span><strong>{currentReference ? usd(currentReference.price) : '-'}</strong></div>
             <div className="stat"><span>복귀 조건</span><strong>{plan.returnToNormal ? '충족' : '미충족'}</strong></div>

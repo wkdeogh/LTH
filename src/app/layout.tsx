@@ -1,3 +1,4 @@
+import { hasAppAccess } from '@/lib/access/server';
 import { PageTransition } from '@/components/PageTransition';
 import { MainRecordsLink } from '@/components/MainRecordsLink';
 import { Suspense } from 'react';
@@ -24,14 +25,15 @@ export const viewport: Viewport = {
   themeColor: '#f4f6f8',
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const access = await hasAppAccess();
   return (
     <html lang="ko">
       <body>
         <InlineValidation />
         <FormSubmitFeedback />
         <TouchFeedback />
-        <PullToRefresh />
+        {access && <PullToRefresh />}
         <Suspense fallback={null}><Toast /></Suspense>
         <main className="shell">
           <header className="topbar">
@@ -39,17 +41,17 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <Image className="brand-mark" src={soxlLogo} alt="" priority />
               <span>쏙쓸계산기</span>
             </Link>
-            <nav className="global-nav" aria-label="주요 메뉴">
+            {access && <nav className="global-nav" aria-label="주요 메뉴">
               <Link href="/">전략</Link>
               <Suspense fallback={<Link href="/rounds">기록</Link>}><MainRecordsLink /></Suspense>
               <Link href="/guide">사용법</Link>
-            </nav>
+            </nav>}
           </header>
           <Suspense fallback={children}><PageTransition>{children}</PageTransition></Suspense>
-          <footer className="footer">
+          {access && <footer className="footer">
             <p>개인용 무한매수법 V4.0 주문 가이드</p>
             <Link href="/guide">전략 사용법</Link>
-          </footer>
+          </footer>}
         </main>
       </body>
     </html>

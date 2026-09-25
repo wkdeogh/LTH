@@ -1,3 +1,4 @@
+import { hasAppAccess } from '@/lib/access/server';
 import { NextResponse } from 'next/server';
 import {
   CHART_ANALYSIS_MODEL,
@@ -55,6 +56,7 @@ async function analysisRows(supabase: NonNullable<ReturnType<typeof createSupaba
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  if (!await hasAppAccess()) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const origin = request.headers.get('origin');
   const requestHost = request.headers.get('x-forwarded-host') ?? request.headers.get('host');
   let originHost: string | null = null;
@@ -139,6 +141,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  if (!await hasAppAccess()) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await context.params;
   const supabase = createSupabaseServerClient();
   if (!supabase) {
