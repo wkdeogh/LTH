@@ -1,7 +1,6 @@
 import { hasAppAccess } from '@/lib/access/server';
 import { PageTransition } from '@/components/PageTransition';
 import { MainRecordsLink } from '@/components/MainRecordsLink';
-import { GlobalNavLink } from '@/components/GlobalNavLink';
 import { Suspense } from 'react';
 import type { Metadata, Viewport } from 'next';
 import Image from 'next/image';
@@ -43,9 +42,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <span>쏙쓸계산기</span>
             </Link>
             {access && <nav className="global-nav" aria-label="주요 메뉴">
-              <GlobalNavLink href="/" section="strategies">전략</GlobalNavLink>
-              <Suspense fallback={<GlobalNavLink href="/rounds" section="records">기록</GlobalNavLink>}><MainRecordsLink /></Suspense>
-              <GlobalNavLink href="/guide" section="guide">사용법</GlobalNavLink>
+              <Link href="/">전략</Link>
+              <Suspense fallback={<Link href="/rounds">기록</Link>}><MainRecordsLink /></Suspense>
+              <Link href="/guide">사용법</Link>
             </nav>}
           </header>
           <Suspense fallback={children}><PageTransition>{children}</PageTransition></Suspense>

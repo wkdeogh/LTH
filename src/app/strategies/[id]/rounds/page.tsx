@@ -298,13 +298,13 @@ export default async function StrategyRoundsPage({
       <StrategyTabs strategyId={id} active="rounds" />
 
       <nav className="record-view-tabs" aria-label="전략 기록 종류 선택">
-        <Link className={`record-view-tab ${view === 'executions' ? 'active' : ''}`} href={`/strategies/${id}/rounds`} aria-current={view === 'executions' ? 'page' : undefined}>
+        <Link className={`record-view-tab ${view === 'executions' ? 'active' : ''}`} href={`/strategies/${id}/rounds`}>
           <span>체결 기록</span><strong>{executions.length}</strong>
         </Link>
-        <Link className={`record-view-tab ${view === 'assets' ? 'active' : ''}`} href={`/strategies/${id}/rounds?view=assets`} aria-current={view === 'assets' ? 'page' : undefined}>
+        <Link className={`record-view-tab ${view === 'assets' ? 'active' : ''}`} href={`/strategies/${id}/rounds?view=assets`}>
           <span>자산차트</span>
         </Link>
-        <Link className={`record-view-tab ${view === 'rounds' ? 'active' : ''}`} href={`/strategies/${id}/rounds?view=rounds`} aria-current={view === 'rounds' ? 'page' : undefined}>
+        <Link className={`record-view-tab ${view === 'rounds' ? 'active' : ''}`} href={`/strategies/${id}/rounds?view=rounds`}>
           <span>라운드 기록</span><strong>{roundResult.count ?? rounds.length}</strong>
         </Link>
       </nav>
