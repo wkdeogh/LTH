@@ -42,6 +42,7 @@
 html {
   overscroll-behavior-y: contain;
   scroll-behavior: smooth;
+  scroll-padding-top: 144px;
 }
 
 body {
@@ -86,7 +87,7 @@ summary {
 }
 
 :focus-visible {
-  outline: 3px solid rgba(21, 94, 239, 0.28);
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -323,6 +324,11 @@ summary {
 .global-nav a:hover {
   background: var(--surface-soft);
   color: var(--ink);
+}
+
+.global-nav a[aria-current] {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
 }
 
 .page-stack {
@@ -3131,17 +3137,22 @@ td {
 }
 
 @media (max-width: 760px) {
+  html {
+    scroll-padding-top: calc(132px + env(safe-area-inset-top));
+  }
+
   body {
     font-size: 14px;
   }
 
   .shell {
-    padding: 0 12px calc(40px + env(safe-area-inset-bottom));
+    padding: env(safe-area-inset-top) max(12px, env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   }
 
   .topbar {
     height: 62px;
     margin-bottom: 18px;
+    top: env(safe-area-inset-top);
   }
 
   .brand {
@@ -3154,7 +3165,12 @@ td {
   }
 
   .global-nav a {
+    align-items: center;
+    display: inline-flex;
     font-size: 12px;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
     padding: 6px 10px;
   }
 
@@ -3259,11 +3275,11 @@ td {
   }
 
   .tabs {
-    top: 68px;
+    top: calc(68px + env(safe-area-inset-top));
   }
 
   .tab {
-    min-height: 43px;
+    min-height: 44px;
     padding: 8px 5px;
   }
 
@@ -3306,8 +3322,14 @@ td {
   }
 
   .chart-ranges button {
+    font-size: 12px;
+    min-height: 44px;
     padding-left: 4px;
     padding-right: 4px;
+  }
+
+  .chart-refresh-button {
+    min-height: 44px;
   }
 
   .market-chart {
@@ -3385,8 +3407,13 @@ td {
 
   input,
   select,
-  textarea {
+  textarea,
+  .single-order-type select {
     font-size: 16px;
+  }
+
+  .single-order-type select {
+    min-height: 44px;
   }
 
   .sticky-form-actions {
@@ -3478,7 +3505,7 @@ td {
   .guide-nav {
     margin-left: -1px;
     margin-right: -1px;
-    top: 68px;
+    top: calc(68px + env(safe-area-inset-top));
   }
 
   .guide-intro-grid {

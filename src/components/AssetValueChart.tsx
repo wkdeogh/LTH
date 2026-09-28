@@ -166,7 +166,7 @@ export function AssetValueChart({ points, symbol }: { points: AssetValuePoint[];
             </div>
           </div>
         </div>
-        <div className="chart-ranges asset-chart-ranges" aria-label="자산차트 기간">
+        <div className="chart-ranges asset-chart-ranges" role="group" aria-label="자산차트 기간">
           {(['3M', '6M', '1Y', 'ALL'] as RangeKey[]).map((option) => (
             <button
               className={range === option ? 'active' : ''}

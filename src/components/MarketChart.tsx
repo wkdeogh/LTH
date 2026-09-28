@@ -245,12 +245,13 @@ export function MarketChart({
             </>
           )}
         </div>
-        <div className="chart-ranges" aria-label="차트 기간">
+        <div className="chart-ranges" role="group" aria-label="차트 기간">
           {(['3M', '6M', '1Y', '2Y', '3Y'] as RangeKey[]).map((option) => (
             <button
               className={range === option ? 'active' : ''}
               key={option}
-              onClick={() => setRange(option)}
+              aria-pressed={range === option}
+              onClick={() => { setHover(null); setRange(option); }}
               type="button"
             >
               {option}
