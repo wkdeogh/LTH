@@ -1,10 +1,6 @@
-import { Suspense } from 'react';
 import { refreshMarketChart } from '@/app/actions';
-import { AiChartAnalysis } from '@/components/AiChartAnalysis';
 import { LazyMarketChart } from '@/components/LazyMarketChart';
-import { toChartAnalysisJob, toStoredChartAnalysis, type ChartAnalysisRow } from '@/lib/ai/chartAnalysis';
 import { latestClosedMarketDate } from '@/lib/date';
-import { hasOpenAIEnv } from '@/lib/env';
 import { createSupabaseReadClient } from '@/lib/supabase/read';
 import { calculateNormalPlan } from '@/lib/trading';
 import { toNumber, type Execution, type MarketCandle, type Strategy } from '@/lib/types';
@@ -18,7 +14,7 @@ export async function loadStrategyChart(strategy: Strategy) {
   return { chart: Promise.all([
     supabase.from('market_candles').select('*').eq('symbol', strategy.symbol).gte('trade_date', date).lte('trade_date', latestClosedMarketDate()).order('trade_date', { ascending: true }).limit(900).returns<MarketCandle[]>(),
     supabase.from('executions').select('*').eq('strategy_id', strategy.id).gte('executed_at', date).order('executed_at', { ascending: true }).order('created_at', { ascending: true }).limit(1000).returns<Execution[]>(),
-  ]), analysis: Promise.resolve(supabase.from('ai_chart_analyses').select('id, strategy_id, symbol, model, reasoning_effort, candle_start, candle_end, candle_count, analysis, openai_response_id, status, error_message, completed_at, created_at').eq('strategy_id', strategy.id).order('created_at', { ascending: false }).limit(10).returns<ChartAnalysisRow[]>()),
+  ]),
   };
 }
 
@@ -76,24 +72,6 @@ export async function StrategyMarketSection({ strategy, data, referencePrice }: 
           starPrice={chartPlan?.starPrice ?? null}
           fullSellPrice={chartPlan?.targetSellPrice ?? null}
         />
-        <Suspense fallback={null}>
-          <StrategyChartAnalysis strategyId={strategy.id} data={resolved.analysis} />
-        </Suspense>
       </section>
   );
-}
-
-async function StrategyChartAnalysis({ strategyId, data }: {
-  strategyId: string; data: Awaited<ReturnType<typeof loadStrategyChart>>['analysis'];
-}) {
-  const aiAnalysisResult = await data;
-  const aiAnalysisRows = aiAnalysisResult.data ?? [];
-  let initialAiAnalysis = null;
-  for (const row of aiAnalysisRows) {
-    if (row.status !== 'completed' || !row.analysis) continue;
-    try { initialAiAnalysis = toStoredChartAnalysis(row); break; }
-    catch (error) { console.error('저장된 AI 차트 분석을 불러오지 못했습니다:', error); }
-  }
-  const initialAiJob = aiAnalysisRows[0] ? toChartAnalysisJob(aiAnalysisRows[0]) : null;
-  return <AiChartAnalysis strategyId={strategyId} initialAnalysis={initialAiAnalysis} initialJob={initialAiJob} enabled={hasOpenAIEnv()} />;
 }

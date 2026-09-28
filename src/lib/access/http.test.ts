@@ -12,11 +12,11 @@ test('HTTP access gate, persistent cookie, CSRF, cron and retry limit', { skip: 
     assert.equal(response.status, 307);
     assert.equal(new URL(response.headers.get('location')!, base).pathname, '/login');
   }
-  for (const path of ['/api/strategies/example/chart-analysis', '/strategies/example/plan', '/login']) {
+  for (const path of ['/api/private-test', '/strategies/example/plan', '/login']) {
     const response = await request(path, { method: 'POST', headers: { 'next-action': 'test-action' } });
     assert.equal(response.status, 401);
   }
-  assert.equal((await request('/api/strategies/example/chart-analysis')).status, 401);
+  assert.equal((await request('/api/private-test')).status, 401);
   assert.equal((await request('/api/cron/market-candles')).status, 401);
   const login = (value: string, origin = base!, next = '/guide') => request('/api/access/login', {
     method: 'POST', headers: { origin }, body: new URLSearchParams({ password: value, next }),
