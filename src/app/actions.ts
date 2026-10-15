@@ -306,13 +306,15 @@ async function prepareExecution(formData: FormData) {
     redirect(withNotice(saved.result.path, saved.result.notice));
   }
   const executedAt = stringValue(formData, 'executed_at');
-  const [lastExecution, lastCorrection] = await Promise.all([
+  const [lastExecution, lastCorrection, lastFlow] = await Promise.all([
     supabase.from('executions').select('executed_at').eq('strategy_id', strategyId).order('executed_at', { ascending: false }).limit(1).maybeSingle(),
-    supabase.from('strategy_adjustments').select('effective_date').eq('strategy_id', strategyId).eq('kind', 'correction').order('effective_date', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('strategy_adjustments').select('effective_date').eq('strategy_id', strategyId).in('kind', ['correction', 'cash_flow']).order('effective_date', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('strategy_cash_flows').select('requested_date').eq('strategy_id', strategyId).neq('status', 'cancelled').order('requested_date', { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (lastExecution.error) throw lastExecution.error;
   if (lastCorrection.error) throw lastCorrection.error;
-  const earliest = [lastExecution.data?.executed_at, lastCorrection.data?.effective_date].filter(Boolean).sort().at(-1) ?? null;
+  if (lastFlow.error) throw lastFlow.error;
+  const earliest = [lastExecution.data?.executed_at, lastCorrection.data?.effective_date, lastFlow.data?.requested_date].filter(Boolean).sort().at(-1) ?? null;
   const dateError = executionDateError(executedAt, earliest);
   if (dateError) throw new Error(dateError);
   return { supabase, strategyId, requestId, expectedVersion, input, executedAt };
@@ -342,6 +344,42 @@ export async function submitStrategyCorrection(_previous: MutationFeedback, form
   await requireAppAccess();
   try { await updateStrategy(formData); return { error: null }; }
   catch (error) { unstable_rethrow(error); return { error: mutationErrorMessage(error) }; }
+}
+
+export async function submitCashFlow(_previous: MutationFeedback, formData: FormData): Promise<MutationFeedback> {
+  await requireAppAccess();
+  try {
+    const supabase = supabaseOrThrow();
+    const id = stringValue(formData, 'strategy_id');
+    const operation = stringValue(formData, 'operation');
+    const isCancellation = operation === 'cancel';
+    const timing = stringValue(formData, 'timing');
+    const direction = stringValue(formData, 'direction');
+    const rawAmount = Number(stringValue(formData, 'amount'));
+    if (!isCancellation && (timing !== 'immediate' && timing !== 'next_round')) throw new Error('반영 시점을 선택해 주세요.');
+    if (!isCancellation && direction !== 'deposit' && direction !== 'withdrawal') throw new Error('입금 또는 인출을 선택해 주세요.');
+    if (!isCancellation && (!Number.isFinite(rawAmount) || rawAmount <= 0 || roundMoney(rawAmount) !== rawAmount)) throw new Error('입출금 금액은 0보다 크게, 소수점 넷째 자리까지 입력해 주세요.');
+    const amount = direction === 'withdrawal' ? -rawAmount : rawAmount;
+    let referencePrice: number | null = null;
+    if (!isCancellation && timing === 'immediate') {
+      const { data: strategy, error } = await supabase.from('strategies').select('*').eq('id', id).single<Strategy>();
+      if (error) throw error;
+      const references = strategy.position_qty > 0 ? await loadStrategyReferences(supabase, id, strategy.symbol) : [];
+      referencePrice = references[0]?.price ?? null;
+    }
+    const { error } = isCancellation
+      ? await supabase.rpc('cancel_strategy_cash_flow', {
+        p_strategy_id: id, p_id: stringValue(formData, 'cash_flow_id'), p_expected_version: stringValue(formData, 'expected_version'),
+      })
+      : await supabase.rpc('record_strategy_cash_flow', {
+        p_strategy_id: id, p_id: stringValue(formData, 'request_id'), p_expected_version: stringValue(formData, 'expected_version'),
+        p_date: stringValue(formData, 'requested_date'), p_amount: amount, p_timing: timing,
+        p_reference_price: referencePrice, p_memo: stringValue(formData, 'memo'),
+      });
+    if (error) throw error;
+    revalidatePath('/', 'layout');
+    redirect(withNotice(`/strategies/${id}`, isCancellation ? 'cash-flow-cancelled' : timing === 'immediate' ? 'cash-flow-saved' : 'cash-flow-scheduled'));
+  } catch (error) { unstable_rethrow(error); return { error: mutationErrorMessage(error) }; }
 }
 
 export async function recordExecution(formData: FormData) {

@@ -8,6 +8,7 @@ import {
   LineStyle,
   CrosshairMode,
   createChart,
+  createSeriesMarkers,
   type AreaData,
   type MouseEventParams,
   type Time,
@@ -89,6 +90,13 @@ export function AssetValueChart({ points, symbol }: { points: AssetValuePoint[];
       priceFormat: { type: 'custom', minMove: 0.01, formatter: (value: number) => `${value.toFixed(2)}%` },
     });
     series.setData(chartData);
+    createSeriesMarkers(series, points.filter(point => point.cashFlowEvents?.length).map(point => ({
+      time: point.date as Time,
+      position: 'aboveBar' as const,
+      color: '#465a7a',
+      shape: 'circle' as const,
+      text: point.cashFlowEvents!.length > 1 ? '입출금' : point.cashFlowEvents![0].label,
+    })));
     series.createPriceLine({
       price: 0,
       color: '#9aa5b3',
@@ -184,8 +192,10 @@ export function AssetValueChart({ points, symbol }: { points: AssetValuePoint[];
         <span>현금 <strong>{usd(displayed.cashBalance)}</strong></span>
         <span>주식 <strong>{usd(displayed.positionValue)}</strong></span>
         <span>보유 <strong>{displayed.positionQty}주</strong></span>
+        {points.some(point => point.cashFlowEvents?.length) && <span>등락률: 입출금 제외</span>}
       </div>
-      <div className="asset-value-chart" ref={containerRef} aria-label={`첫 거래일 ${points[0].date}을 0%로 맞춘 계좌 평가액(파란색)과 ${symbol} 종가(주황색)의 등락률 비교 차트`} />
+      {!!displayed.cashFlowEvents?.length && <p className="helper-copy" aria-live="polite">{displayed.cashFlowEvents.map(event => `${event.label} ${event.amount > 0 ? '+' : '-'}${usd(Math.abs(event.amount))}`).join(' · ')}</p>}
+      <div className="asset-value-chart" ref={containerRef} aria-label={`기준일 ${points[0].date}을 0%로 맞춘 계좌 평가액(파란색)과 ${symbol} 종가(주황색)의 등락률 비교 차트`} />
     </section>
   );
 }

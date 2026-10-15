@@ -1,4 +1,5 @@
 import { StrategyAdjustmentHistory } from '@/components/StrategyAdjustmentHistory';
+import { CashFlowHistory } from '@/components/CashFlowHistory';
 import type { StrategyAdjustment } from '@/lib/trading/assetHistory';
 import { latestClosedMarketDate } from '@/lib/date';
 import Link from 'next/link';
@@ -10,7 +11,7 @@ import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseReadClient } from '@/lib/supabase/read';
-import type { CompletedRound, DailyPrice, Execution, MarketCandle, Strategy, TEffect } from '@/lib/types';
+import type { CashFlow, CompletedRound, DailyPrice, Execution, MarketCandle, Strategy, TEffect } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 import { buildAssetValueHistory, type AssetValuePoint, type ExecutionSnapshot } from '@/lib/trading';
 
@@ -199,7 +200,7 @@ export default async function StrategyRoundsPage({
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const view: RecordView = query.view === 'rounds' || query.view === 'assets' ? query.view : 'executions';
   const supabase = await createSupabaseReadClient();
-  const [strategyResult, roundResult, executionResult, adjustmentResult, snapshotResult] = await Promise.all([
+  const [strategyResult, roundResult, executionResult, adjustmentResult, snapshotResult, cashFlowResult] = await Promise.all([
     supabase!.from('strategies').select('*').eq('id', id).single<Strategy>(),
     supabase!
       .from('completed_rounds')
@@ -220,6 +221,7 @@ export default async function StrategyRoundsPage({
     view === 'assets'
       ? supabase!.from('strategy_snapshots').select('execution_id, cash_balance, position_qty, after_cash_balance, after_position_qty').eq('strategy_id', id).not('execution_id', 'is', null).returns<ExecutionSnapshot[]>()
       : Promise.resolve({ data: [], error: null }),
+    supabase!.from('strategy_cash_flows').select('*').eq('strategy_id', id).order('requested_date', { ascending: false }).order('created_at', { ascending: false }).returns<CashFlow[]>(),
   ]);
 
   const strategy = strategyResult.data;
@@ -236,26 +238,31 @@ export default async function StrategyRoundsPage({
 
   if (adjustmentResult.error) throw adjustmentResult.error;
   if (snapshotResult.error) throw snapshotResult.error;
+  if (cashFlowResult.error) throw cashFlowResult.error;
+  const cashFlows = cashFlowResult.data ?? [];
   const adjustments = adjustmentResult.data ?? [];
   const rounds = roundResult.data ?? [];
   const executions = executionResult.data ?? [];
   let assetPoints: AssetValuePoint[] = [];
 
-  if (view === 'assets' && executions.length > 0) {
-    const firstExecutionDate = executions[0].executed_at;
+  if (view === 'assets' && (executions.length > 0 || cashFlows.some(flow => flow.status !== 'cancelled'))) {
+    const firstExecutionDate = [...executions.map(e => e.executed_at), ...cashFlows.filter(f => f.status !== 'cancelled').map(f => f.requested_date)].sort()[0];
+    const priceStart = new Date(`${firstExecutionDate}T00:00:00Z`);
+    priceStart.setUTCDate(priceStart.getUTCDate() - 14);
+    const priceStartDate = priceStart.toISOString().slice(0, 10);
     const [candleResult, dailyPriceResult] = await Promise.all([
       supabase!
         .from('market_candles')
         .select('*')
         .eq('symbol', strategy.symbol)
-        .gte('trade_date', firstExecutionDate).lte('trade_date', latestClosedMarketDate())
+        .gte('trade_date', priceStartDate).lte('trade_date', latestClosedMarketDate())
         .order('trade_date', { ascending: true })
         .returns<MarketCandle[]>(),
       supabase!
         .from('daily_prices')
         .select('*')
         .eq('strategy_id', id)
-        .gte('trade_date', firstExecutionDate).lte('trade_date', latestClosedMarketDate())
+        .gte('trade_date', priceStartDate).lte('trade_date', latestClosedMarketDate())
         .order('trade_date', { ascending: true })
         .returns<DailyPrice[]>(),
     ]);
@@ -275,6 +282,7 @@ export default async function StrategyRoundsPage({
       executions,
       snapshots: snapshotResult.data ?? [],
       adjustments,
+      cashFlows,
       candles: candleResult.data ?? [],
       dailyPrices: dailyPriceResult.data ?? [],
     });
@@ -311,6 +319,7 @@ export default async function StrategyRoundsPage({
 
       {view === 'rounds' && <RoundRecords rounds={rounds} executionsByRound={executionsByRound} strategyId={id} />}
       {view === 'assets' && <AssetValueChart points={assetPoints} symbol={strategy.symbol} />}
+      {view !== 'rounds' && <CashFlowHistory cashFlows={cashFlows} />}
       {view === 'executions' && <StrategyAdjustmentHistory adjustments={adjustments} />}
       <div className="actions"><Link className="text-link" href="/rounds">전체 전략 라운드</Link></div>
       {view === 'executions' && <ExecutionRecords executions={[...executions].reverse()} roundNumberById={roundNumberById} />}

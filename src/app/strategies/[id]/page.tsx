@@ -1,4 +1,5 @@
 import { InitialPrincipalReturn } from '@/components/InitialPrincipalReturn';
+import { CashFlowForm } from '@/components/CashFlowForm';
 import { loadInitialPrincipal } from '@/lib/supabase/initialPrincipal';
 import { Suspense } from 'react';
 import { loadStrategyReferences } from '@/lib/marketData/references';
@@ -13,7 +14,7 @@ import { StrategyTabs } from '@/components/StrategyTabs';
 import { inclusiveDateCount, koreaDate } from '@/lib/date';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseReadClient } from '@/lib/supabase/read';
-import type { Strategy } from '@/lib/types';
+import type { Strategy, CashFlow } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 import {
   calculateAccountPerformance,
@@ -38,13 +39,20 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
 
   const currentDate = koreaDate();
   const chartData = loadStrategyChart(strategy);
-  const [references, roundTradingDayResult, initialPrincipal] = await Promise.all([
+  const [references, roundTradingDayResult, initialPrincipal, cashFlowResult, lastExecutionResult, lastAdjustmentResult] = await Promise.all([
     loadStrategyReferences(supabase!, id, strategy.symbol),
     supabase!.from('market_candles').select('trade_date', { count: 'exact', head: true })
       .eq('symbol', strategy.symbol).gte('trade_date', strategy.started_at).lte('trade_date', currentDate),
     loadInitialPrincipal(supabase!, id, toNumber(strategy.principal)),
+    supabase!.from('strategy_cash_flows').select('*').eq('strategy_id', id).order('requested_date', { ascending: false }).returns<CashFlow[]>(),
+    supabase!.from('executions').select('executed_at').eq('strategy_id', id).order('executed_at', { ascending: false }).limit(1).maybeSingle(),
+    supabase!.from('strategy_adjustments').select('effective_date').eq('strategy_id', id).order('effective_date', { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (roundTradingDayResult.error) throw roundTradingDayResult.error;
+  if (cashFlowResult.error) throw cashFlowResult.error;
+  if (lastExecutionResult.error) throw lastExecutionResult.error;
+  if (lastAdjustmentResult.error) throw lastAdjustmentResult.error;
+  const earliestCashFlowDate = [strategy.started_at, lastExecutionResult.data?.executed_at, lastAdjustmentResult.data?.effective_date, cashFlowResult.data?.[0]?.requested_date].filter(Boolean).sort().at(-1)!;
   const roundCalendarDays = inclusiveDateCount(strategy.started_at, currentDate);
   const roundTradingDays = roundTradingDayResult.count ?? 0;
   const reference = references[0];
@@ -180,6 +188,8 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
         </div>
         <InitialPrincipalReturn principal={initialPrincipal} cash={cashBalance} quantity={strategy.position_qty} price={reference?.price} />
       </section>
+
+      <CashFlowForm key={strategy.version} strategy={strategy} referencePrice={reference?.price} earliestDate={earliestCashFlowDate} cashFlows={cashFlowResult.data ?? []} />
 
       <Suspense fallback={<MarketSectionSkeleton symbol={strategy.symbol} />}>
         <StrategyMarketSection strategy={strategy} data={chartData} referencePrice={reference?.price} />

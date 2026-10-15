@@ -26,18 +26,20 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
   const { data: strategy } = await supabase!.from('strategies').select('*').eq('id', id).single<Strategy>();
   if (!strategy) notFound();
 
-  const [latestExecutionResult, correctionResult, references, lastDatedResult] = await Promise.all([
+  const [latestExecutionResult, correctionResult, references, lastDatedResult, flowResult] = await Promise.all([
     supabase!.from('executions').select('*').eq('strategy_id', id).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(1).maybeSingle<Execution>(),
-    supabase!.from('strategy_adjustments').select('effective_date').eq('strategy_id', id).eq('kind', 'correction').order('effective_date', { ascending: false }).limit(1).maybeSingle(),
+    supabase!.from('strategy_adjustments').select('effective_date').eq('strategy_id', id).in('kind', ['correction', 'cash_flow']).order('effective_date', { ascending: false }).limit(1).maybeSingle(),
     loadStrategyReferences(supabase!, id, strategy.symbol),
     supabase!.from('executions').select('executed_at').eq('strategy_id', id).order('executed_at', { ascending: false }).limit(1).maybeSingle(),
+    supabase!.from('strategy_cash_flows').select('requested_date').eq('strategy_id', id).neq('status', 'cancelled').order('requested_date', { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (latestExecutionResult.error) throw latestExecutionResult.error;
   if (correctionResult.error) throw correctionResult.error;
+  if (flowResult.error) throw flowResult.error;
   const latestExecution = latestExecutionResult.data;
   const { data: lastDatedExecution, error: dateQueryError } = lastDatedResult;
   if (dateQueryError) throw dateQueryError;
-  const earliestDate = [lastDatedExecution?.executed_at, correctionResult.data?.effective_date].filter(Boolean).sort().at(-1) ?? null;
+  const earliestDate = [lastDatedExecution?.executed_at, correctionResult.data?.effective_date, flowResult.data?.requested_date].filter(Boolean).sort().at(-1) ?? null;
   const state = toStrategyState(strategy);
   const latestClose = references[0]?.price;
   const recentCloses = references.slice(0, 5).map(reference => reference.price);

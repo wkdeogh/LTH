@@ -1,4 +1,7 @@
 export const noticeMessages = {
+  'cash-flow-saved': { message: '입출금을 반영하고 T값을 다시 계산했어요.', tone: 'success' },
+  'cash-flow-scheduled': { message: '다음 라운드 입출금을 예약했어요.', tone: 'success' },
+  'cash-flow-cancelled': { message: '입출금 예약을 취소했어요.', tone: 'success' },
   'main-strategy-updated': { message: '메인 전략을 변경했어요.', tone: 'success' },
   'main-strategy-protected': { message: '다른 전략을 메인으로 설정한 후 삭제할 수 있어요.', tone: 'warning' },
   'main-strategy-unavailable': { message: '사용 중인 전략만 메인으로 설정할 수 있어요.', tone: 'warning' },

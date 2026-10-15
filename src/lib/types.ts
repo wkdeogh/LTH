@@ -15,6 +15,20 @@ export type TEffect =
   | 'reverse_sell'
   | 'none';
 
+export type CashFlow = {
+  id: string;
+  strategy_id: string;
+  requested_date: string;
+  amount: number | string;
+  timing: 'immediate' | 'next_round';
+  status: 'pending' | 'applied' | 'cancelled';
+  applied_date: string | null;
+  applied_round_id: string | null;
+  reference_price: number | string | null;
+  memo: string;
+  created_at: string;
+};
+
 export type Strategy = {
   id: string;
   name: string;
