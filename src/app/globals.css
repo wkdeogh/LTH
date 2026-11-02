@@ -3646,3 +3646,40 @@ button.main-strategy-select:hover { color: #155eef; border-color: #9db9f7; }
 .access-form { display: grid; gap: 14px; margin-top: 24px; }
 .access-form input { width: 100%; min-width: 0; }
 .access-form .danger-text { margin: 0; }
+
+.broker-control { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 14px 18px; }
+.broker-control-row, .broker-connection { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.broker-control-row > div { display: grid; gap: 2px; min-width: 0; }
+.broker-control-row small, .broker-connection { color: var(--muted); font-size: 12px; }
+.broker-switch { display: block; width: 58px; min-width: 58px; height: 44px; min-height: 44px; border: 0; padding: 8px 4px; border-radius: 24px; background: var(--line-strong); box-shadow: none; }
+.broker-switch span { display: block; width: 28px; height: 28px; background: white; border-radius: 50%; transition: transform var(--motion-base); box-shadow: 0 1px 4px #0002; }
+.broker-switch.on { background: var(--accent); }
+.broker-switch.on span { transform: translateX(22px); }
+.broker-connection { margin-top: 7px; }
+.broker-text-button { min-height: 44px; padding: 6px 0 6px 10px; border: 0; background: none; color: var(--accent); font-size: 12px; box-shadow: none; }
+.broker-message { margin: 10px 0 0; color: var(--positive); font-size: 13px; overflow-wrap: anywhere; }
+.broker-message.error { color: var(--negative); }
+.broker-order-panel { display: grid; gap: 4px; }
+.broker-api-button { justify-self: end; min-height: 44px; }
+.broker-dialog { width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 24px; color: var(--ink); box-shadow: var(--shadow); }
+.broker-dialog::backdrop { background: #10182788; }
+.broker-dialog h2 { margin: 0; font-size: 21px; }
+.broker-dialog-reference { color: var(--muted); margin: 5px 0 16px; }
+.broker-order-preview { max-height: 36dvh; overflow-y: auto; overscroll-behavior: contain; border-block: 1px solid var(--line); }
+.broker-order-line { display: grid; grid-template-columns: minmax(78px, 1fr) minmax(65px, 1fr) auto; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.broker-order-line:last-child { border-bottom: 0; }
+.broker-order-line small { font-size: 11px; }
+.broker-dialog-actions { display: grid; grid-template-columns: 1fr 1.5fr; gap: 10px; margin-top: 20px; }
+.broker-dialog-actions button { min-height: 48px; padding: 10px 8px; }
+.broker-skipped { margin-top: 12px; font-size: 12px; color: var(--muted); }
+.broker-skipped summary { cursor: pointer; min-height: 32px; }
+.broker-skipped p { margin: 5px 0; }
+.broker-notifications { display: flex; justify-content: flex-end; position: relative; margin: -8px 0 6px; }
+.broker-notification-button { min-height: 44px; border: 0; padding: 8px 2px 8px 12px; background: none; color: var(--muted); box-shadow: none; font-size: 12px; }
+.broker-notification-button > span { display: inline-grid; place-items: center; background: var(--negative); color: white; border-radius: 10px; min-width: 18px; margin-left: 5px; font-size: 11px; }
+.broker-notification-list { position: absolute; right: 0; top: 44px; z-index: 20; width: min(380px, calc(100vw - 36px)); max-height: 65dvh; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow); padding: 14px; }
+.broker-notification-list article { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.broker-notification-list article:last-child { border: 0; }
+.broker-notification-list article[data-tone="warning"] strong { color: var(--negative); }
+.broker-notification-list p { margin: 4px 0 0; font-size: 12px; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .broker-switch span { transition: none; } }

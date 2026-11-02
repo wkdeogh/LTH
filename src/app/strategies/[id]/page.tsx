@@ -1,4 +1,5 @@
 import { InitialPrincipalReturn } from '@/components/InitialPrincipalReturn';
+import { AutoTradeControl } from '@/components/BrokerControls';
 import { CashFlowForm } from '@/components/CashFlowForm';
 import { loadInitialPrincipal } from '@/lib/supabase/initialPrincipal';
 import { Suspense } from 'react';
@@ -104,6 +105,8 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
       </section>
 
       <StrategyTabs strategyId={id} active="detail" />
+
+      <AutoTradeControl strategyId={id} />
 
       <section className="strategy-card strategy-detail-summary" aria-label="현재 전략 요약">
         <div className="strategy-card-head">

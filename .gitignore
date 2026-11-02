@@ -1,12 +1,13 @@
 node_modules
 .next
 .env
-.env.local
+.env.local*
 *.un~
 .codex/
 *.log
 tsconfig.tsbuildinfo
 .vercel
+supabase/.temp/
 수파베이스프로젝트비번.txt
 __pycache__/
 *.pyc

@@ -9,6 +9,7 @@ import { FormSubmitFeedback } from '@/components/FormSubmitFeedback';
 import { InlineValidation } from '@/components/InlineValidation';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { Toast } from '@/components/Toast';
+import { BrokerNotifications } from '@/components/BrokerControls';
 import { TouchFeedback } from '@/components/TouchFeedback';
 import soxlLogo from './icon.png';
 import './globals.css';
@@ -47,6 +48,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <Link href="/guide">사용법</Link>
             </nav>}
           </header>
+          {access && <BrokerNotifications />}
           <Suspense fallback={children}><PageTransition>{children}</PageTransition></Suspense>
           {access && <footer className="footer">
             <p>개인용 무한매수법 V4.0 주문 가이드</p>

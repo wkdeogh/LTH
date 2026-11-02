@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { sameRequestOrigin } from '@/lib/access/origin';
 import { ACCESS_COOKIE, ACCESS_MAX_AGE, createAccessToken, passwordMatches, safeReturnPath } from '@/lib/access/token';
 
 // Best-effort per-instance throttling; production-wide limits belong in Vercel Firewall.
@@ -6,11 +7,12 @@ const attempts = new Map<string, { count: number; expires: number }>();
 const WINDOW = 10 * 60 * 1000;
 
 export async function POST(request: NextRequest) {
-  if (request.headers.get('origin') !== request.nextUrl.origin) {
+  if (!sameRequestOrigin(request)) {
     return new Response('Forbidden', { status: 403 });
   }
+  const origin = request.headers.get('origin')!;
   const password = process.env.APP_PASSWORD;
-  if (!password) return NextResponse.redirect(new URL('/', request.url), 303);
+  if (!password) return NextResponse.redirect(new URL('/', origin), 303);
   const now = Date.now();
   for (const [key, value] of attempts) if (value.expires <= now) attempts.delete(key);
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
@@ -23,7 +25,7 @@ export async function POST(request: NextRequest) {
   const input = form.get('password');
   const returnPath = safeReturnPath(String(form.get('next') ?? '/'));
   if (typeof input !== 'string' || input.length > 1024 || !passwordMatches(input, password)) {
-    const url = new URL('/login', request.url);
+    const url = new URL('/login', origin);
     url.searchParams.set('error', 'password');
     url.searchParams.set('next', returnPath);
     const response = NextResponse.redirect(url, 303);
@@ -31,7 +33,7 @@ export async function POST(request: NextRequest) {
     return response;
   }
   attempts.delete(ip);
-  const response = NextResponse.redirect(new URL(returnPath, request.url), 303);
+  const response = NextResponse.redirect(new URL(returnPath, origin), 303);
   response.headers.set('Cache-Control', 'no-store');
   response.cookies.set(ACCESS_COOKIE, createAccessToken(password, request.headers.get('host') ?? ''), {
     httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax',

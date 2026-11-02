@@ -42,7 +42,7 @@ function newYorkTradeDate(timestamp: number) {
   }).format(new Date(timestamp * 1000));
 }
 
-export async function syncMarketData(symbol: SymbolCode) {
+export async function syncMarketData(symbol: SymbolCode, options: { deferTransitions?: boolean } = {}) {
   const supabase = createSupabaseServerClient();
   if (!supabase) return;
 
@@ -128,6 +128,8 @@ export async function syncMarketData(symbol: SymbolCode) {
   ), null);
   if (!latestRow) return;
 
+  if (options.deferTransitions) return;
+
   const { data: reverseStrategies, error: reverseStrategiesError } = await supabase
     .from('strategies')
     .select('*')
@@ -137,7 +139,13 @@ export async function syncMarketData(symbol: SymbolCode) {
     .returns<Strategy[]>();
   if (reverseStrategiesError) throw reverseStrategiesError;
 
+  const linked = await supabase.from('meritz_links').select('strategy_id');
+  if (linked.error && !['PGRST205', '42P01'].includes(linked.error.code)) throw linked.error;
+  const linkedIds = new Set((linked.data ?? []).map(row => row.strategy_id));
+
   for (const strategy of reverseStrategies ?? []) {
+    // Linked strategies change mode only after their broker fills are reconciled.
+    if (linkedIds.has(strategy.id)) continue;
     const references = await loadStrategyReferences(supabase, strategy.id, strategy.symbol);
     if (!shouldAutoReturnToNormalMode(toStrategyState(strategy), references[0]?.price)) continue;
     const { error } = await supabase.from('strategies').update({ mode: 'normal', reverse_started_at: null, reverse_first_sell_done: false }).eq('id', strategy.id).eq('version', strategy.version);

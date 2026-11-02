@@ -1,4 +1,5 @@
 import { loadStrategyReferences } from '@/lib/marketData/references';
+import { ApiOrderButton } from '@/components/BrokerControls';
 import { notFound } from 'next/navigation';
 import { AutoNormalTransition } from '@/components/AutoNormalTransition';
 import { AutoReverseTransition } from '@/components/AutoReverseTransition';
@@ -78,6 +79,8 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
       </section>
 
       <StrategyTabs strategyId={id} active="plan" />
+
+      <ApiOrderButton strategyId={id} />
 
       <OrderTable title="오늘 매수 가이드" orders={plan.buyOrders} tone="buy" />
       <OrderTable title="오늘 매도 가이드" orders={plan.sellOrders} tone="sell" />

@@ -246,6 +246,12 @@ export async function switchToNormal(formData: FormData) {
   const id = stringValue(formData, 'id');
   const automatic = stringValue(formData, 'automatic') === '1';
 
+  if (automatic) {
+    const pending = await supabase.from('meritz_days').select('id').eq('strategy_id', id).in('status', ['pending', 'review']).limit(1);
+    if (pending.error && !['PGRST205', '42P01'].includes(pending.error.code)) throw pending.error;
+    if (pending.data?.length) redirect(`/strategies/${id}`);
+  }
+
   const { error } = await supabase
     .from('strategies')
     .update({
