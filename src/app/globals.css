@@ -105,6 +105,8 @@ summary {
   height: 72px;
   justify-content: space-between;
   margin-bottom: 28px;
+  margin-inline: -18px;
+  padding-inline: 18px;
   position: sticky;
   top: 0;
   z-index: 30;
@@ -3142,6 +3144,8 @@ td {
   .topbar {
     height: 62px;
     margin-bottom: 18px;
+    margin-inline: -12px;
+    padding-inline: 12px;
   }
 
   .brand {
