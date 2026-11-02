@@ -28,6 +28,19 @@ async function existingHistory(client: MeritzClient, date: string) {
 }
 function symbolOf(row: BrokerRow) { return String(row.ovrs_stck_symb_iscd ?? row.iscd ?? '').split('.')[0]; }
 
+// A single read for the first render; linking and daily capture stay in the
+// background status request so the switch never starts with a guessed OFF value.
+export async function getBrokerDisplayStatus(id: string) {
+  if (!brokerConfigured()) return { configured: false, enabled: false, syncEnabled: false, message: '메리츠 API 키를 설정해 주세요.' };
+  const result = await brokerDb().from('meritz_links').select('auto_enabled,active_from,last_error,account_key').eq('strategy_id', id).maybeSingle();
+  check(result.error);
+  const ready = (process.env.NODE_ENV !== 'production' || Boolean(process.env.APP_PASSWORD))
+    && (!result.data || result.data.account_key === accountKey());
+  return { configured: true, enabled: result.data?.auto_enabled ?? false,
+    activeFrom: result.data?.active_from, syncEnabled: Boolean(result.data),
+    lastError: result.data?.last_error, ordersReady: ready };
+}
+
 export async function getBrokerStatus(id: string) {
   if (!brokerConfigured()) return { configured: false, enabled: false, syncEnabled: false, message: '메리츠 API 키를 설정해 주세요.' };
   if (process.env.NODE_ENV === 'production' && !process.env.APP_PASSWORD) return { configured: true, enabled: false,

@@ -10,61 +10,63 @@ async function request(path: string, body?: unknown) {
   if (!response.ok) throw new Error(data.error || data.message || '요청을 완료하지 못했습니다.');
   return data;
 }
-type Status = { configured: boolean; enabled: boolean; activeFrom?: string; syncEnabled?: boolean;
-  lastError?: string; publicPushKey?: string; ordersReady?: boolean; message?: string };
+type Status = { configured: boolean; enabled: boolean; activeFrom?: string | null; syncEnabled?: boolean;
+  lastError?: string | null; ordersReady?: boolean; message?: string };
+// Retain the last confirmed value across cached App Router navigation. Never
+// persist a guessed state or treat an unfinished request as a saved setting.
+const statusCache = new Map<string, Status>();
 
-export function AutoTradeControl({ strategyId }: { strategyId: string }) {
-  const [status, setStatus] = useState<Status | null>(null);
-  const [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [error, setError] = useState('');
-  const [pushState, setPushState] = useState('알림 받기');
+export function AutoTradeControl({ strategyId, initialStatus }: { strategyId: string; initialStatus: Status | null }) {
+  const [status, setStatus] = useState<Status | null>(() => statusCache.get(strategyId) ?? initialStatus);
+  const [busy, setBusy] = useState(false), [feedback, setFeedback] = useState(''), [failed, setFailed] = useState(false);
+  const [dismissedIssue, setDismissedIssue] = useState('');
+  const revision = useRef(0);
+  const router = useRouter();
   useEffect(() => {
     let active = true;
-    request(`/api/broker?strategyId=${strategyId}`).then(data => { if (active) setStatus(data); })
-      .catch(e => { if (active) setError(e.message); });
+    const current = revision.current;
+    request(`/api/broker?strategyId=${strategyId}`).then(data => {
+      if (active && revision.current === current) { statusCache.set(strategyId, data); setStatus(data); }
+    }).catch(e => { if (active && revision.current === current) { setFailed(true); setFeedback(e.message); } });
     return () => { active = false; };
   }, [strategyId]);
+  useEffect(() => {
+    if (!feedback || failed) return;
+    const timer = window.setTimeout(() => setFeedback(''), 3400);
+    return () => window.clearTimeout(timer);
+  }, [feedback, failed]);
   async function toggle() {
     if (!status || busy) return;
-    setBusy(true); setError(''); setMessage('');
+    revision.current++;
+    setBusy(true); setFeedback(''); setFailed(false);
     try {
       const data = await request('/api/broker', { action: 'toggle', strategyId, enabled: !status.enabled });
-      setStatus({ ...status, enabled: data.enabled, activeFrom: data.activeFrom }); setMessage(data.message);
-    } catch (e) { setError((e as Error).message); }
+      const next = { ...status, enabled: data.enabled, activeFrom: data.activeFrom };
+      statusCache.set(strategyId, next); setStatus(next); setFeedback(data.message);
+      router.refresh();
+    } catch (e) { setFailed(true); setFeedback((e as Error).message); }
     finally { setBusy(false); }
   }
-  async function subscribe() {
-    setError('');
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-      setError('아이폰은 홈 화면에 추가한 앱에서 알림을 허용해 주세요.'); return;
-    }
-    if (!status?.publicPushKey) { setError('서버의 푸시 알림 설정이 필요합니다.'); return; }
-    // Request permission directly in this click, before network/worker awaits.
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') { setError('알림을 허용해야 잠금화면 알림을 받을 수 있습니다.'); return; }
-    try {
-      const registration = await navigator.serviceWorker.register('/sw.js');
-      await navigator.serviceWorker.ready;
-      const key = status.publicPushKey.replace(/-/g, '+').replace(/_/g, '/');
-      const bytes = Uint8Array.from(atob(key), c => c.charCodeAt(0));
-      const subscription = await registration.pushManager.getSubscription() ?? await registration.pushManager.subscribe({
-        userVisibleOnly: true, applicationServerKey: bytes,
-      });
-      await request('/api/notifications', { action: 'subscribe', subscription: subscription.toJSON() });
-      setPushState('알림 연결됨'); setMessage('이 기기로 푸시 알림을 받습니다.');
-    } catch (e) { setError((e as Error).message || '푸시 알림 연결에 실패했습니다.'); }
-  }
-  return <section className="broker-control" aria-label="자동매매 설정">
-    <div className="broker-control-row">
-      <div><strong>자동매매</strong><small>{status?.enabled ? `${status.activeFrom} 거래일부터` : '꺼짐'}</small></div>
-      <button type="button" role="switch" aria-checked={status?.enabled ?? false} aria-label="자동매매"
-        className={`broker-switch ${status?.enabled ? 'on' : ''}`} onClick={toggle}
-        disabled={!status?.configured || status.ordersReady === false || busy} aria-busy={busy}><span /></button>
-    </div>
-    {status?.syncEnabled && <div className="broker-connection"><span>체결 자동 반영 연결됨</span><button type="button" className="broker-text-button" onClick={subscribe}>{pushState}</button></div>}
-    {(error || status?.lastError || status?.message) && <p className="broker-message error" role="alert">{error || status?.lastError || status?.message}</p>}
-    {status?.ordersReady === false && <p className="broker-message error">주문 기능을 사용하려면 앱 접속 비밀번호 설정이 필요합니다.</p>}
-    {message && <p className="broker-message" role="status">{message}</p>}
-  </section>;
+  const issue = status?.lastError || status?.message || (status?.ordersReady === false ? '주문 설정을 확인해 주세요.' : '');
+  const subtitle = !status ? '확인 중…' : issue ? '설정 확인 필요' : status.enabled
+    ? `켜짐${status.activeFrom ? ` · ${status.activeFrom.slice(5).replace('-', '.')}부터` : ''}` : '꺼짐';
+  return <>
+    <section className="broker-control" aria-label="자동매매 설정">
+      <div className="broker-control-row">
+        <div><strong>자동매매</strong><small title={issue || undefined}>{subtitle}</small></div>
+        {status ? <button type="button" role="switch" aria-checked={status.enabled} aria-label="자동매매"
+          className={`broker-switch ${status.enabled ? 'on' : ''}`} onClick={toggle}
+          disabled={!status.configured || status.ordersReady === false || busy} aria-busy={busy}><span /></button>
+          : <span className="broker-switch-pending" role="status" aria-label="자동매매 상태 확인 중" />}
+      </div>
+    </section>
+    {(feedback || issue && issue !== dismissedIssue) && <div className="app-toast" role={failed || issue ? 'alert' : 'status'}>
+      <span>{feedback || issue}</span>
+      <button type="button" className="app-toast-close" aria-label="안내 닫기" onClick={() => {
+        setFeedback(''); setDismissedIssue(issue);
+      }}>×</button>
+    </div>}
+  </>;
 }
 
 type Preview = { runId: string; token: string; symbol: string; currentPrice: number;
@@ -116,26 +118,98 @@ export function ApiOrderButton({ strategyId }: { strategyId: string }) {
 type NotificationItem = { id: string; strategy_id: string | null; title: string; body: string; tone: string; read_at: string | null };
 export function BrokerNotifications() {
   const [items, setItems] = useState<NotificationItem[]>([]), [open, setOpen] = useState(false);
-  const load = useCallback(() => {
-    if (document.visibilityState === 'hidden') return;
-    request('/api/notifications').then(r => setItems(r.notifications ?? [])).catch(() => {});
+  const [loaded, setLoaded] = useState(false), [loadError, setLoadError] = useState('');
+  const [publicKey, setPublicKey] = useState<string | null>(null);
+  const [pushBusy, setPushBusy] = useState(false), [pushConnected, setPushConnected] = useState(false);
+  const [pushError, setPushError] = useState('');
+  const dialog = useRef<HTMLDialogElement>(null);
+  const load = useCallback(async () => {
+    if (document.visibilityState === 'hidden') return null;
+    try {
+      const data = await request('/api/notifications');
+      setItems(data.notifications ?? []); setPublicKey(data.publicKey ?? null); setLoaded(true); setLoadError('');
+      return data.notifications as NotificationItem[];
+    } catch { setLoadError('알림 내역을 불러오지 못했습니다.'); return null; }
   }, []);
-  useEffect(() => { load(); const interval = window.setInterval(load, 60000);
-    document.addEventListener('visibilitychange', load);
-    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', load); };
+  useEffect(() => { void load(); const interval = window.setInterval(() => { void load(); }, 60000);
+    const visible = () => { void load(); };
+    document.addEventListener('visibilitychange', visible);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', visible); };
   }, [load]);
+  useEffect(() => {
+    if (!open || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    let active = true;
+    navigator.serviceWorker.getRegistration('/sw.js').then(r => r?.pushManager.getSubscription())
+      .then(s => { if (active) setPushConnected(Boolean(s)); }).catch(() => {});
+    return () => { active = false; };
+  }, [open]);
   const unread = items.filter(i => !i.read_at).length;
-  async function toggle() {
-    setOpen(!open);
-    if (!open && unread) {
-      try { await request('/api/notifications', { action: 'read', ids: items.filter(i => !i.read_at).map(i => i.id) }); load(); } catch { /* keep unread for next attempt */ }
+  async function show() {
+    dialog.current?.showModal(); setOpen(true);
+    const current = await load();
+    const ids = current?.filter(i => !i.read_at).map(i => i.id) ?? [];
+    if (ids.length) {
+      try {
+        await request('/api/notifications', { action: 'read', ids });
+        setItems(previous => previous.map(i => ids.includes(i.id) ? { ...i, read_at: new Date().toISOString() } : i));
+      } catch { /* Preserve unread markers when saving fails. */ }
     }
   }
+  async function subscribe() {
+    if (pushBusy) return;
+    setPushError('');
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      setPushError('아이폰은 홈 화면에 추가한 앱에서 알림을 허용해 주세요.'); return;
+    }
+    if (!publicKey) { setPushError('서버의 푸시 알림 설정을 확인해 주세요.'); return; }
+    setPushBusy(true);
+    try {
+      // Keep the permission request in the user's click gesture for iOS.
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') throw new Error('기기 설정에서 이 앱의 알림을 허용해 주세요.');
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+      const key = publicKey.replace(/-/g, '+').replace(/_/g, '/');
+      const bytes = Uint8Array.from(atob(key), c => c.charCodeAt(0));
+      const subscription = await registration.pushManager.getSubscription() ?? await registration.pushManager.subscribe({
+        userVisibleOnly: true, applicationServerKey: bytes,
+      });
+      await request('/api/notifications', { action: 'subscribe', subscription: subscription.toJSON() });
+      setPushConnected(true);
+    } catch (e) { setPushError((e as Error).message || '푸시 알림 연결에 실패했습니다.'); }
+    finally { setPushBusy(false); }
+  }
   return <div className="broker-notifications">
-    <button type="button" className="broker-notification-button" onClick={toggle} aria-expanded={open} aria-controls="broker-notification-list">알림{unread > 0 && <span>{unread}</span>}</button>
-    {open && <section id="broker-notification-list" className="broker-notification-list" aria-label="알림 내역">
-      {!items.length && <p className="muted">새 알림이 없습니다.</p>}
-      {items.map(item => <article key={item.id} data-tone={item.tone}><strong>{item.title}</strong><p>{item.body}</p></article>)}
-    </section>}
+    <button type="button" className="broker-notification-button" onClick={show} aria-label={unread ? `알림, 읽지 않은 알림 ${unread}개` : '알림'}
+      aria-haspopup="dialog" aria-expanded={open} aria-controls="broker-notification-list">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" />
+      </svg>
+      {unread > 0 && <span className="broker-unread" aria-hidden="true">{unread > 9 ? '9+' : unread}</span>}
+    </button>
+    <dialog ref={dialog} id="broker-notification-list" className="broker-notification-dialog" aria-labelledby="broker-notification-title"
+      onClose={() => setOpen(false)} onClick={event => { if (event.target === dialog.current) {
+        const box = dialog.current.getBoundingClientRect();
+        if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.current.close();
+      } }}>
+      <div className="broker-notification-heading"><h2 id="broker-notification-title">알림</h2>
+        <button type="button" className="broker-icon-button" aria-label="알림 닫기" onClick={() => dialog.current?.close()}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+        </button>
+      </div>
+      <div className="broker-push-settings">
+        <div><strong>푸시 알림</strong><small>{pushConnected ? '이 기기로 알림을 받습니다' : '주문·체결 결과와 오류 알림'}</small></div>
+        <button type="button" className="secondary" onClick={subscribe} disabled={pushBusy || !loaded || pushConnected} aria-busy={pushBusy}>
+          {pushBusy ? '연결 중…' : pushConnected ? '연결됨' : '알림 받기'}
+        </button>
+      </div>
+      {pushError && <p className="broker-message error" role="alert">{pushError}</p>}
+      <section className="broker-notification-list" aria-label="알림 내역">
+        {loadError ? <p role="alert">{loadError}<button type="button" className="broker-text-button" onClick={() => { void load(); }}>다시 시도</button></p>
+          : !loaded ? <p className="muted" role="status">알림을 불러오는 중…</p>
+          : !items.length ? <p className="broker-notification-empty muted">새 알림이 없습니다.</p> : null}
+        {items.map(item => <article key={item.id} data-tone={item.tone}><strong>{item.title}</strong><p>{item.body}</p></article>)}
+      </section>
+    </dialog>
   </div>;
 }

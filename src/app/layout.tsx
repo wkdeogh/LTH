@@ -1,6 +1,5 @@
 import { hasAppAccess } from '@/lib/access/server';
 import { PageTransition } from '@/components/PageTransition';
-import { MainRecordsLink } from '@/components/MainRecordsLink';
 import { Suspense } from 'react';
 import type { Metadata, Viewport } from 'next';
 import Image from 'next/image';
@@ -42,13 +41,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <Image className="brand-mark" src={soxlLogo} alt="" priority />
               <span>쏙쓸계산기</span>
             </Link>
-            {access && <nav className="global-nav" aria-label="주요 메뉴">
-              <Link href="/">전략</Link>
-              <Suspense fallback={<Link href="/rounds">기록</Link>}><MainRecordsLink /></Suspense>
-              <Link href="/guide">사용법</Link>
-            </nav>}
+            {access && <BrokerNotifications />}
           </header>
-          {access && <BrokerNotifications />}
           <Suspense fallback={children}><PageTransition>{children}</PageTransition></Suspense>
           {access && <footer className="footer">
             <p>개인용 무한매수법 V4.0 주문 가이드</p>

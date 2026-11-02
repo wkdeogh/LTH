@@ -1,4 +1,4 @@
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { ACCESS_COOKIE, createAccessToken } from '../src/lib/access/token.ts';
@@ -15,13 +15,38 @@ try {
     const context = await browser.newContext({ viewport: { width, height: 844 }, reducedMotion: 'reduce' });
     if (process.env.LTH_TEST_PASSWORD) await context.addCookies([{ name: ACCESS_COOKIE,
       value: createAccessToken(process.env.LTH_TEST_PASSWORD, new URL(origin).host), url: origin, httpOnly: true, sameSite: 'Lax' }]);
-    let enabled = false, mode = 'success', confirmCount = 0, previewCount = 0;
+    let enabled = true, mode = 'success', confirmCount = 0, previewCount = 0, subscriptions = 0;
+    let releaseStatus;
+    let statusGate = new Promise(resolve => { releaseStatus = resolve; });
+    const pauseStatus = () => { statusGate = new Promise(resolve => { releaseStatus = resolve; }); };
+    const notifications = [{ id: 'fixture-notice', strategy_id: null, title: 'SOXL 주문 접수 완료', body: '오늘 주문이 정상 접수됐습니다.', tone: 'success', read_at: null }];
+    await context.addInitScript(() => {
+      window.__pushPermission = 'denied';
+      Object.defineProperty(window, 'Notification', { configurable: true, value: { requestPermission: async () => window.__pushPermission } });
+      Object.defineProperty(window, 'PushManager', { configurable: true, value: function () {} });
+      const subscription = { toJSON: () => ({ endpoint: 'https://fcm.googleapis.com/fixture', keys: { p256dh: 'fixture', auth: 'fixture' } }) };
+      Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: {
+        getRegistration: async () => undefined, ready: Promise.resolve(),
+        register: async () => ({ pushManager: { getSubscription: async () => subscription } }),
+      } });
+    });
     await context.route('**/*', async route => {
       const req = route.request(), url = new URL(req.url());
       if (url.origin !== origin) return route.continue();
-      if (url.pathname === '/api/notifications') return route.fulfill({ json: { notifications: [], publicKey: null } });
+      if (url.pathname === '/api/notifications') {
+        if (req.method() === 'POST') {
+          const body = req.postDataJSON();
+          if (body.action === 'subscribe') subscriptions++;
+          return route.fulfill({ json: { ok: true } });
+        }
+        return route.fulfill({ json: { notifications, publicKey: 'dGVzdA' } });
+      }
       if (url.pathname === '/api/broker') {
-        if (req.method() === 'GET') return route.fulfill({ json: { configured: true, enabled, syncEnabled: true, ordersReady: true, activeFrom: '2026-11-03' } });
+        if (req.method() === 'GET') {
+          const snapshot = enabled;
+          await statusGate;
+          return route.fulfill({ json: { configured: true, enabled: snapshot, syncEnabled: true, ordersReady: true, activeFrom: '2026-11-03' } });
+        }
         const body = req.postDataJSON();
         if (body.action === 'toggle') { enabled = body.enabled; return route.fulfill({ json: { enabled, activeFrom: '2026-11-03', message: '2026-11-03 미국 거래일부터 자동매매가 적용됩니다.' } }); }
         if (body.action === 'preview') {
@@ -46,28 +71,85 @@ try {
     const hrefs = await page.locator('a[href^="/strategies/"]').evaluateAll(nodes => nodes.map(n => n.getAttribute('href')));
     const detail = hrefs.find(h => /^\/strategies\/[0-9a-f-]{36}$/.test(h));
     assert.ok(detail, '검증할 전략이 필요합니다.');
-    await page.goto(origin + detail, { waitUntil: 'networkidle' });
+    const errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await page.goto(origin + detail, { waitUntil: 'domcontentloaded' });
     const toggle = page.getByRole('switch', { name: '자동매매' });
     await toggle.waitFor({ state: 'visible' });
+    // The real saved ON value must be in the initial HTML, while client status
+    // is deliberately withheld. Every subsequent write is a mock.
+    assert.equal(await toggle.getAttribute('aria-checked'), 'true');
     const navigation = await page.getByRole('navigation', { name: '전략 메뉴' }).boundingBox();
     const panel = await page.locator('.broker-control').boundingBox();
     const summary = await page.locator('.strategy-detail-summary').boundingBox();
     assert.ok(panel.y >= navigation.y + navigation.height && panel.y + panel.height <= summary.y);
-    assert.equal(await toggle.getAttribute('aria-checked'), 'false');
+    assert.ok(panel.height <= 68);
+    assert.equal(await page.locator('.global-nav').count(), 0);
+    assert.equal(await page.locator('.broker-control button').count(), 1);
+    const bell = page.getByRole('button', { name: /^알림(,|$)/ });
+    assert.equal(await bell.locator('svg').count(), 1);
+    assert.equal((await bell.textContent()).includes('알림'), false);
+    const header = await page.locator('.topbar').boundingBox();
+    const bellBox = await bell.boundingBox();
+    assert.ok(bellBox.y >= header.y && bellBox.y + bellBox.height <= header.y + header.height);
     await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+    const offHeight = (await page.locator('.broker-control').boundingBox()).height;
+    assert.equal(offHeight, panel.height);
+    releaseStatus();
+    await page.waitForResponse(r => new URL(r.url()).pathname === '/api/broker' && r.request().method() === 'GET');
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+    const nav = page.getByRole('navigation', { name: '전략 메뉴' });
+    await nav.locator('a[href$="/plan"]').click();
+    await page.getByRole('button', { name: 'API 주문', exact: true }).waitFor();
+    pauseStatus();
+    await nav.locator('a').first().click();
+    await toggle.waitFor();
+    assert.equal(await toggle.getAttribute('aria-checked'), 'false');
+    releaseStatus();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
+    assert.equal((await page.locator('.broker-control').boundingBox()).height, offHeight);
     await page.getByText('2026-11-03 미국 거래일부터 자동매매가 적용됩니다.').waitFor();
+    await nav.locator('a[href$="/plan"]').click();
+    await page.getByRole('button', { name: 'API 주문', exact: true }).waitFor();
+    pauseStatus();
+    await nav.locator('a').first().click();
+    await toggle.waitFor();
     assert.equal(await toggle.getAttribute('aria-checked'), 'true');
+    releaseStatus();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: new URL(`status-${width}.png`, output).pathname });
+    await bell.click();
+    const notices = page.getByRole('dialog', { name: '알림', exact: true });
+    await notices.waitFor();
+    await notices.getByText('푸시 알림', { exact: true }).waitFor();
+    await notices.getByText('SOXL 주문 접수 완료', { exact: true }).waitFor();
+    await notices.getByRole('button', { name: '알림 받기', exact: true }).click();
+    await notices.getByRole('alert').filter({ hasText: '기기 설정' }).waitFor();
+    assert.equal(subscriptions, 0);
+    await page.evaluate(() => { window.__pushPermission = 'granted'; });
+    await notices.getByRole('button', { name: '알림 받기', exact: true }).click();
+    await expect(notices.getByRole('button', { name: '연결됨', exact: true })).toBeDisabled();
+    assert.equal(subscriptions, 1);
+    const noticesBox = await notices.boundingBox();
+    assert.ok(noticesBox.x >= 0 && noticesBox.x + noticesBox.width <= width);
+    await page.screenshot({ path: new URL(`notifications-${width}.png`, output).pathname });
+    await page.keyboard.press('Escape');
+    await expect(bell).toHaveAttribute('aria-expanded', 'false');
     await page.goto(origin + detail + '/plan', { waitUntil: 'networkidle' });
     const api = page.getByRole('button', { name: 'API 주문', exact: true });
+    await page.screenshot({ path: new URL(`plan-${width}.png`, output).pathname });
+    const apiBox = await api.boundingBox();
+    const orderPanel = await page.locator('.broker-order-panel').boundingBox();
+    assert.equal(apiBox.width, orderPanel.width);
     await api.click();
-    await page.getByRole('dialog').waitFor();
+    await page.getByRole('dialog', { name: /API 주문 확인/ }).waitFor();
     assert.ok(await page.getByText('SOXL API 주문 확인').isVisible());
     assert.equal(confirmCount, 0);
     await page.getByRole('button', { name: '취소', exact: true }).click();
     assert.equal(confirmCount, 0);
-    await api.click(); await page.getByRole('dialog').waitFor();
+    await api.click(); await page.getByRole('dialog', { name: /API 주문 확인/ }).waitFor();
     assert.equal(await page.locator('.broker-order-line').count(), 23);
     await page.screenshot({ path: new URL(`dialog-${width}.png`, output).pathname });
     mode = 'failure';
@@ -76,12 +158,13 @@ try {
     assert.equal(confirmCount, 1);
     await page.getByRole('button', { name: '취소', exact: true }).click();
     mode = 'success';
-    await api.click(); await page.getByRole('dialog').waitFor();
+    await api.click(); await page.getByRole('dialog', { name: /API 주문 확인/ }).waitFor();
     await page.getByRole('button', { name: '주문 전송', exact: true }).click();
     await page.getByRole('status').filter({ hasText: '정상 접수' }).waitFor();
     assert.equal(confirmCount, 2);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-    results.push({ width, togglePlacement: 'pass', lateActivation: 'pass', confirmationRequired: 'pass',
+    assert.deepEqual(errors, []);
+    results.push({ width, savedStateFirstRender: 'pass', delayedStatusNavigation: 'pass', stableCardHeight: offHeight, bellInHeader: true, pushSettings: 'pass', fullWidthApiButton: true, togglePlacement: 'pass', lateActivation: 'pass', confirmationRequired: 'pass',
       errorDisplay: 'pass', successDisplay: 'pass', overflow: false, realOrderRequests: 0 });
     await context.close();
   }

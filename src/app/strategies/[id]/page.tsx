@@ -1,5 +1,6 @@
 import { InitialPrincipalReturn } from '@/components/InitialPrincipalReturn';
 import { AutoTradeControl } from '@/components/BrokerControls';
+import { getBrokerDisplayStatus } from '@/lib/broker/service';
 import { CashFlowForm } from '@/components/CashFlowForm';
 import { loadInitialPrincipal } from '@/lib/supabase/initialPrincipal';
 import { Suspense } from 'react';
@@ -40,7 +41,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
 
   const currentDate = koreaDate();
   const chartData = loadStrategyChart(strategy);
-  const [references, roundTradingDayResult, initialPrincipal, cashFlowResult, lastExecutionResult, lastAdjustmentResult] = await Promise.all([
+  const [references, roundTradingDayResult, initialPrincipal, cashFlowResult, lastExecutionResult, lastAdjustmentResult, brokerStatus] = await Promise.all([
     loadStrategyReferences(supabase!, id, strategy.symbol),
     supabase!.from('market_candles').select('trade_date', { count: 'exact', head: true })
       .eq('symbol', strategy.symbol).gte('trade_date', strategy.started_at).lte('trade_date', currentDate),
@@ -48,6 +49,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
     supabase!.from('strategy_cash_flows').select('*').eq('strategy_id', id).order('requested_date', { ascending: false }).returns<CashFlow[]>(),
     supabase!.from('executions').select('executed_at').eq('strategy_id', id).order('executed_at', { ascending: false }).limit(1).maybeSingle(),
     supabase!.from('strategy_adjustments').select('effective_date').eq('strategy_id', id).order('effective_date', { ascending: false }).limit(1).maybeSingle(),
+    getBrokerDisplayStatus(id).catch(() => null),
   ]);
   if (roundTradingDayResult.error) throw roundTradingDayResult.error;
   if (cashFlowResult.error) throw cashFlowResult.error;
@@ -106,7 +108,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
 
       <StrategyTabs strategyId={id} active="detail" />
 
-      <AutoTradeControl strategyId={id} />
+      <AutoTradeControl key={id} strategyId={id} initialStatus={brokerStatus} />
 
       <section className="strategy-card strategy-detail-summary" aria-label="현재 전략 요약">
         <div className="strategy-card-head">
