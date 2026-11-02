@@ -41,6 +41,11 @@ test('3시 가격으로 가이드를 재산출하고 +20%·-10% 필터를 다시
   const result=planReplacement(p,[order],[history],90);
   assert.equal(result.processed.orders[0].price,105); assert.equal(result.processed.orders.length,1);
   assert.equal(result.targets.length,1);
+  const beforeCancel=planReplacement(plan,[order],[history],80).processed;
+  const justBeforeSubmit=planReplacement(plan,[order],[history],79.99).processed;
+  assert.equal(beforeCancel.orders[0].price,96);
+  assert.equal(justBeforeSubmit.orders[0].price,95.98);
+  assert.equal(justBeforeSubmit.orders[0].quantity,60);
 });
 test('전량 기체결 매도는 취소·재주문에서 빼고 예수금·보유량 대조에 반영한다',()=>{
   const sellSource={...guideOrder,side:'sell' as const,orderType:'LIMIT' as const,label:'쿼터매도',price:110,quantity:10};

@@ -4,7 +4,7 @@ import { brokerConfigured, type BrokerRow } from './meritz';
 import { nyTime, repriceWindow, shiftDate } from './calendar';
 import { brokerDb, check, loadStrategy, withBrokerLock, type BrokerLink } from './store';
 import { notify, deliverNotifications } from './notifications';
-import { judgeOrder, validateFunding, validateOrderBounds } from './policy';
+import { judgeOrder, validateFunding } from './policy';
 import { submitOrderBatch, type Run } from './service';
 import { brokerSession } from './reconciliation';
 import { cancelThenReplace, exceedsFivePercent, historyIdentity, planReplacement, type TrackedOrder } from './repricing-policy';
@@ -81,7 +81,10 @@ export async function runRepriceJob(watchdog = false) {
           },
           replace: async () => {
             await client.assertMarketOpen();
-            validateOrderBounds(replacement.processed.orders, await client.currentPrice('SOXL'));
+            // Cancellation can take many one-second calls. Rebuild the same
+            // remaining guide at the latest quote, rather than leave no orders
+            // merely because the old cap/cutoff moved by a few cents meanwhile.
+            replacement.processed = planReplacement(run!.snapshot.guide, saved.data ?? [], rows, await client.currentPrice('SOXL')).processed;
             const after = await history();
             if (replacement.targets.some(t => !after.some(r => historyIdentity(r) === historyIdentity(t.history) && Number(r.cntg_dqty ?? r.cntg_qty) === 0))) throw new Error('취소 후 원주문의 체결 상태가 달라 재주문을 보류했습니다.');
             if (after.some(r => String(r.oder_rctf_cncl_cls_code) === '0' && !['1','2','4'].includes(String(r.ovrs_stck_oder_stat_cls_code)) && !replacement.identities.has(historyIdentity(r)))) throw new Error('취소 중 다른 SOXL 주문이 추가돼 재주문을 보류했습니다.');
@@ -90,7 +93,7 @@ export async function runRepriceJob(watchdog = false) {
             if (holdings.reduce((n,r) => n + Number(r.rmnd_dqty),0) !== state.positionQty) throw new Error('기체결 수량과 계좌 보유수량이 달라 재주문을 보류했습니다.');
             validateFunding(replacement.processed.orders, state, Number(cash.find(r => r.crcd === 'USD')?.oder_crnc_oder_able_camt), holdings.reduce((n,r) => n + Number(r.seln_able_dqty),0));
             await guard();
-            check((await db.from('meritz_reprices').update({ status: 'submitting' }).eq('run_id', run!.id)).error);
+            check((await db.from('meritz_reprices').update({ status: 'submitting', replacement_snapshot: replacement.processed }).eq('run_id', run!.id)).error);
             return submitOrderBatch(run!, strategy as Strategy, replacement.processed.orders, client, account, 'reprice:');
           },
         });

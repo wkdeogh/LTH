@@ -111,6 +111,15 @@ async function submitWithClient(run: Run, client: MeritzClient, account: string)
   if (strategy.version !== run.snapshot.strategy.version) throw new Error('전략 상태가 변경됐습니다. 다시 확인해 주세요.');
   await client.assertMarketOpen(run.source === 'auto');
   const price = await client.currentPrice(strategy.symbol);
+  if (run.source === 'auto') {
+    const processed = processGuide(run.snapshot.guide, price);
+    if (!processed.orders.length) throw new Error('제출할 주문이 없습니다.');
+    const cash = await client.rows('/trading/v1/overseas/orders/estimate', { intg_marg_iqry_yn: 'N' });
+    const holdings = (await client.rows('/accounts/v1/me/overseas/holdings')).filter(r => symbolOf(r) === strategy.symbol && String(r.rmnd_clcd) === '1');
+    if (holdings.reduce((n,r) => n + Number(r.rmnd_dqty),0) !== strategy.position_qty) throw new Error('제출 직전 계좌 보유수량이 변경됐습니다.');
+    validateFunding(processed.orders, toStrategyState(strategy), Number(cash.find(r => r.crcd === 'USD')?.oder_crnc_oder_able_camt), holdings.reduce((n,r) => n + Number(r.seln_able_dqty),0));
+    run = { ...run, snapshot: { ...run.snapshot, processed } };
+  }
   const orders = run.snapshot.processed.orders;
   try { validateOrderBounds(orders, price); }
   catch (error) {
@@ -123,7 +132,7 @@ async function submitWithClient(run: Run, client: MeritzClient, account: string)
     && !['1', '2', '4'].includes(String(r.ovrs_stck_oder_stat_cls_code)) && Number(r.oder_dqty ?? r.odqt) > Number(r.cncl_cnfr_qty ?? 0))) {
     throw new Error('당일 메리츠 주문이 확인되어 중복 주문을 보류했습니다.');
   }
-  const changed = await db.from('meritz_runs').update({ status: 'submitting', submission_price: price }).eq('id', run.id).eq('status', 'prepared').select('id'); check(changed.error);
+  const changed = await db.from('meritz_runs').update({ status: 'submitting', submission_price: price, snapshot: run.snapshot }).eq('id', run.id).eq('status', 'prepared').select('id'); check(changed.error);
   if (changed.data?.length !== 1) throw new Error('이미 처리된 주문 요청입니다.');
   const { status, accepted, failure } = await submitOrderBatch(run, strategy, orders, client, account);
   const finished = await db.from('meritz_runs').update({ status }).eq('id', run.id); check(finished.error);
@@ -144,8 +153,8 @@ export async function submitOrderBatch(run: Run, strategy: Strategy, orders: Pro
   const db = brokerDb();
   let accepted = 0, rejected = false, unknown = false, failure = '';
   for (const order of orders) {
-    if (prefix && (await loadStrategy(run.strategy_id)).version !== strategy.version) {
-      rejected = true; failure = '전략 상태가 변경돼 남은 재주문을 중지했습니다.'; break;
+    if ((prefix || run.source === 'auto') && (await loadStrategy(run.strategy_id)).version !== strategy.version) {
+      rejected = true; failure = '전략 상태가 변경돼 남은 자동주문을 중지했습니다.'; break;
     }
     if (run.source === 'auto' || prefix) {
       const link = await db.from('meritz_links').select('auto_enabled,active_from').eq('strategy_id', run.strategy_id).single(); check(link.error);
