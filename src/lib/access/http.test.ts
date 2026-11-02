@@ -18,6 +18,15 @@ test('HTTP access gate, persistent cookie, CSRF, cron and retry limit', { skip: 
   }
   assert.equal((await request('/api/private-test')).status, 401);
   assert.equal((await request('/api/cron/market-candles')).status, 401);
+  for (const path of ['/api/cron/meritz-open', '/api/cron/meritz-reprice']) {
+    assert.equal((await request(path)).status, 401);
+    assert.equal((await request(path, { headers: { authorization: 'Bearer invalid' } })).status, 401);
+    if (process.env.ACCESS_TEST_CRON_SECRET) {
+      const response = await request(path, { headers: { authorization: `Bearer ${process.env.ACCESS_TEST_CRON_SECRET}` } });
+      assert.equal(response.status, 200);
+      assert.match((await response.json()).skipped, /키 미설정/);
+    }
+  }
   const login = (value: string, origin = base!, next = '/guide') => request('/api/access/login', {
     method: 'POST', headers: { origin }, body: new URLSearchParams({ password: value, next }),
   });

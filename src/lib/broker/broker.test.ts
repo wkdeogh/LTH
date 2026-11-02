@@ -54,11 +54,11 @@ test('현금·매도 가능 수량이 부족하면 임의로 수량을 바꾸지
   assert.throws(() => validateFunding(r.orders, toStrategyState(strategy), 100, 100), /현금/);
   assert.throws(() => validateFunding([{ ...r.orders[0], side: 'sell', quantity: 101 }], toStrategyState(strategy), 100000, 100), /수량/);
 });
-test('개장 이후 ON은 다음 거래일, 휴장·서머타임·조기마감 구분', () => {
-  assert.equal(activationDate(new Date('2026-11-02T14:29:59Z')), '2026-11-02');
-  assert.equal(activationDate(new Date('2026-11-02T14:30:00Z')), '2026-11-03');
+test('22시 이후 ON은 다음 거래일, 휴장·서머타임·조기마감 구분', () => {
+  assert.equal(activationDate(new Date('2026-11-02T12:59:59Z')), '2026-11-02');
+  assert.equal(activationDate(new Date('2026-11-02T13:00:00Z')), '2026-11-03');
   assert.equal(activationDate(new Date('2026-11-06T16:00:00Z')), '2026-11-09');
-  assert.equal(openingWindow(new Date('2026-07-06T13:30:00Z')), true);
+  assert.equal(openingWindow(new Date('2026-07-06T13:00:00Z')), true);
   assert.equal(openingWindow(new Date('2026-11-02T13:30:00Z')), false);
   assert.equal(isTradingDay('2026-11-26'), false);
   assert.equal(isTradingDay('2026-07-03'), false);

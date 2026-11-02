@@ -10,7 +10,7 @@
     "test:meritz": "node scripts/test-meritz.mjs",
     "test:meritz:order": "node scripts/test-meritz-order.mjs",
     "test:meritz:order:unit": "node --test scripts/test-meritz-order.test.mjs",
-    "test:broker": "node --import tsx --test src/lib/broker/broker.test.ts",
+    "test:broker": "node --import tsx --test src/lib/broker/*.test.ts",
     "test:broker:ui": "node --import tsx scripts/verify-broker-ui.mjs",
     "setup:broker:push": "node scripts/setup-broker-push.mjs",
     "lint": "next lint",

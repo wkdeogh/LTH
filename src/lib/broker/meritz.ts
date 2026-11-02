@@ -74,6 +74,7 @@ export class MeritzClient {
       method: body ? 'POST' : 'GET', headers: { authorization: `Bearer ${this.token}`, mac_address: mac,
         ...(body ? { 'content-type': 'application/json; charset=utf-8' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}),
     });
+    if (result.status < 200 || result.status >= 300) throw new Error(this.clean(`메리츠 HTTP ${result.status}: ${result.body.rsp_cd ?? ''} ${result.body.rsp_msg ?? ''}`));
     if (!raw && !OK.has(String(result.body.rsp_cd))) {
       throw new Error(this.clean(`${result.body.rsp_cd ?? 'UNKNOWN'}: ${result.body.rsp_msg ?? ''} ${result.body.rsp_sub_msg ?? ''}`));
     }
@@ -98,9 +99,11 @@ export class MeritzClient {
     if (d?.iscd !== symbol || !Number.isFinite(price) || price <= 0 || d?.crnc_code !== 'USD') throw new Error('종목의 현재가·통화를 확인하지 못했습니다.');
     return price;
   }
-  async assertMarketOpen() {
+  async assertMarketOpen(allowPreOpen = false) {
     const r = await this.call('/reference/v1/overseas/market-hours', { ovrs_stck_mrkt_tr_cls_code: '01' });
     const d = r.data as BrokerRow | undefined;
-    if (d?.ovrs_mkop_cls_code !== '004') throw new Error('메리츠에서 미국 정규장 개장을 확인하지 못했습니다.');
+    // 012 is the documented closed/pre-open state, permitted only by the
+    // separately time-checked 22:00 job. Order acceptance is still checked.
+    if (d?.ovrs_mkop_cls_code !== '004' && !(allowPreOpen && d?.ovrs_mkop_cls_code === '012')) throw new Error('메리츠에서 미국 주문 시간의 장운영 상태를 확인하지 못했습니다.');
   }
 }

@@ -89,3 +89,11 @@ export function judgeOrder(body: Record<string, unknown>) {
   if (typeof body.rsp_cd === 'string' && body.rsp_cd && body.rsp_cd !== '0001') return 'rejected' as const;
   return 'unknown' as const;
 }
+
+export function validateOrderBounds(orders: ApiOrder[], price: number) {
+  if (!Number.isFinite(price) || price <= 0 || orders.some(o => o.price !== null && (o.side === 'buy' && o.price > price * 1.2 + 1e-7
+    || o.side === 'sell' && o.price >= price * 1.2 - 1e-7
+    || o.side === 'buy' && o.sources.every(s => s.isSupplemental) && o.price < price * 0.9 - 1e-7))) {
+    throw new Error('현재가가 달라져 주문 범위를 벗어났습니다. 미리보기를 다시 확인해 주세요.');
+  }
+}

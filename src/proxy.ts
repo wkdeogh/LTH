@@ -4,7 +4,7 @@ import { ACCESS_COOKIE, verifyAccessToken } from '@/lib/access/token';
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   // The cron endpoint performs its own CRON_SECRET verification.
-  if (path === '/api/cron/market-candles' || path === '/api/cron/meritz-open') return NextResponse.next();
+  if (path === '/api/cron/market-candles' || path === '/api/cron/meritz-open' || path === '/api/cron/meritz-reprice') return NextResponse.next();
   if (path === '/sw.js' || path === '/manifest.webmanifest') return NextResponse.next();
   const isLogin = path === '/login' || path === '/api/access/login';
   // Never allow a Server Action to bypass authentication through the login URL.

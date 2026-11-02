@@ -45,11 +45,17 @@ export function regularSession(now = new Date()) {
 }
 export function openingWindow(now = new Date()) {
   const t = nyTime(now);
-  return isTradingDay(t.date) && t.minute === 570;
+  return isTradingDay(t.date) && now.getUTCHours() === 13 && now.getUTCMinutes() === 0;
+}
+export function initialOrderSession(now = new Date()) {
+  return isTradingDay(nyTime(now).date) && now.getUTCHours() === 13 && now.getUTCMinutes() < 5;
+}
+export function repriceWindow(now = new Date(), watchdog = false) {
+  return regularSession(now) && now.getUTCHours() === 18 && now.getUTCMinutes() === (watchdog ? 5 : 0);
 }
 export function activationDate(now = new Date()) {
   const t = nyTime(now); const d = new Date(`${t.date}T12:00:00Z`);
-  if (t.minute >= 570 || !isTradingDay(t.date)) d.setUTCDate(d.getUTCDate() + 1);
+  if (now >= new Date(`${t.date}T13:00:00Z`) || !isTradingDay(t.date)) d.setUTCDate(d.getUTCDate() + 1);
   while (!isTradingDay(dateString(d))) d.setUTCDate(d.getUTCDate() + 1);
   return dateString(d);
 }
