@@ -3700,5 +3700,18 @@ button.main-strategy-select:hover { color: #155eef; border-color: #9db9f7; }
 .broker-notification-list article:last-child { border: 0; }
 .broker-notification-list article[data-tone="warning"] strong { color: var(--negative); }
 .broker-notification-list p { margin: 4px 0 0; font-size: 12px; overflow-wrap: anywhere; }
+.broker-notification-entry { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; align-items: start; gap: 5px; width: 100%; text-align: left; min-height: 44px; padding: 4px 0; border: 0; border-radius: 0; background: transparent; color: var(--ink); box-shadow: none; font-weight: 400; }
+.broker-notification-entry time, .broker-notification-detail time { color: var(--muted); font-size: 11px; }
+.broker-notification-entry strong { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; font-size: 13px; }
+.broker-notification-entry strong > span { color: var(--muted); font-size: 22px; line-height: 1; }
+.broker-notification-entry p { width: 100%; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.broker-notification-back { min-height: 44px; padding: 8px 0; border: 0; background: transparent; color: var(--accent); box-shadow: none; font-size: 12px; }
+.broker-notification-kind { display: block; margin: 12px 0 6px; color: var(--accent); font-size: 11px; font-weight: 750; }
+.broker-notification-detail h3 { margin: 0 0 8px; font-size: 18px; line-height: 1.5; outline: none; }
+.broker-notification-explanation, .broker-notification-next { font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.broker-notification-next { color: var(--muted); }
+.broker-notification-record { padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); font-size: 12px; }
+.broker-notification-record > strong { display: block; margin-bottom: 6px; }
+.broker-notification-record p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
 @media (max-width: 380px) { .topbar .brand > span:last-child { display: inline; } }
 @media (prefers-reduced-motion: reduce) { .broker-switch span, .broker-switch span::before { transition: none; } }

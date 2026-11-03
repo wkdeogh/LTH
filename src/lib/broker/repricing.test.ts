@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
-import { activationDate, initialOrderSession, openingWindow, repriceWindow } from './calendar';
+import { activationDate, initialOrderSession, manualOrderSession, openingWindow, repriceWindow } from './calendar';
 import { cancelThenReplace, cancellableRow, exceedsFivePercent, isCancellationConfirmed, matchesTrackedOrder, planReplacement, type CancellationTarget, type TrackedOrder } from './repricing-policy';
 import { MeritzClient, type BrokerRow } from './meritz';
 import { type ApiOrder, type GuidePlan, judgeOrder } from './policy';
@@ -90,13 +90,27 @@ test('여러 원주문 중 하나라도 취소가 확정되지 않으면 전체 
   }),/취소 확정/);
   assert.deepEqual(sequence,['101','102']);assert.equal(replaced,0);
 });
-test('장전 닫힘은 22시 경로에서만 허용하고 HTTP 실패·취소 경고를 성공으로 보지 않는다',async()=>{
+test('22시 장전 주문은 정규장 상태 API를 조회하지 않고 실제 주문 응답을 확인한다',async()=>{
+  let queries=0;
+  const unavailable=new MeritzClient({key:'k',secret:'s',wait:async()=>{},fetcher:(async()=>{queries++;throw new Error('장운영 조회 불가')}) as typeof fetch});
+  await unavailable.assertMarketOpen(true);assert.equal(queries,0);
   const fetcher=(async(input:string|URL|Request)=>String(input).includes('oauth2')?new Response(JSON.stringify({access_token:'test'})):new Response(JSON.stringify({rsp_cd:'5766',data:{ovrs_mkop_cls_code:'012'}}))) as typeof fetch;
   const client=new MeritzClient({key:'k',secret:'s',fetcher,wait:async()=>{}});
   await client.assertMarketOpen(true);await assert.rejects(client.assertMarketOpen());
   const bad=new MeritzClient({key:'k',secret:'s',wait:async()=>{},fetcher:(async(input:string|URL|Request)=>String(input).includes('oauth2')?new Response(JSON.stringify({access_token:'test'})):new Response(JSON.stringify({rsp_cd:'0001',data:{warn_cls_code:'0',oder_no:99}}),{status:500})) as typeof fetch});
   await assert.rejects(bad.call('/trading/v1/overseas/orders/cancel',{}, {},true),/HTTP 500/);
   assert.equal(judgeOrder({rsp_cd:'0001',data:{warn_cls_code:'1',oder_no:99}}),'rejected');
+});
+test('수동 API 주문은 22시부터 가능하며 장전 허용을 이유로 시간·휴장 제한을 풀지 않는다',()=>{
+  for(const day of ['2026-07-06','2026-11-03']){
+    assert.equal(manualOrderSession(new Date(day+'T12:59:59Z')),false);
+    assert.equal(manualOrderSession(new Date(day+'T13:00:00Z')),true);
+    assert.equal(manualOrderSession(new Date(day+'T13:10:00Z')),true);
+    assert.equal(initialOrderSession(new Date(day+'T13:10:00Z')),false);
+    assert.equal(manualOrderSession(new Date(day+'T22:00:00Z')),false);
+  }
+  assert.equal(manualOrderSession(new Date('2026-11-26T13:10:00Z')),false);
+  assert.equal(manualOrderSession(new Date('2026-11-27T17:50:00Z')),false);
 });
 test('DB 재점검·취소는 한 번만 기록되고 공개 역할은 접근할 수 없다',async()=>{
   const db=new PGlite();try {

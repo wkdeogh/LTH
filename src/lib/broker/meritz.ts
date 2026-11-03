@@ -100,10 +100,12 @@ export class MeritzClient {
     return price;
   }
   async assertMarketOpen(allowPreOpen = false) {
+    // Scheduled/manual pre-open entry is already bounded by the Korea 22:00
+    // window and US calendar. The market-status API describes regular trading,
+    // not whether LOC/MOC orders can be accepted, so do not query it here.
+    if (allowPreOpen) return;
     const r = await this.call('/reference/v1/overseas/market-hours', { ovrs_stck_mrkt_tr_cls_code: '01' });
     const d = r.data as BrokerRow | undefined;
-    // 012 is the documented closed/pre-open state, permitted only by the
-    // separately time-checked 22:00 job. Order acceptance is still checked.
-    if (d?.ovrs_mkop_cls_code !== '004' && !(allowPreOpen && d?.ovrs_mkop_cls_code === '012')) throw new Error('메리츠에서 미국 주문 시간의 장운영 상태를 확인하지 못했습니다.');
+    if (d?.ovrs_mkop_cls_code !== '004') throw new Error('메리츠에서 미국 주문 시간의 장운영 상태를 확인하지 못했습니다.');
   }
 }

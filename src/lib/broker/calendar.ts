@@ -50,6 +50,10 @@ export function openingWindow(now = new Date()) {
 export function initialOrderSession(now = new Date()) {
   return isTradingDay(nyTime(now).date) && now.getUTCHours() === 13 && now.getUTCMinutes() < 5;
 }
+export function manualOrderSession(now = new Date()) {
+  const time = nyTime(now);
+  return isTradingDay(time.date) && now >= new Date(`${time.date}T13:00:00Z`) && time.minute < closeMinute(time.date) - 10;
+}
 export function repriceWindow(now = new Date(), watchdog = false) {
   return regularSession(now) && now.getUTCHours() === 18 && now.getUTCMinutes() === (watchdog ? 5 : 0);
 }

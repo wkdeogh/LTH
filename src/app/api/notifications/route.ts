@@ -8,7 +8,7 @@ export async function GET() {
   if (!await hasAppAccess()) return Response.json({ error: '접속 비밀번호를 입력해 주세요.' }, { status: 401 });
   if (process.env.NODE_ENV === 'production' && !process.env.APP_PASSWORD) return Response.json({ error: '앱 접속 비밀번호 설정이 필요합니다.' }, { status: 503 });
   try {
-    const r = await brokerDb().from('broker_notifications').select('id,strategy_id,title,body,tone,read_at,created_at').order('created_at', { ascending: false }).limit(30); check(r.error);
+    const r = await brokerDb().from('broker_notifications').select('id,strategy_id,event_key,title,body,tone,read_at,created_at').order('created_at', { ascending: false }).limit(30); check(r.error);
     return Response.json({ notifications: r.data, publicKey: pushConfigured() ? process.env.VAPID_PUBLIC_KEY : null }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) { return Response.json({ error: (error as Error).message }, { status: 503 }); }
 }

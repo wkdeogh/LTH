@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { notificationMeaning, notificationTime, type NotificationItem } from '@/lib/broker/notificationPresentation';
 
 async function request(path: string, body?: unknown) {
   const response = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
@@ -19,7 +20,6 @@ const statusCache = new Map<string, Status>();
 export function AutoTradeControl({ strategyId, initialStatus }: { strategyId: string; initialStatus: Status | null }) {
   const [status, setStatus] = useState<Status | null>(() => statusCache.get(strategyId) ?? initialStatus);
   const [busy, setBusy] = useState(false), [feedback, setFeedback] = useState(''), [failed, setFailed] = useState(false);
-  const [dismissedIssue, setDismissedIssue] = useState('');
   const revision = useRef(0);
   const router = useRouter();
   useEffect(() => {
@@ -60,10 +60,10 @@ export function AutoTradeControl({ strategyId, initialStatus }: { strategyId: st
           : <span className="broker-switch-pending" role="status" aria-label="자동매매 상태 확인 중" />}
       </div>
     </section>
-    {(feedback || issue && issue !== dismissedIssue) && <div className="app-toast" role={failed || issue ? 'alert' : 'status'}>
-      <span>{feedback || issue}</span>
+    {feedback && <div className="app-toast" role={failed ? 'alert' : 'status'}>
+      <span>{feedback}</span>
       <button type="button" className="app-toast-close" aria-label="안내 닫기" onClick={() => {
-        setFeedback(''); setDismissedIssue(issue);
+        setFeedback('');
       }}>×</button>
     </div>}
   </>;
@@ -115,8 +115,10 @@ export function ApiOrderButton({ strategyId }: { strategyId: string }) {
   </section>;
 }
 
-type NotificationItem = { id: string; strategy_id: string | null; title: string; body: string; tone: string; read_at: string | null };
 export function BrokerNotifications() {
+  const [selected, setSelected] = useState<NotificationItem | null>(null);
+  const detailTitle = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { if (selected) detailTitle.current?.focus(); }, [selected]);
   const [items, setItems] = useState<NotificationItem[]>([]), [open, setOpen] = useState(false);
   const [loaded, setLoaded] = useState(false), [loadError, setLoadError] = useState('');
   const [publicKey, setPublicKey] = useState<string | null>(null);
@@ -145,7 +147,7 @@ export function BrokerNotifications() {
   }, [open]);
   const unread = items.filter(i => !i.read_at).length;
   async function show() {
-    dialog.current?.showModal(); setOpen(true);
+    setSelected(null); dialog.current?.showModal(); setOpen(true);
     const current = await load();
     const ids = current?.filter(i => !i.read_at).map(i => i.id) ?? [];
     if (ids.length) {
@@ -188,7 +190,7 @@ export function BrokerNotifications() {
       {unread > 0 && <span className="broker-unread" aria-hidden="true">{unread > 9 ? '9+' : unread}</span>}
     </button>
     <dialog ref={dialog} id="broker-notification-list" className="broker-notification-dialog" aria-labelledby="broker-notification-title"
-      onClose={() => setOpen(false)} onClick={event => { if (event.target === dialog.current) {
+      onClose={() => { setOpen(false); setSelected(null); }} onClick={event => { if (event.target === dialog.current) {
         const box = dialog.current.getBoundingClientRect();
         if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.current.close();
       } }}>
@@ -197,6 +199,18 @@ export function BrokerNotifications() {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
         </button>
       </div>
+      {selected ? <section className="broker-notification-detail" aria-label="알림 상세">
+        <button type="button" className="broker-notification-back" onClick={() => {
+          const id = selected.id; setSelected(null);
+          requestAnimationFrame(() => document.getElementById(`notification-${id}`)?.focus());
+        }}>‹ 알림 목록</button>
+        <span className="broker-notification-kind">{notificationMeaning(selected).type}</span>
+        <h3 ref={detailTitle} tabIndex={-1}>{selected.title}</h3>
+        <time dateTime={selected.created_at}>{notificationTime(selected.created_at, true)} · 한국시간</time>
+        <p className="broker-notification-explanation">{notificationMeaning(selected).meaning}</p>
+        <div className="broker-notification-record"><strong>처리 내용</strong><p>{selected.body}</p></div>
+        <p className="broker-notification-next">{notificationMeaning(selected).next}</p>
+      </section> : <>
       <div className="broker-push-settings">
         <div><strong>푸시 알림</strong><small>{pushConnected ? '이 기기로 알림을 받습니다' : '주문·체결 결과와 오류 알림'}</small></div>
         <button type="button" className="secondary" onClick={subscribe} disabled={pushBusy || !loaded || pushConnected} aria-busy={pushBusy}>
@@ -208,8 +222,14 @@ export function BrokerNotifications() {
         {loadError ? <p role="alert">{loadError}<button type="button" className="broker-text-button" onClick={() => { void load(); }}>다시 시도</button></p>
           : !loaded ? <p className="muted" role="status">알림을 불러오는 중…</p>
           : !items.length ? <p className="broker-notification-empty muted">새 알림이 없습니다.</p> : null}
-        {items.map(item => <article key={item.id} data-tone={item.tone}><strong>{item.title}</strong><p>{item.body}</p></article>)}
+        {items.map(item => <article key={item.id} data-tone={item.tone}>
+          <button type="button" id={`notification-${item.id}`} className="broker-notification-entry" onClick={() => setSelected(item)} aria-label={`${item.title} 상세 보기`}>
+            <time dateTime={item.created_at}>{notificationTime(item.created_at)}</time>
+            <strong>{item.title}<span aria-hidden="true">›</span></strong><p>{item.body}</p>
+          </button>
+        </article>)}
       </section>
+      </>}
     </dialog>
   </div>;
 }

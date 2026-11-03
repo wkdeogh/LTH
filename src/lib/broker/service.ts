@@ -4,10 +4,10 @@ import type { Strategy } from '@/lib/types';
 import { toStrategyState } from '@/lib/types';
 import { brokerDb, captureDay, check, linkStrategy, loadStrategy, withBrokerLock, type BrokerLink } from './store';
 import { accountKey, brokerConfigured, type BrokerRow, type MeritzClient } from './meritz';
-import { closeMinute, initialOrderSession, isTradingDay, nyTime, openingWindow, regularSession, shiftDate } from './calendar';
+import { closeMinute, initialOrderSession, isTradingDay, manualOrderSession, nyTime, openingWindow, regularSession, shiftDate } from './calendar';
 import { judgeOrder, matchGuideOrder, orderBody, processGuide, validateFunding, validateOrderBounds, type GuidePlan, type ProcessedGuide } from './policy';
 import { notify, deliverNotifications, pushConfigured } from './notifications';
-import { brokerSession, buildBrokerCommit, normalizeDetails, type BrokerFill } from './reconciliation';
+import { brokerSession, buildBrokerCommit, normalizeDetails, recordedFillsMatch, type BrokerFill } from './reconciliation';
 import { matchesTrackedOrder, type TrackedOrder } from './repricing-policy';
 import { shouldAutoReturnToNormalMode } from '@/lib/trading/reverseMode';
 
@@ -60,16 +60,17 @@ export async function getBrokerStatus(id: string) {
 
 async function prepareWithClient(id: string, source: 'manual' | 'auto', client: MeritzClient, account: string) {
   if (process.env.NODE_ENV === 'production' && !process.env.APP_PASSWORD) throw new Error('주문 기능을 사용하려면 앱 접속 비밀번호를 설정해 주세요.');
-  if (!(source === 'auto' ? initialOrderSession() : regularSession())) throw new Error('자동주문은 한국 22시, 수동 주문은 미국 정규장 마감 10분 전까지 가능합니다.');
+  if (!(source === 'auto' ? initialOrderSession() : manualOrderSession())) throw new Error('자동주문은 한국 22시, 수동 주문은 한국 22시부터 미국 정규장 마감 10분 전까지 가능합니다.');
   const db = brokerDb(), strategy = await loadStrategy(id), link = await linkStrategy(strategy);
   const today = nyTime().date;
+  await reconcileWithClient(client, account, { onlyRecorded: true, strategyId: id });
   const pending = await db.from('meritz_days').select('id').eq('strategy_id', id).lt('session_date', today).in('status', ['pending','review']).limit(1); check(pending.error);
   if (pending.data?.length) throw new Error('이전 거래일 체결 반영이 끝나지 않았습니다. 먼저 확인해 주세요.');
   if (source === 'auto' && (!link.auto_enabled || !link.active_from || link.active_from > today)) throw new Error('자동매매 적용 대상이 아닙니다.');
   const prior = await db.from('meritz_runs').select('*').eq('strategy_id', id).eq('session_date', today).maybeSingle<Run>(); check(prior.error);
   if (prior.data && !['prepared', 'expired'].includes(prior.data.status)) throw new Error('오늘의 API 주문은 이미 처리되었습니다. 주문내역을 확인해 주세요.');
   if (source === 'auto' && prior.data?.source === 'manual') throw new Error('오늘 수동 API 주문 미리보기가 있어 자동 주문을 보류했습니다.');
-  await client.assertMarketOpen(source === 'auto');
+  await client.assertMarketOpen(source === 'auto' || !regularSession());
   const price = await client.currentPrice(strategy.symbol);
   const day = await captureDay(strategy, today, true);
   if (day.baseline.version !== strategy.version) throw new Error('당일 전략 상태가 변경됐습니다. 체결·입출금 내역을 확인해 주세요.');
@@ -106,10 +107,10 @@ export async function prepareOrders(id: string) {
 async function submitWithClient(run: Run, client: MeritzClient, account: string) {
   const db = brokerDb();
   if (run.account_key !== account || run.status !== 'prepared' || new Date(run.expires_at).getTime() < Date.now()) throw new Error('주문 미리보기가 만료됐습니다. 다시 확인해 주세요.');
-  if (!(run.source === 'auto' ? initialOrderSession() : regularSession()) || nyTime().date !== run.session_date) throw new Error('주문 가능한 거래 시간이 아닙니다.');
+  if (!(run.source === 'auto' ? initialOrderSession() : manualOrderSession()) || nyTime().date !== run.session_date) throw new Error('주문 가능한 거래 시간이 아닙니다.');
   const strategy = await loadStrategy(run.strategy_id);
   if (strategy.version !== run.snapshot.strategy.version) throw new Error('전략 상태가 변경됐습니다. 다시 확인해 주세요.');
-  await client.assertMarketOpen(run.source === 'auto');
+  await client.assertMarketOpen(run.source === 'auto' || !regularSession());
   const price = await client.currentPrice(strategy.symbol);
   if (run.source === 'auto') {
     const processed = processGuide(run.snapshot.guide, price);
@@ -237,11 +238,18 @@ function matchesManualGuide(history: BrokerRow, guide: GuidePlan, price: number)
 
 export async function reconcileBroker() {
   if (!brokerConfigured()) return { skipped: '메리츠 키 미설정' };
-  return withBrokerLock(async (client, account) => {
+  return withBrokerLock((client, account) => reconcileWithClient(client, account));
+}
+export async function verifyRecordedExecutions(strategyId: string) {
+  if (!brokerConfigured()) throw new Error('메리츠 API 키가 설정되지 않았습니다.');
+  return withBrokerLock((client, account) => reconcileWithClient(client, account, { onlyRecorded: true, strategyId }));
+}
+async function reconcileWithClient(client: MeritzClient, account: string, options: { onlyRecorded?: boolean; strategyId?: string } = {}) {
     const db = brokerDb(), now = nyTime();
     const links = await db.from('meritz_links').select('*').eq('account_key', account).returns<BrokerLink[]>(); check(links.error);
     const results: Record<string, unknown>[] = [];
     for (const link of links.data ?? []) {
+      if (options.strategyId && link.strategy_id !== options.strategyId) continue;
       const strategy = await loadStrategy(link.strategy_id);
       // Reconcile all unresolved captured sessions, even with automatic orders OFF.
       const days = await db.from('meritz_days').select('*').eq('strategy_id', strategy.id).gte('session_date', link.sync_from)
@@ -251,6 +259,8 @@ export async function reconcileBroker() {
         let committed = false;
         try {
           const baseline = day.baseline as Strategy, guide = day.guide as GuidePlan;
+          const local = await db.from('executions').select('side,order_type,quantity,total_amount').eq('strategy_id', strategy.id).eq('executed_at', day.session_date); check(local.error);
+          if (options.onlyRecorded && !local.data?.length) break;
           const allHistory = (await existingHistory(client, day.session_date)).filter(r => symbolOf(r) === strategy.symbol && brokerSession(r) === day.session_date);
           if (allHistory.some(r => String(r.oder_rctf_cncl_cls_code) !== '0' && Number(r.cntg_dqty ?? r.cntg_qty) > 0)) {
             throw new Error('정정·취소 주문에 체결이 있어 원주문 연결과 T값 확인이 필요합니다.');
@@ -282,13 +292,14 @@ export async function reconcileBroker() {
             if (!Number(row.cntg_dqty ?? row.cntg_qty)) continue;
             const tracked = (apiOrders.data ?? []).find(o => o.broker_order_no === String(row.oder_no) && o.broker_order_date === String(row.oder_date));
             const reference = run.data?.snapshot?.processed?.currentPrice ?? day.quote_price ?? (guide.kind === 'normal' ? guide.buyPrice : guide.referencePrice) ?? 0;
-            const match = tracked?.guide_order ?? matchesManualGuide(row, guide, Number(reference));
-            if (!match) throw new Error('수동 주문의 가격·수량이 가이드와 달라 T값 확인이 필요합니다.');
-            if (String(row.seln_byov_clcd) === '2' && match.sources.some((s: { completesBuyUnit?: boolean }) => s.completesBuyUnit)) buyCompletesUnit = true;
+            const match = local.data?.length ? null : tracked?.guide_order ?? matchesManualGuide(row, guide, Number(reference));
+            if (!local.data?.length && !match) throw new Error('수동 주문의 가격·수량이 가이드와 달라 T값 확인이 필요합니다.');
+            if (String(row.seln_byov_clcd) === '2' && match?.sources.some((s: { completesBuyUnit?: boolean }) => s.completesBuyUnit)) buyCompletesUnit = true;
             const details = await client.rows('/trading/v1/overseas/orders/detail', { oder_sta_date: String(row.oder_date), oder_no: String(row.oder_no) });
-            fills.push(...normalizeDetails(details, row));
+            fills.push(...normalizeDetails(details, row, { recordedManually: Boolean(local.data?.length) }));
           }
           if (!fills.length) {
+            if (local.data?.length) throw new Error('이미 입력한 체결은 있지만 메리츠 체결을 확인하지 못했습니다.');
             const candle = await db.from('market_candles').select('close_price').eq('symbol', strategy.symbol).eq('trade_date', day.session_date).maybeSingle(); check(candle.error);
             const current = await loadStrategy(strategy.id);
             if (current.version !== baseline.version) throw new Error('전략 상태가 변경되어 미체결·모드 복귀 확인이 필요합니다.');
@@ -300,13 +311,10 @@ export async function reconcileBroker() {
             results.push({ strategy: strategy.id, date: day.session_date, status: 'empty' }); continue;
           }
           fills.sort((a, b) => a.orderDate.localeCompare(b.orderDate) || a.orderNo.localeCompare(b.orderNo) || a.fillNo.localeCompare(b.fillNo));
-          const local = await db.from('executions').select('side,order_type,quantity,total_amount').eq('strategy_id', strategy.id).eq('executed_at', day.session_date); check(local.error);
-          const totals = (items: { side: string; quantity: number; amount: number }[]) => ['buy', 'sell'].map(side => ({ side,
-            quantity: items.filter(i => i.side === side).reduce((n, i) => n + i.quantity, 0),
-            amount: Math.round(items.filter(i => i.side === side).reduce((n, i) => n + i.amount, 0) * 10000) / 10000 }));
           if (local.data?.length) {
-            const matching = JSON.stringify(totals(fills)) === JSON.stringify(totals(local.data.map(e => ({ side: e.side, quantity: e.quantity, amount: Number(e.total_amount) }))));
+            const matching = recordedFillsMatch(fills, local.data);
             if (!matching) throw new Error('이미 입력한 체결과 메리츠 내역이 다릅니다. 중복 반영을 보류했습니다.');
+            if ((await loadStrategy(strategy.id)).version !== strategy.version) throw new Error('체결 대조 중 앱 상태가 변경됐습니다. 다시 확인해 주세요.');
             const matched = await db.from('meritz_days').update({ status: 'matched', broker_fills: fills, error: null }).eq('id', day.id); check(matched.error);
             committed = true;
           } else {
@@ -319,8 +327,8 @@ export async function reconcileBroker() {
             committed = true;
           }
           const updated = await db.from('meritz_links').update({ last_sync_at: new Date().toISOString(), last_error: null }).eq('strategy_id', strategy.id); check(updated.error);
-          await notify(`sync:${day.id}:applied`, strategy.id, `${strategy.symbol} 체결 반영 완료`, `매수 ${fills.filter(f => f.side === 'buy').reduce((n, f) => n + f.quantity, 0)}주 · 매도 ${fills.filter(f => f.side === 'sell').reduce((n, f) => n + f.quantity, 0)}주. 중복 없이 반영했습니다.`, 'success');
-          results.push({ strategy: strategy.id, date: day.session_date, status: 'applied' });
+          await notify(`sync:${day.id}:applied`, strategy.id, `${strategy.symbol} ${local.data?.length ? '수동 체결 입력 확인 완료' : '체결 반영 완료'}`, local.data?.length ? '직접 입력한 수량·금액이 메리츠 체결과 일치합니다. 체결을 추가 입력하지 않고 확인 대기를 해제했습니다.' : `매수 ${fills.filter(f => f.side === 'buy').reduce((n, f) => n + f.quantity, 0)}주 · 매도 ${fills.filter(f => f.side === 'sell').reduce((n, f) => n + f.quantity, 0)}주. 중복 없이 반영했습니다.`, 'success');
+          results.push({ strategy: strategy.id, date: day.session_date, status: local.data?.length ? 'matched' : 'applied' });
         } catch (error) {
           const message = client.clean((error as Error).message);
           if (!committed) check((await db.from('meritz_days').update({ status: 'review', error: message }).eq('id', day.id)).error);
@@ -332,5 +340,4 @@ export async function reconcileBroker() {
       }
     }
     await deliverNotifications(); return { results };
-  });
 }

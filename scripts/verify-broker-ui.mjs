@@ -19,7 +19,7 @@ try {
     let releaseStatus;
     let statusGate = new Promise(resolve => { releaseStatus = resolve; });
     const pauseStatus = () => { statusGate = new Promise(resolve => { releaseStatus = resolve; }); };
-    const notifications = [{ id: 'fixture-notice', strategy_id: null, title: 'SOXL 주문 접수 완료', body: '오늘 주문이 정상 접수됐습니다.', tone: 'success', read_at: null }];
+    const notifications = [{ id: 'fixture-notice', strategy_id: null, title: 'SOXL 주문 접수 완료', body: '오늘 주문이 정상 접수됐습니다.', tone: 'success', read_at: null, created_at: '2026-11-03T13:00:12.022Z' }];
     await context.addInitScript(() => {
       window.__pushPermission = 'denied';
       Object.defineProperty(window, 'Notification', { configurable: true, value: { requestPermission: async () => window.__pushPermission } });
@@ -45,7 +45,7 @@ try {
         if (req.method() === 'GET') {
           const snapshot = enabled;
           await statusGate;
-          return route.fulfill({ json: { configured: true, enabled: snapshot, syncEnabled: true, ordersReady: true, activeFrom: '2026-11-03' } });
+          return route.fulfill({ json: { configured: true, enabled: snapshot, syncEnabled: true, ordersReady: true, activeFrom: '2026-11-03', lastError: '과거에 확인한 오류 알림' } });
         }
         const body = req.postDataJSON();
         if (body.action === 'toggle') { enabled = body.enabled; return route.fulfill({ json: { enabled, activeFrom: '2026-11-03', message: '2026-11-03 미국 거래일부터 자동매매가 적용됩니다.' } }); }
@@ -76,6 +76,7 @@ try {
     await page.goto(origin + detail, { waitUntil: 'domcontentloaded' });
     const toggle = page.getByRole('switch', { name: '자동매매' });
     await toggle.waitFor({ state: 'visible' });
+    assert.equal(await page.getByText('과거에 확인한 오류 알림', {exact:true}).count(), 0);
     // The real saved ON value must be in the initial HTML, while client status
     // is deliberately withheld. Every subsequent write is a mock.
     assert.equal(await toggle.getAttribute('aria-checked'), 'true');
@@ -99,6 +100,7 @@ try {
     releaseStatus();
     await page.waitForResponse(r => new URL(r.url()).pathname === '/api/broker' && r.request().method() === 'GET');
     await expect(toggle).toHaveAttribute('aria-checked', 'false');
+    assert.equal(await page.getByText('과거에 확인한 오류 알림', {exact:true}).count(), 0);
     const nav = page.getByRole('navigation', { name: '전략 메뉴' });
     await nav.locator('a[href$="/plan"]').click();
     await page.getByRole('button', { name: 'API 주문', exact: true }).waitFor();
@@ -124,7 +126,15 @@ try {
     const notices = page.getByRole('dialog', { name: '알림', exact: true });
     await notices.waitFor();
     await notices.getByText('푸시 알림', { exact: true }).waitFor();
-    await notices.getByText('SOXL 주문 접수 완료', { exact: true }).waitFor();
+    await notices.getByRole('button', {name:'SOXL 주문 접수 완료 상세 보기',exact:true}).waitFor();
+    await notices.getByText('2026.11.03 22:00', { exact: true }).waitFor();
+    await notices.getByRole('button', { name: 'SOXL 주문 접수 완료 상세 보기', exact: true }).click();
+    const detailPanel = notices.getByRole('region', { name: '알림 상세' });
+    await detailPanel.getByText('2026.11.03 22:00:12 · 한국시간', { exact: true }).waitFor();
+    await detailPanel.getByText('처리 내용', { exact: true }).waitFor();
+    await detailPanel.getByText('오늘 주문이 정상 접수됐습니다.', { exact: true }).waitFor();
+    await page.screenshot({ path: new URL(`notification-detail-${width}.png`, output).pathname });
+    await detailPanel.getByRole('button', { name: '‹ 알림 목록', exact: true }).click();
     await notices.getByRole('button', { name: '알림 받기', exact: true }).click();
     await notices.getByRole('alert').filter({ hasText: '기기 설정' }).waitFor();
     assert.equal(subscriptions, 0);
@@ -164,7 +174,7 @@ try {
     assert.equal(confirmCount, 2);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.deepEqual(errors, []);
-    results.push({ width, savedStateFirstRender: 'pass', delayedStatusNavigation: 'pass', stableCardHeight: offHeight, bellInHeader: true, pushSettings: 'pass', fullWidthApiButton: true, togglePlacement: 'pass', lateActivation: 'pass', confirmationRequired: 'pass',
+    results.push({ width, notificationTimestampAndDetail: 'pass', noRepeatedHistoricalToast: 'pass', savedStateFirstRender: 'pass', delayedStatusNavigation: 'pass', stableCardHeight: offHeight, bellInHeader: true, pushSettings: 'pass', fullWidthApiButton: true, togglePlacement: 'pass', lateActivation: 'pass', confirmationRequired: 'pass',
       errorDisplay: 'pass', successDisplay: 'pass', overflow: false, realOrderRequests: 0 });
     await context.close();
   }

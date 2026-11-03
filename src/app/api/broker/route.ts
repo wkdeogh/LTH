@@ -1,6 +1,6 @@
 import { hasAppAccess } from '@/lib/access/server';
 import { sameRequestOrigin } from '@/lib/access/origin';
-import { confirmOrders, getBrokerStatus, prepareOrders } from '@/lib/broker/service';
+import { confirmOrders, getBrokerStatus, prepareOrders, verifyRecordedExecutions } from '@/lib/broker/service';
 import { updateAutomation } from '@/lib/broker/store';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +26,7 @@ export async function POST(request: Request) {
       return Response.json(result, { status: result.ok ? 200 : 502 });
     }
     if (!uuid.test(body.strategyId ?? '')) throw new Error('전략을 확인해 주세요.');
+    if (body.action === 'verify-recorded') return Response.json(await verifyRecordedExecutions(body.strategyId));
     if (body.action === 'toggle' && typeof body.enabled === 'boolean') return Response.json(await updateAutomation(body.strategyId, body.enabled));
     if (body.action === 'preview') return Response.json(await prepareOrders(body.strategyId));
     throw new Error('지원하지 않는 요청입니다.');

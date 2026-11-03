@@ -23,11 +23,19 @@ export type BrokerFill = { orderDate: string; orderNo: string; fillNo: string; s
   side: 'buy' | 'sell'; orderType: 'LOC' | 'MOC' | 'LIMIT'; quantity: number; amount: number;
   price: number; limitPrice: number; time: string; orderQuantity: number };
 
-export function normalizeDetails(rows: BrokerRow[], history: BrokerRow): BrokerFill[] {
+export function recordedFillsMatch(fills: Pick<BrokerFill, 'side' | 'quantity' | 'amount'>[], local: { side: string; quantity: number; total_amount: number | string }[]) {
+  const totals = (items: { side: string; quantity: number; amount: number }[]) => ['buy','sell'].map(side => ({ side,
+    quantity: items.filter(i => i.side === side).reduce((n,i) => n + i.quantity,0),
+    amount: Math.round(items.filter(i => i.side === side).reduce((n,i) => n + i.amount,0) * 10000) / 10000 }));
+  return fills.length > 0 && local.length > 0 && JSON.stringify(totals(fills)) === JSON.stringify(totals(local.map(e => ({ side:e.side,quantity:e.quantity,amount:Number(e.total_amount) }))));
+}
+
+export function normalizeDetails(rows: BrokerRow[], history: BrokerRow, options: { recordedManually?: boolean } = {}): BrokerFill[] {
   const expected = Number(history.cntg_dqty ?? history.cntg_qty ?? 0);
   const orderQuantity = Number(history.oder_dqty ?? history.odqt);
   if (!expected) return [];
-  if (!Number.isSafeInteger(expected) || !Number.isSafeInteger(orderQuantity) || expected !== orderQuantity) {
+  if (!Number.isSafeInteger(expected) || !Number.isSafeInteger(orderQuantity) || expected < 0 || expected > orderQuantity
+    || !options.recordedManually && expected !== orderQuantity) {
     throw new Error('부분체결 또는 소수점 체결은 T값 확인 후 반영해야 합니다.');
   }
   const unique = new Map<string, BrokerFill>();
