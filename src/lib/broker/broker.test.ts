@@ -13,7 +13,7 @@ import { toStrategyState } from '@/lib/types';
 const strategy: Strategy = { id: 'a3483fb0-bf14-45df-b3f4-8c92d9d4133d', name: '테스트', symbol: 'SOXL', split_count: 20,
   principal: 126000, cash_balance: 63000, position_qty: 100, avg_price: 120, t_value: 10,
   mode: 'normal', reverse_started_at: null, reverse_first_sell_done: false, compounding_type: 'compound',
-  is_archived: false, is_main: false, version: 1, sort_order: 0, started_at: '2026-10-01', created_at: '', updated_at: '' };
+  is_archived: false, version: 1, started_at: '2026-10-01', created_at: '', updated_at: '' };
 function guideWith(orders: OrderGuide[]): NormalPlan {
   return { kind: 'normal', phase: 'second_half', oneUnitBudget: 6300, starPercent: 0, starPrice: 105.01,
     buyPrice: 105, targetSellPrice: 144, buyOrders: orders.filter(o => o.side === 'buy'),

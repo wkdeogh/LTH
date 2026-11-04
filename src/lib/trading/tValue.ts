@@ -16,7 +16,7 @@ export function applyTEffect(tValue: number, effect: TEffect, splitCount: SplitC
     case 'limit_sell_then_half_buy':
       return roundT(tValue * 0.25 + 0.5);
     case 'reverse_sell':
-      return roundT(splitCount === 20 ? tValue * 0.9 : tValue * 0.95);
+      return roundT(tValue * 0.9);
     case 'reverse_buy':
       return roundT(tValue + (splitCount - tValue) * 0.25);
     case 'none':

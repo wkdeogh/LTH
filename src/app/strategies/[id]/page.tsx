@@ -9,7 +9,7 @@ import { loadStrategyChart, MarketSectionSkeleton, StrategyMarketSection } from 
 import { StrategyCorrectionForm } from '@/components/StrategyCorrectionForm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { addDailyPrice, deleteStrategy, switchToNormal, switchToReverse } from '@/app/actions';
+import { addDailyPrice, switchToNormal, switchToReverse } from '@/app/actions';
 import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
@@ -92,7 +92,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
     : 0;
   const positionSharePercent = hasAssetComposition ? 100 - cashSharePercent : 0;
   const currentStarPercent = strategy.mode === 'normal'
-    ? calculateStarPercent(strategy.symbol, strategy.split_count, toNumber(strategy.t_value)) * 100
+    ? calculateStarPercent(toNumber(strategy.t_value)) * 100
     : null;
   return (
     <div className="stack page-stack">
@@ -246,20 +246,13 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
 
       <details className="panel disclosure danger-zone">
         <summary>
-          <span><strong>모드 전환 및 전략 삭제</strong><small>필요할 때만 열어 주세요</small></span>
+          <span><strong>모드 전환</strong><small>필요할 때만 열어 주세요</small></span>
           <span aria-hidden="true">＋</span>
         </summary>
         <div className="actions disclosure-body">
           <form action={switchToReverse}><input type="hidden" name="id" value={id} /><button type="submit" className="secondary">리버스모드로 전환</button></form>
           <form action={switchToNormal}><input type="hidden" name="id" value={id} /><button type="submit" className="secondary">일반모드로 복귀</button></form>
-          {strategy.is_main ? (
-            <div className="main-strategy-protection">
-              <button type="button" className="secondary" disabled aria-describedby="main-strategy-delete-hint">메인 전략 · 삭제 불가</button>
-              <p id="main-strategy-delete-hint"><Link href="/">전략 목록</Link>에서 다른 전략을 메인으로 설정한 후 삭제할 수 있습니다.</p>
-            </div>
-          ) : (
-            <form action={deleteStrategy}><input type="hidden" name="id" value={id} /><button type="submit" className="danger">전략 삭제</button></form>
-          )}
+
         </div>
       </details>
     </div>

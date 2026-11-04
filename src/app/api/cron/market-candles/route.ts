@@ -6,7 +6,7 @@ import { notify, deliverNotifications } from '@/lib/broker/notifications';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-const symbols = ['SOXL', 'TQQQ'] as const;
+const symbols = ['SOXL'] as const;
 
 export async function GET(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;

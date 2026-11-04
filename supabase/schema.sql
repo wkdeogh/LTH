@@ -13,7 +13,6 @@ create table if not exists strategies (
   reverse_first_sell_done boolean not null default false,
   compounding_type text not null check (compounding_type in ('simple', 'compound')) default 'compound',
   is_archived boolean not null default false,
-  sort_order integer not null default 0,
   started_at date not null default current_date,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -271,7 +270,7 @@ $$;
 revoke all on function cancel_latest_execution(uuid, uuid) from public;
 grant execute on function cancel_latest_execution(uuid, uuid) to service_role;
 
-create index if not exists idx_strategies_active on strategies (is_archived, sort_order, created_at);
+create index if not exists idx_strategies_active on strategies (is_archived, created_at);
 create index if not exists idx_daily_prices_strategy_date on daily_prices (strategy_id, trade_date desc);
 create index if not exists idx_market_candles_symbol_date on market_candles (symbol, trade_date desc);
 create index if not exists idx_trade_plans_strategy_date on trade_plans (strategy_id, plan_date desc);
@@ -289,73 +288,7 @@ alter default privileges in schema public grant all privileges on sequences to s
 
 notify pgrst, 'reload schema';
 
-begin;
 
-alter table public.strategies add column if not exists is_main boolean not null default false;
-
-create unique index if not exists strategies_one_main on public.strategies (is_main) where is_main;
-alter table public.strategies drop constraint if exists strategies_main_active;
-alter table public.strategies add constraint strategies_main_active check (not is_main or not is_archived);
-
-update public.strategies set is_main = true
-where id = (
-  select id from public.strategies where not is_archived
-  order by sort_order, created_at, id limit 1
-) and not exists (select 1 from public.strategies where is_main);
-
-create or replace function public.assign_first_main_strategy()
-returns trigger language plpgsql set search_path = public as $$
-begin
-  perform pg_advisory_xact_lock(731204901);
-  if not new.is_archived and not exists (select 1 from public.strategies where is_main) then
-    new.is_main := true;
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists strategies_assign_first_main on public.strategies;
-create trigger strategies_assign_first_main before insert on public.strategies
-for each row execute function public.assign_first_main_strategy();
-
-create or replace function public.protect_main_strategy()
-returns trigger language plpgsql set search_path = public as $$
-begin
-  if old.is_main then
-    if tg_op = 'DELETE' then
-      raise exception 'MAIN_STRATEGY_PROTECTED';
-    elsif new.is_archived then
-      raise exception 'MAIN_STRATEGY_PROTECTED';
-    end if;
-  end if;
-  if tg_op = 'DELETE' then return old; end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists strategies_protect_main on public.strategies;
-create trigger strategies_protect_main before update or delete on public.strategies
-for each row execute function public.protect_main_strategy();
-
-create or replace function public.set_main_strategy(target_id uuid)
-returns void language plpgsql set search_path = public as $$
-begin
-  perform pg_advisory_xact_lock(731204901);
-  perform 1 from public.strategies where id = target_id and not is_archived for update;
-  if not found then raise exception 'STRATEGY_NOT_ACTIVE'; end if;
-
-  update public.strategies set is_main = false, updated_at = now() where is_main and id <> target_id;
-  update public.strategies set is_main = true, updated_at = now() where id = target_id;
-end;
-$$;
-
-revoke all on function public.assign_first_main_strategy() from public;
-revoke all on function public.protect_main_strategy() from public;
-revoke all on function public.set_main_strategy(uuid) from public;
-grant execute on function public.set_main_strategy(uuid) to service_role;
-
-notify pgrst, 'reload schema';
-commit;
 
 begin;
 alter table public.strategies add column if not exists version bigint not null default 0;
@@ -791,3 +724,66 @@ grant execute on function public.record_strategy_cash_flow(uuid,uuid,bigint,date
 grant execute on function public.cancel_strategy_cash_flow(uuid,uuid,bigint) to service_role;
 notify pgrst,'reload schema';
 commit;
+
+-- Meritz cash ledger reconciliation (requires broker migrations at runtime).
+-- Cash reconciliation is a ledger adjustment, separate from round trading P/L.
+alter table public.strategy_cash_flows add column if not exists source text not null default 'manual'
+  check (source in ('manual','meritz_round','meritz_withdrawal'));
+
+create or replace function public.sync_meritz_cash(p_strategy uuid,p_account text,p_version bigint,
+  p_cash numeric,p_date date,p_source text,p_round uuid default null,p_reference_price numeric default null) returns jsonb
+language plpgsql security invoker set search_path=public as $$
+declare s public.strategies%rowtype; delta numeric; capital numeric; next_t numeric;
+  after_row public.strategies%rowtype; fid uuid:=gen_random_uuid(); next_mode text; last_date date; stamp timestamptz;
+begin
+  select * into s from public.strategies where id=p_strategy for update;
+  if not found or s.is_archived then raise exception 'STRATEGY_NOT_ACTIVE'; end if;
+  if s.version<>p_version then raise exception 'STALE_STRATEGY'; end if;
+  if not exists(select 1 from public.meritz_links where strategy_id=s.id and account_key=p_account) then raise exception 'BROKER_ACCOUNT_MISMATCH'; end if;
+  if p_cash is null or p_cash::text in ('NaN','Infinity','-Infinity') or p_cash<0 or p_cash<>round(p_cash,4)
+    or p_date is null or p_date>(now() at time zone 'America/New_York')::date
+    or p_source is null or p_source not in ('meritz_round','meritz_withdrawal') then raise exception 'INVALID_BROKER_CASH'; end if;
+  select greatest((select max(executed_at) from public.executions where strategy_id=s.id),
+    (select max(effective_date) from public.strategy_adjustments where strategy_id=s.id),
+    (select max(requested_date) from public.strategy_cash_flows where strategy_id=s.id and status<>'cancelled')) into last_date;
+  if p_date<last_date then raise exception 'CASH_FLOW_DATE_ORDER'; end if;
+  if exists(select 1 from public.meritz_days where strategy_id=s.id and session_date<p_date and status in ('pending','review')) then
+    raise exception 'BROKER_UNRECONCILED_DAYS'; end if;
+  delta:=p_cash-s.cash_balance;
+  if p_source='meritz_round' then
+    if s.position_qty<>0 or p_round is null or p_round is distinct from
+      (select id from public.completed_rounds where strategy_id=s.id order by round_number desc limit 1)
+      or exists(select 1 from public.executions where strategy_id=s.id and round_id is null) then raise exception 'INVALID_ROUND_CASH_SYNC'; end if;
+    capital:=case when s.compounding_type='compound' then p_cash else s.principal+delta end;
+    next_t:=0;
+  else
+    if s.cash_balance<=0 or p_cash*100>s.cash_balance*95 then return jsonb_build_object('changed',false); end if;
+    capital:=s.principal+delta;
+    next_t:=case when s.position_qty=0 then 0 else round(s.t_value*s.principal/nullif(capital,0),10) end;
+  end if;
+  if capital<=0 or next_t is null or next_t<0 or capital+
+    (select coalesce(sum(amount),0) from public.strategy_cash_flows where strategy_id=s.id and status='pending')<=0 then raise exception 'INVALID_PRINCIPAL'; end if;
+  if delta=0 and capital=s.principal and next_t=s.t_value then return jsonb_build_object('changed',false); end if;
+  next_mode:=case when s.mode='normal' and next_t>s.split_count-1 then 'reverse' else s.mode end;
+  update public.strategies set cash_balance=p_cash,principal=capital,t_value=next_t,mode=next_mode,
+    reverse_started_at=case when next_mode<>s.mode then p_date else s.reverse_started_at end,
+    reverse_first_sell_done=case when next_mode<>s.mode then false else s.reverse_first_sell_done end
+    where id=s.id returning * into after_row;
+  if delta<>0 then
+    -- Execution batches and pending flows have ordered future millisecond stamps.
+    -- Keep this adjustment strictly after them for chart replay and undo guards.
+    select greatest(clock_timestamp(),
+      (select max(created_at)+interval '1 millisecond' from public.executions where strategy_id=s.id),
+      (select max(created_at)+interval '1 millisecond' from public.strategy_adjustments where strategy_id=s.id)) into stamp;
+    insert into public.strategy_cash_flows(id,strategy_id,requested_date,amount,timing,status,applied_date,reference_price,memo,source,created_at)
+      values(fid,s.id,p_date,delta,'immediate','applied',p_date,coalesce(p_reference_price,s.avg_price),
+        case when p_source='meritz_round' then '라운드 종료 후 현금 증감 · 메리츠 예수금 반영' else '주문 전 5% 이상 현금 감소 · 예수금 차액 반영' end,p_source,stamp);
+    insert into public.strategy_adjustments(id,strategy_id,effective_date,kind,before_state,after_state,reason,created_at)
+      values(fid,s.id,p_date,'cash_flow',to_jsonb(s),to_jsonb(after_row),
+        case when p_source='meritz_round' then '라운드 종료 후 현금 증감 · 메리츠 예수금 반영' else '주문 전 현금 감소 · 원금과 T 재산정' end,stamp);
+  end if;
+  return jsonb_build_object('changed',true,'amount',delta,'round_id',p_round);
+end;
+$$;
+revoke all on function public.sync_meritz_cash(uuid,text,bigint,numeric,date,text,uuid,numeric) from public,anon,authenticated;
+grant execute on function public.sync_meritz_cash(uuid,text,bigint,numeric,date,text,uuid,numeric) to service_role;

@@ -1,4 +1,4 @@
-import type { StrategyState, SymbolCode } from '@/lib/types';
+import type { StrategyState } from '@/lib/types';
 import { floorPrice, floorShares, roundMoney, roundPrice } from '@/lib/trading/rounding';
 
 export type NormalPhase = 'initial' | 'first_half' | 'second_half' | 'reverse_required';
@@ -29,11 +29,8 @@ export type NormalPlan = {
   formulas: string[];
 };
 
-export function calculateStarPercent(symbol: SymbolCode, splitCount: 20 | 40, tValue: number) {
-  if (symbol === 'TQQQ' && splitCount === 20) return (15 - 1.5 * tValue) / 100;
-  if (symbol === 'TQQQ' && splitCount === 40) return (15 - 0.75 * tValue) / 100;
-  if (splitCount === 20) return (20 - 2 * tValue) / 100;
-  return (20 - tValue) / 100;
+export function calculateStarPercent(tValue: number) {
+  return (20 - 2 * tValue) / 100;
 }
 
 export function calculateOneUnitBudget(state: StrategyState) {
@@ -49,8 +46,8 @@ export function detectNormalPhase(state: StrategyState): NormalPhase {
   return 'second_half';
 }
 
-export function calculateTargetSellPrice(symbol: SymbolCode, avgPrice: number) {
-  return roundPrice(avgPrice * (symbol === 'TQQQ' ? 1.15 : 1.2));
+export function calculateTargetSellPrice(avgPrice: number) {
+  return roundPrice(avgPrice * 1.2);
 }
 
 export function buildDownsideBuyOrders(oneUnitBudget: number, baseQuantity: number): OrderGuide[] {
@@ -135,10 +132,10 @@ export function calculateNormalPlan(state: StrategyState, referencePrice?: numbe
     };
   }
 
-  const starPercent = calculateStarPercent(state.symbol, state.splitCount, state.tValue);
+  const starPercent = calculateStarPercent(state.tValue);
   const starPrice = roundPrice(state.avgPrice * (1 + starPercent));
   const buyPrice = roundPrice(starPrice - 0.01);
-  const targetSellPrice = calculateTargetSellPrice(state.symbol, state.avgPrice);
+  const targetSellPrice = calculateTargetSellPrice(state.avgPrice);
   const quarterSellQty = floorShares(state.positionQty / 4);
   const finalSellQty = Math.max(state.positionQty - quarterSellQty, 0);
   const buyOrders: OrderGuide[] = [];
@@ -212,7 +209,7 @@ export function calculateNormalPlan(state: StrategyState, referencePrice?: numbe
         orderType: 'LIMIT',
         price: targetSellPrice,
         quantity: finalSellQty,
-        note: state.symbol === 'TQQQ' ? '평단 +15% 지정가 매도입니다.' : 'SOXL 기준 평단 +20% 지정가 매도입니다.',
+        note: '평단 +20% 지정가 매도입니다.',
       },
     ],
     warnings,

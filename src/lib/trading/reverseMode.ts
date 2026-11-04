@@ -21,7 +21,7 @@ export function calculateFiveDayAverage(closes: number[]) {
 }
 
 export function reverseSellQuantity(state: StrategyState) {
-  return floorShares(state.positionQty / (state.splitCount === 20 ? 10 : 20));
+  return floorShares(state.positionQty / 10);
 }
 
 export function shouldReturnToNormalMode(
@@ -29,7 +29,7 @@ export function shouldReturnToNormalMode(
   closePrice?: number,
 ) {
   if (!closePrice || state.avgPrice <= 0) return false;
-  return state.symbol === 'TQQQ' ? closePrice > state.avgPrice * 0.85 : closePrice > state.avgPrice * 0.8;
+  return closePrice > state.avgPrice * 0.8;
 }
 
 export function shouldAutoReturnToNormalMode(
@@ -41,7 +41,7 @@ export function shouldAutoReturnToNormalMode(
 }
 
 export function calculateReversePlan(state: StrategyState, _recentCloses: number[], closePrice?: number): ReversePlan {
-  const starPrice = roundPrice(state.avgPrice * (1 + calculateStarPercent(state.symbol, state.splitCount, state.tValue)));
+  const starPrice = roundPrice(state.avgPrice * (1 + calculateStarPercent(state.tValue)));
   const referencePrice = starPrice > 0 ? starPrice : null;
   const buyPrice = referencePrice ? roundPrice(referencePrice - 0.01) : null;
   const isFirstDay = !state.reverseFirstSellDone;
@@ -57,7 +57,7 @@ export function calculateReversePlan(state: StrategyState, _recentCloses: number
     warnings.push('리버스 주문을 계산할 수 있는 별지점이 없습니다.');
   }
 
-  formulas.push(`리버스 매도수량 = floor(보유수량 / ${state.splitCount === 20 ? 10 : 20})`);
+  formulas.push('리버스 매도수량 = floor(보유수량 / 10)');
   formulas.push('리버스 매수금 = 현재 현금 × 0.25');
   formulas.push('매수 수량 = 매수금 / (별지점 - 0.01)');
 
@@ -75,7 +75,7 @@ export function calculateReversePlan(state: StrategyState, _recentCloses: number
           orderType: 'MOC',
           price: null,
           quantity: sellQty,
-          note: `${state.splitCount}분할 기준 보유수량의 ${state.splitCount === 20 ? '1/10' : '1/20'}을 MOC 매도합니다.`,
+          note: '보유수량의 1/10을 MOC 매도합니다.',
         },
       ],
       returnToNormal,

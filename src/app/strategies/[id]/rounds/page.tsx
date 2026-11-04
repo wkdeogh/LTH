@@ -319,9 +319,8 @@ export default async function StrategyRoundsPage({
 
       {view === 'rounds' && <RoundRecords rounds={rounds} executionsByRound={executionsByRound} strategyId={id} />}
       {view === 'assets' && <AssetValueChart points={assetPoints} symbol={strategy.symbol} />}
-      {view !== 'rounds' && <CashFlowHistory cashFlows={cashFlows} />}
+      <CashFlowHistory cashFlows={cashFlows} />
       {view === 'executions' && <StrategyAdjustmentHistory adjustments={adjustments} />}
-      <div className="actions"><Link className="text-link" href="/rounds">전체 전략 라운드</Link></div>
       {view === 'executions' && <ExecutionRecords executions={[...executions].reverse()} roundNumberById={roundNumberById} />}
     </div>
   );

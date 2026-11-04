@@ -9,7 +9,6 @@ const adjustment: StrategyAdjustment = {id:'f',effective_date:flow.requested_dat
 
 test('즉시 입출금은 시장 평가 비중으로 T를 계산하고 보유수량·평단을 변경하지 않는다', () => {
   assert.deepEqual(calculateCashFlow(state,1000,100), {principal:2000,cashBalance:1500,tValue:5});
-  assert.deepEqual(calculateCashFlow({...state,splitCount:40},1000,100), {principal:2000,cashBalance:1500,tValue:10});
   assert.deepEqual(calculateCashFlow(state,-500,100), {principal:500,cashBalance:0,tValue:20});
   assert.equal(calculateCashFlow(state,500,200).tValue,10);
   assert.equal(state.avgPrice,80);

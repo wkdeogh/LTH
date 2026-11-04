@@ -1,10 +1,7 @@
 import Link from 'next/link';
 
 const starFormulas = [
-  ['TQQQ · 20분할', '(15 − 1.5 × T)%'],
-  ['TQQQ · 40분할', '(15 − 0.75 × T)%'],
   ['SOXL · 20분할', '(20 − 2 × T)%'],
-  ['SOXL · 40분할', '(20 − T)%'],
 ];
 
 export default function GuidePage() {
@@ -38,17 +35,12 @@ export default function GuidePage() {
         <div className="guide-section-head"><span>01</span><div><p>SETUP</p><h2>시작 설정</h2></div></div>
         <div className="guide-copy">
           <h3>종목과 원금</h3>
-          <p>전략별 원금을 먼저 정하고, 매수 후 남은 현금도 해당 전략 전용으로 유지합니다. 여러 종목을 함께 운용한다면 각 전략의 원금을 독립적으로 관리합니다.</p>
-          <div className="callout"><strong>앱 지원 범위</strong><p>TQQQ와 SOXL의 20·40분할을 지원합니다.</p></div>
+          <p>진행 중인 SOXL 20분할 전략을 계속 사용합니다. 매수 후 남은 현금도 이 전략 전용으로 유지합니다.</p>
+          <div className="callout"><strong>앱 지원 범위</strong><p>SOXL 20분할로 운용합니다.</p></div>
 
-          <h3>분할 수</h3>
-          <div className="comparison-grid">
-            <div><span>20분할</span><strong>공격적</strong><p>1회 매수금이 크고 소진까지의 기간이 짧습니다.</p></div>
-            <div><span>40분할</span><strong>방어적</strong><p>1회 매수금이 작고 하락장 대응 여유가 큽니다.</p></div>
-          </div>
-          <p className="formula-line"><span>첫 1회 매수금</span><strong>원금 ÷ 분할 수</strong></p>
+          <p className="formula-line"><span>첫 1회 매수금</span><strong>원금 ÷ 20</strong></p>
           <p>두 번째 매수부터는 실제 남은 현금과 T값을 반영합니다.</p>
-          <p className="formula-line"><span>이후 1회 매수금</span><strong>현재 현금 ÷ (분할 수 − T)</strong></p>
+          <p className="formula-line"><span>이후 1회 매수금</span><strong>현재 현금 ÷ (20 − T)</strong></p>
         </div>
       </section>
 
@@ -56,7 +48,7 @@ export default function GuidePage() {
         <div className="guide-section-head"><span>02</span><div><p>NORMAL MODE</p><h2>일반모드</h2></div></div>
         <div className="guide-copy">
           <h3>별지점 계산</h3>
-          <p>별지점은 그날 매수와 쿼터매도를 가르는 기준입니다. 먼저 종목·분할 수·T값으로 별%를 구한 뒤 평단에 적용합니다.</p>
+          <p>별지점은 그날 매수와 쿼터매도를 가르는 기준입니다. T값으로 별%를 구한 뒤 평단에 적용합니다.</p>
           <div className="formula-table">
             {starFormulas.map(([label, formula]) => <div key={label}><span>{label}</span><strong>{formula}</strong></div>)}
           </div>
@@ -79,7 +71,7 @@ export default function GuidePage() {
           <h3>매도 규칙</h3>
           <div className="rule-list sell-rules">
             <div><span>쿼터매도</span><p>보유수량의 1/4을 별지점에 LOC 매도합니다. 수량은 소수점 이하를 버립니다.</p></div>
-            <div><span>최종매도</span><p>나머지 수량을 TQQQ는 평단 +15%, SOXL은 평단 +20%에 지정가 매도합니다.</p></div>
+            <div><span>최종매도</span><p>나머지 수량을 평단 +20%에 지정가 매도합니다.</p></div>
           </div>
           <div className="warning-callout"><strong>후반전 쿼터매도는 손절일 수 있습니다.</strong><p>후반전에는 별%가 음수가 되므로 별지점이 평단보다 낮아집니다. 전략 규칙상 이 매도도 그대로 실행합니다.</p></div>
         </div>
@@ -96,7 +88,7 @@ export default function GuidePage() {
             <div><span>지정가매도 후 1회 매수</span><strong>T × 0.25 + 1</strong></div>
             <div><span>지정가매도 후 절반 매수</span><strong>T × 0.25 + 0.5</strong></div>
           </div>
-          <p>20분할은 T&gt;19, 40분할은 T&gt;39가 되면 체결 저장 즉시 남은 현금과 함께 리버스모드로 자동 전환합니다.</p>
+          <p>T&gt;19가 되면 체결 저장 즉시 남은 현금과 함께 리버스모드로 자동 전환합니다.</p>
         </div>
       </section>
 
@@ -104,21 +96,19 @@ export default function GuidePage() {
         <div className="guide-section-head"><span>04</span><div><p>REVERSE MODE</p><h2>리버스모드</h2></div></div>
         <div className="guide-copy">
           <h3>첫날</h3>
-          <p>첫날은 매수하지 않습니다. 보유수량을 20분할 전략은 10등분, 40분할 전략은 20등분해 소수점 이하를 버린 수량만큼 MOC 매도합니다.</p>
+          <p>첫날은 매수하지 않습니다. 보유수량을 10등분해 소수점 이하를 버린 수량만큼 MOC 매도합니다.</p>
           <h3>둘째 날부터</h3>
           <p>별지점 위에서는 일부 매도하고, 별지점 아래에서는 현재 현금의 1/4만큼 매수합니다.</p>
           <p className="helper-copy">앱에서는 자동으로 갱신한 일봉 차트 종가를 사용하고, 직접 입력한 종가가 있으면 같은 거래일의 차트 종가보다 우선합니다.</p>
           <div className="t-rule-grid">
             <div><span>20분할 매도 후 T</span><strong>직전 T × 0.9</strong></div>
-            <div><span>40분할 매도 후 T</span><strong>직전 T × 0.95</strong></div>
-            <div><span>리버스 매수 후 T</span><strong>T + (분할 수 − T) × 0.25</strong></div>
+            <div><span>리버스 매수 후 T</span><strong>T + (20 − T) × 0.25</strong></div>
             <div><span>리버스 매수금</span><strong>현재 현금 × 0.25</strong></div>
           </div>
 
           <h3>일반모드 복귀</h3>
-          <p>리버스모드에서는 체결을 저장할 때마다 최신 차트 종가를 확인합니다. 종가가 평단 대비 TQQQ −15%, SOXL −20% 기준보다 위로 올라오면 첫날 매도 완료 여부와 관계없이 일반모드로 자동 복귀합니다. 리버스모드에서 계산한 T값은 그대로 이어서 사용합니다.</p>
+          <p>리버스모드에서는 체결을 저장할 때마다 최신 차트 종가를 확인합니다. 종가가 평단 대비 −20% 기준보다 위로 올라오면 첫날 매도 완료 여부와 관계없이 일반모드로 자동 복귀합니다. 리버스모드에서 계산한 T값은 그대로 이어서 사용합니다.</p>
           <div className="formula-table two-rows">
-            <div><span>TQQQ</span><strong>종가 &gt; 평단 × 0.85</strong></div>
             <div><span>SOXL</span><strong>종가 &gt; 평단 × 0.80</strong></div>
           </div>
         </div>
@@ -140,7 +130,7 @@ export default function GuidePage() {
       <section className="guide-disclaimer">
         <strong>사용 전 확인</strong>
         <p>이 앱은 개인용 주문 계산 가이드이며 투자 수익을 보장하지 않습니다. 실제 주문 전 증권사 화면의 수량·가격·체결 상태를 반드시 다시 확인하세요.</p>
-        <Link className="button primary" href="/">전략 목록으로 돌아가기</Link>
+        <Link className="button primary" href="/">현재 상태로 돌아가기</Link>
       </section>
     </div>
   );

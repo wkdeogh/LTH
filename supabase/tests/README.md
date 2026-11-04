@@ -1,13 +1,11 @@
 # Database regression tests
 
-Apply `supabase/schema.sql` to an empty, disposable PostgreSQL test database with a `service_role` role, then run:
+Run current single-strategy and broker/cash regressions in isolated PGlite:
+npm run test:broker
+node --import tsx --test src/lib/trading/*.test.ts
 
-```sh
-psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/main_strategy.sql
-```
+singleStrategy.test.ts preserves the current strategy state and archived history, verifies creation/symbol/split/archive/delete protection, removes obsolete main/sort metadata, and exercises deposits, withdrawals and round-close cash reconciliation under the policy.
 
-The test checks first-strategy selection, unique main selection, protected archive/delete, atomic switching, and invalid or archived targets using `service_role`. It refuses a non-empty database and rolls back its fixtures.
+The disposable database uses supabase/schema.sql before fixtures and migrations. For existing deployments apply the cash reconciliation migration, deploy and verify the new app, then apply 20261104231407_single_soxl_strategy.sql to remove obsolete columns. Do not replay the base schema on production.
 
-Also run `reliable_strategy_workflow.sql` and `strategy_cash_flows.sql` in the same disposable database. Cash-flow regression covers immediate deposits/withdrawals, T recalculation, retries, stale versions, overdrafts, pending application on compound/simple round closure, and restoring pending flows when the closing execution is cancelled. All fixtures roll back.
-
-For an existing deployment, apply only `supabase/migrations/202610150001_strategy_cash_flows.sql` before deploying the cash-flow UI. Do not replay the full schema on a populated production database.
+reliable_strategy_workflow.sql and strategy_cash_flows.sql remain isolated regression fixtures for the historical workflow. Their broader fixture setup is not a supported production strategy-creation path.

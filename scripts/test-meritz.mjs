@@ -9,7 +9,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 const BASE_URL = 'https://openapi.imeritz.com:9443';
 const PRICE_PATH = '/market/v1/overseas/prices';
 const OK_CODES = new Set(['0000', '0001', '5620', '5762', '5766', '5820', '5822']);
-const TARGETS = [{ symbol: 'TQQQ', exchange: 'OQ' }, { symbol: 'SOXL', exchange: 'AX' }];
+const TARGETS = [{ symbol: 'SOXL', exchange: 'AX' }];
 
 export function macAddress(override) {
   const found = Object.values(networkInterfaces()).flat().find(
@@ -61,7 +61,7 @@ export async function runMeritzTest({
   try {
     if (probe) {
       const { status, body } = await request(`${PRICE_PATH}?${new URLSearchParams({
-        mrkt_div_code: 'OV', mrkt_cls_code: 'OQ', iscd: 'TQQQ', dely_rltm_cls_code: '0',
+        mrkt_div_code: 'OV', mrkt_cls_code: 'AX', iscd: 'SOXL', dely_rltm_cls_code: '0',
       })}`);
       if (!body.rsp_cd) throw new Error('메리츠 인증 전 응답에 rsp_cd가 없습니다.');
       report({ 단계: '인증 전 서버 연결 확인', HTTP: status, 코드: body.rsp_cd,
@@ -127,7 +127,7 @@ async function main() {
     return 2;
   }
   if (args.includes('--help')) {
-    console.log('메리츠 연결 테스트 (토큰 발급 + TQQQ/SOXL 시세 조회)\n'
+    console.log('메리츠 연결 테스트 (토큰 발급 + SOXL 시세 조회)\n'
       + 'npm run test:meritz\n'
       + '  --probe       키 없이 서버 연결만 확인\n'
       + '  --token-only  토큰 발급만 확인\n'

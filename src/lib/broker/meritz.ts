@@ -93,11 +93,22 @@ export class MeritzClient {
     throw new Error('메리츠 조회 페이지 한도를 초과했습니다.');
   }
   async currentPrice(symbol: SymbolCode) {
-    const r = await this.call('/market/v1/overseas/prices', { mrkt_div_code: 'OV', mrkt_cls_code: symbol === 'SOXL' ? 'AX' : 'OQ', iscd: symbol, dely_rltm_cls_code: '0' });
+    const r = await this.call('/market/v1/overseas/prices', { mrkt_div_code: 'OV', mrkt_cls_code: 'AX', iscd: symbol, dely_rltm_cls_code: '0' });
     const d = r.data as BrokerRow | undefined;
     const price = Number(d?.prpr);
     if (d?.iscd !== symbol || !Number.isFinite(price) || price <= 0 || d?.crnc_code !== 'USD') throw new Error('종목의 현재가·통화를 확인하지 못했습니다.');
     return price;
+  }
+  async cashBalance() {
+    // Estimated cash includes unsettled executions. Settled cash (frcr_amt)
+    // and buying power can both differ from the ledger after a trade.
+    const body = await this.call('/accounts/v1/me/overseas/currencies');
+    if (!Array.isArray(body.data) || body.rsp_cd === '5762') throw new Error('통화별 현금 조회가 완료되지 않았습니다.');
+    const usd = (body.data as BrokerRow[]).filter(row => row.crcd === 'USD');
+    const raw = usd[0]?.estm_frcr_amt;
+    if (usd.length !== 1 || raw === null || raw === undefined || String(raw).trim() === ''
+      || !Number.isFinite(Number(raw)) || Number(raw) < 0) throw new Error('USD 추정 예수금을 확인하지 못했습니다.');
+    return Number(raw);
   }
   async assertMarketOpen(allowPreOpen = false) {
     // Scheduled/manual pre-open entry is already bounded by the Korea 22:00

@@ -6,6 +6,7 @@ import { accountKey, MeritzClient } from './meritz';
 import { activationDate, nyTime } from './calendar';
 import { strategyGuide } from './policy';
 import { loadStrategyReferences } from '@/lib/marketData/references';
+import { STRATEGY_ID, requireStrategyId } from '@/lib/strategyConfig';
 
 export function brokerDb() {
   const db = createSupabaseServerClient();
@@ -22,14 +23,13 @@ export type BrokerLink = { strategy_id: string; account_key: string; symbol: str
   active_from: string | null; sync_from: string; last_sync_at: string | null; last_error: string | null };
 
 export async function loadStrategy(id: string) {
+  requireStrategyId(id);
   const r = await brokerDb().from('strategies').select('*').eq('id', id).eq('is_archived', false).single<Strategy>();
-  check(r.error); if (!r.data) throw new Error('전략을 찾을 수 없습니다.'); return r.data;
+  check(r.error); if (!r.data || r.data.symbol !== 'SOXL' || r.data.split_count !== 20) throw new Error('SOXL 20분할 전략을 찾을 수 없습니다.'); return r.data;
 }
 export async function linkStrategy(strategy: Strategy) {
   const db = brokerDb(), account = accountKey();
-  const other = await db.from('meritz_links').select('strategy_id').eq('account_key', account).eq('symbol', strategy.symbol).maybeSingle();
-  check(other.error);
-  if (other.data && other.data.strategy_id !== strategy.id) throw new Error('같은 계좌·종목이 다른 전략에 연결되어 있습니다.');
+  requireStrategyId(strategy.id);
   const result = await db.from('meritz_links').upsert({ strategy_id: strategy.id, account_key: account, symbol: strategy.symbol,
     sync_from: nyTime().date }, { onConflict: 'strategy_id', ignoreDuplicates: true });
   check(result.error);
@@ -37,6 +37,12 @@ export async function linkStrategy(strategy: Strategy) {
   check(link.error);
   if (link.data?.account_key !== account || link.data.symbol !== strategy.symbol) throw new Error('연결 계좌·종목이 변경되어 확인이 필요합니다.');
   return link.data!;
+}
+export async function loadBrokerLink(account: string) {
+  const result = await brokerDb().from('meritz_links').select('*').eq('strategy_id', STRATEGY_ID)
+    .eq('account_key', account).maybeSingle<BrokerLink>();
+  check(result.error);
+  return result.data;
 }
 export async function captureDay(strategy: Strategy, date = nyTime().date, refreshUnsubmitted = false) {
   const db = brokerDb();

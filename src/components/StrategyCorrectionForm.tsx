@@ -15,8 +15,6 @@ export function StrategyCorrectionForm({ strategy }: { strategy: Strategy }) {
           <div className="form-grid">
             <label>적용일<input name="effective_date" type="date" max={koreaDate()} defaultValue={koreaDate()} required /></label>
             <label>전략명<input name="name" defaultValue={strategy.name} required /></label>
-            <label>종목<select name="symbol" defaultValue={strategy.symbol}><option>TQQQ</option><option>SOXL</option></select></label>
-            <label>분할 수<select name="split_count" defaultValue={strategy.split_count}><option value="20">20</option><option value="40">40</option></select></label>
             <label>원금($)<input name="principal" type="number" min="0.0001" step="0.0001" inputMode="decimal" defaultValue={String(strategy.principal)} required /></label>
             <label>현금($)<input name="cash_balance" type="number" min="0" step="0.0001" inputMode="decimal" defaultValue={String(strategy.cash_balance)} required /></label>
             <label>보유수량<input name="position_qty" type="number" min="0" inputMode="numeric" defaultValue={strategy.position_qty} required /></label>

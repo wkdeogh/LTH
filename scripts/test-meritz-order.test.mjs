@@ -30,7 +30,7 @@ test('default preview performs no requests and requires no credentials', async (
   assert.deepEqual(r.reports[0].body, {
     ovrs_stck_symb_iscd: 'SOXL', ovrs_exch_vndr_idno: '0066',
     oder_cls_code: '32', oder_cond_cls_code: '7', odqt: 1,
-    ovrs_stck_oder_prc: '200.0000', warn_cnfr_yn: 'N',
+    ovrs_stck_oder_prc: '110.0000', warn_cnfr_yn: 'N',
   });
 });
 

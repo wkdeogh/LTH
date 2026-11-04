@@ -1,5 +1,5 @@
-export type SymbolCode = 'TQQQ' | 'SOXL';
-export type SplitCount = 20 | 40;
+export type SymbolCode = 'SOXL';
+export type SplitCount = 20;
 export type TradeMode = 'normal' | 'reverse';
 export type CompoundingType = 'simple' | 'compound';
 export type OrderType = 'LOC' | 'MOC' | 'LIMIT' | 'MANUAL';
@@ -26,6 +26,7 @@ export type CashFlow = {
   applied_round_id: string | null;
   reference_price: number | string | null;
   memo: string;
+  source?: 'manual' | 'meritz_round' | 'meritz_withdrawal';
   created_at: string;
 };
 
@@ -45,9 +46,7 @@ export type Strategy = {
   reverse_first_sell_done: boolean;
   compounding_type: CompoundingType;
   is_archived: boolean;
-  is_main: boolean;
   version: number;
-  sort_order: number;
   started_at: string;
   created_at: string;
   updated_at: string;
@@ -132,6 +131,9 @@ export function toNumber(value: number | string | null | undefined) {
 }
 
 export function toStrategyState(strategy: Strategy): StrategyState {
+  if (strategy.symbol !== 'SOXL' || strategy.split_count !== 20) {
+    throw new Error('SOXL 20분할 전략만 계산할 수 있습니다.');
+  }
   return {
     id: strategy.id,
     name: strategy.name,

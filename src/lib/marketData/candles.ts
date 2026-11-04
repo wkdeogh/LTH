@@ -1,4 +1,5 @@
 import 'server-only';
+import { STRATEGY_ID } from '@/lib/strategyConfig';
 import { latestClosedMarketDate } from '@/lib/date';
 import { loadStrategyReferences } from '@/lib/marketData/references';
 
@@ -130,25 +131,17 @@ export async function syncMarketData(symbol: SymbolCode, options: { deferTransit
 
   if (options.deferTransitions) return;
 
-  const { data: reverseStrategies, error: reverseStrategiesError } = await supabase
-    .from('strategies')
-    .select('*')
-    .eq('symbol', symbol)
-    .eq('mode', 'reverse')
-    .eq('is_archived', false)
-    .returns<Strategy[]>();
-  if (reverseStrategiesError) throw reverseStrategiesError;
-
-  const linked = await supabase.from('meritz_links').select('strategy_id');
+  const { data: strategy, error: strategyError } = await supabase.from('strategies').select('*')
+    .eq('id', STRATEGY_ID).eq('mode', 'reverse').eq('is_archived', false).maybeSingle<Strategy>();
+  if (strategyError) throw strategyError;
+  if (!strategy) return;
+  const linked = await supabase.from('meritz_links').select('strategy_id').eq('strategy_id', STRATEGY_ID).maybeSingle();
   if (linked.error && !['PGRST205', '42P01'].includes(linked.error.code)) throw linked.error;
-  const linkedIds = new Set((linked.data ?? []).map(row => row.strategy_id));
-
-  for (const strategy of reverseStrategies ?? []) {
-    // Linked strategies change mode only after their broker fills are reconciled.
-    if (linkedIds.has(strategy.id)) continue;
-    const references = await loadStrategyReferences(supabase, strategy.id, strategy.symbol);
-    if (!shouldAutoReturnToNormalMode(toStrategyState(strategy), references[0]?.price)) continue;
-    const { error } = await supabase.from('strategies').update({ mode: 'normal', reverse_started_at: null, reverse_first_sell_done: false }).eq('id', strategy.id).eq('version', strategy.version);
-    if (error) throw error;
-  }
+  // Broker fills must be reconciled before a linked strategy changes mode.
+  if (linked.data) return;
+  const references = await loadStrategyReferences(supabase, strategy.id, strategy.symbol);
+  if (!shouldAutoReturnToNormalMode(toStrategyState(strategy), references[0]?.price)) return;
+  const { error } = await supabase.from('strategies').update({ mode: 'normal', reverse_started_at: null, reverse_first_sell_done: false })
+    .eq('id', strategy.id).eq('version', strategy.version);
+  if (error) throw error;
 }

@@ -11,7 +11,7 @@ import { koreaDate, executionDateError } from '@/lib/date';
 import { loadStrategyReferences } from '@/lib/marketData/references';
 import { mutationErrorMessage, type MutationFeedback } from '@/lib/mutationFeedback';
 import type { NoticeKey } from '@/lib/notices';
-import type { Execution, SplitCount, Strategy, SymbolCode, TEffect, TradeMode } from '@/lib/types';
+import type { Execution, Strategy, TEffect, TradeMode } from '@/lib/types';
 import { toNumber, toStrategyState } from '@/lib/types';
 import {
   applyTEffect,
@@ -21,7 +21,10 @@ import {
   shouldAutoReturnToNormalMode,
 } from '@/lib/trading';
 import { calculateDualSellExecution } from '@/lib/trading/dualSellExecution';
+import { requireStrategyId, STRATEGY_SYMBOL, STRATEGY_SPLIT_COUNT } from '@/lib/strategyConfig';
 import { roundMoney } from '@/lib/trading/rounding';
+import { brokerConfigured } from '@/lib/broker/meritz';
+import { verifyRecordedExecutions } from '@/lib/broker/service';
 
 function supabaseOrThrow() {
   const supabase = createSupabaseServerClient();
@@ -45,72 +48,15 @@ function intValue(formData: FormData, key: string, fallback = 0) {
   return Math.trunc(numberValue(formData, key, fallback));
 }
 
-function symbolValue(value: string): SymbolCode {
-  if (value !== 'TQQQ' && value !== 'SOXL') {
-    throw new Error('지원하는 종목은 TQQQ와 SOXL입니다.');
-  }
-  return value;
-}
-
 function internalReturnPath(formData: FormData) {
   const path = stringValue(formData, 'return_to', '/rounds');
   return path.startsWith('/') && !path.startsWith('//') ? path : '/rounds';
 }
 
-export async function createStrategy(formData: FormData) {
-  await requireAppAccess();
-  const supabase = supabaseOrThrow();
-  const principal = numberValue(formData, 'principal');
-  const cashBalance = numberValue(formData, 'cash_balance', principal);
-  const positionQty = intValue(formData, 'position_qty');
-  const avgPrice = numberValue(formData, 'avg_price');
-  const tValue = numberValue(formData, 't_value');
-
-  if (principal <= 0) throw new Error('원금은 0보다 커야 합니다.');
-  if (cashBalance < 0 || positionQty < 0 || avgPrice < 0 || tValue < 0) {
-    throw new Error('현금, 보유수량, 평단, T값은 음수일 수 없습니다.');
-  }
-  if (positionQty > 0 && avgPrice <= 0) throw new Error('보유수량이 있으면 평단을 입력해야 합니다.');
-
-  const { data: lastStrategy, error: sortError } = await supabase
-    .from('strategies')
-    .select('sort_order')
-    .eq('is_archived', false)
-    .order('sort_order', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle<{ sort_order: number }>();
-
-  if (sortError) throw sortError;
-
-  const { data, error } = await supabase
-    .from('strategies')
-    .insert({
-      name: stringValue(formData, 'name', '새 전략'),
-      symbol: symbolValue(stringValue(formData, 'symbol', 'TQQQ')),
-      split_count: intValue(formData, 'split_count', 40),
-      principal,
-      cash_balance: cashBalance,
-      position_qty: positionQty,
-      avg_price: avgPrice,
-      t_value: tValue,
-      mode: stringValue(formData, 'mode', 'normal'),
-      compounding_type: stringValue(formData, 'compounding_type', 'compound'),
-      sort_order: (lastStrategy?.sort_order ?? -1) + 1,
-    })
-    .select('id')
-    .single();
-
-  if (error) throw error;
-
-  revalidatePath('/');
-  redirect(withNotice(`/strategies/${data.id}`, 'strategy-created'));
-}
-
 export async function updateStrategy(formData: FormData) {
   await requireAppAccess();
   const supabase = supabaseOrThrow();
-  const id = stringValue(formData, 'id');
+  const id = requireStrategyId(stringValue(formData, 'id'));
   const principal = numberValue(formData, 'principal');
   const cashBalance = numberValue(formData, 'cash_balance');
   const positionQty = intValue(formData, 'position_qty');
@@ -129,8 +75,8 @@ export async function updateStrategy(formData: FormData) {
     p_date: stringValue(formData, 'effective_date'),
     p_reason: stringValue(formData, 'reason'),
     p_state: {
-      name: stringValue(formData, 'name'), symbol: symbolValue(stringValue(formData, 'symbol')),
-      split_count: intValue(formData, 'split_count') as SplitCount,
+      name: stringValue(formData, 'name'), symbol: STRATEGY_SYMBOL,
+      split_count: STRATEGY_SPLIT_COUNT,
       principal, cash_balance: cashBalance, position_qty: positionQty, avg_price: avgPrice, t_value: tValue,
       mode: stringValue(formData, 'mode'),
     },
@@ -144,44 +90,10 @@ export async function updateStrategy(formData: FormData) {
   redirect(withNotice(`/strategies/${id}`, 'strategy-updated'));
 }
 
-export async function setMainStrategy(formData: FormData) {
-  await requireAppAccess();
-  const supabase = supabaseOrThrow();
-  const id = stringValue(formData, 'id');
-  const { error } = await supabase.rpc('set_main_strategy', { target_id: id });
-  if (error?.message === 'STRATEGY_NOT_ACTIVE') {
-    redirect(withNotice('/', 'main-strategy-unavailable'));
-  }
-  if (error) throw error;
-
-  revalidatePath('/', 'layout');
-  redirect(withNotice('/', 'main-strategy-updated'));
-}
-
-export async function deleteStrategy(formData: FormData) {
-  await requireAppAccess();
-  const supabase = supabaseOrThrow();
-  const id = stringValue(formData, 'id');
-
-  const { data, error } = await supabase.from('strategies')
-    .update({ is_archived: true })
-    .eq('id', id)
-    .eq('is_main', false)
-    .eq('is_archived', false)
-    .select('id');
-  if (error?.message === 'MAIN_STRATEGY_PROTECTED' || (!error && !data?.length)) {
-    redirect(withNotice(`/strategies/${id}`, 'main-strategy-protected'));
-  }
-  if (error) throw error;
-
-  revalidatePath('/');
-  redirect(withNotice('/', 'strategy-deleted'));
-}
-
 export async function addDailyPrice(formData: FormData) {
   await requireAppAccess();
   const supabase = supabaseOrThrow();
-  const strategyId = stringValue(formData, 'strategy_id');
+  const strategyId = requireStrategyId(stringValue(formData, 'strategy_id'));
   const tradeDate = stringValue(formData, 'trade_date', new Date().toISOString().slice(0, 10));
   const closePrice = numberValue(formData, 'close_price');
 
@@ -202,18 +114,11 @@ export async function addDailyPrice(formData: FormData) {
 
 export async function refreshMarketChart(formData: FormData) {
   await requireAppAccess();
-  const supabase = supabaseOrThrow();
-  const strategyId = stringValue(formData, 'strategy_id');
+  const strategyId = requireStrategyId(stringValue(formData, 'strategy_id'));
   if (!strategyId) throw new Error('차트를 갱신할 전략을 찾을 수 없습니다.');
 
-  const { data: strategy, error } = await supabase
-    .from('strategies')
-    .select('symbol')
-    .eq('id', strategyId)
-    .single<{ symbol: string }>();
-  if (error) throw error;
 
-  await syncMarketData(symbolValue(strategy.symbol));
+  await syncMarketData(STRATEGY_SYMBOL);
   revalidatePath(`/strategies/${strategyId}`);
   redirect(withNotice(`/strategies/${strategyId}#market-chart`, 'chart-refreshed'));
 }
@@ -221,7 +126,7 @@ export async function refreshMarketChart(formData: FormData) {
 export async function switchToReverse(formData: FormData) {
   await requireAppAccess();
   const supabase = supabaseOrThrow();
-  const id = stringValue(formData, 'id');
+  const id = requireStrategyId(stringValue(formData, 'id'));
   const automatic = stringValue(formData, 'automatic') === '1';
 
   const { error } = await supabase
@@ -243,7 +148,7 @@ export async function switchToReverse(formData: FormData) {
 export async function switchToNormal(formData: FormData) {
   await requireAppAccess();
   const supabase = supabaseOrThrow();
-  const id = stringValue(formData, 'id');
+  const id = requireStrategyId(stringValue(formData, 'id'));
   const automatic = stringValue(formData, 'automatic') === '1';
 
   if (automatic) {
@@ -271,7 +176,7 @@ export async function switchToNormal(formData: FormData) {
 export async function saveTradePlan(formData: FormData) {
   await requireAppAccess();
   const supabase = supabaseOrThrow();
-  const strategyId = stringValue(formData, 'strategy_id');
+  const strategyId = requireStrategyId(stringValue(formData, 'strategy_id'));
   const guidance = JSON.parse(stringValue(formData, 'guidance', '{}'));
 
   const { error } = await supabase.from('trade_plans').upsert({
@@ -298,7 +203,7 @@ export async function saveTradePlan(formData: FormData) {
 
 async function prepareExecution(formData: FormData) {
   const supabase = supabaseOrThrow();
-  const strategyId = stringValue(formData, 'strategy_id');
+  const strategyId = requireStrategyId(stringValue(formData, 'strategy_id'));
   const requestId = stringValue(formData, 'request_id');
   const expectedVersion = stringValue(formData, 'expected_version');
   if (!/^[0-9a-f-]{36}$/i.test(requestId) || !/^\d+$/.test(expectedVersion)) throw new Error('화면을 새로고침한 후 다시 입력해 주세요.');
@@ -356,7 +261,7 @@ export async function submitCashFlow(_previous: MutationFeedback, formData: Form
   await requireAppAccess();
   try {
     const supabase = supabaseOrThrow();
-    const id = stringValue(formData, 'strategy_id');
+    const id = requireStrategyId(stringValue(formData, 'strategy_id'));
     const operation = stringValue(formData, 'operation');
     const isCancellation = operation === 'cancel';
     const timing = stringValue(formData, 'timing');
@@ -506,9 +411,12 @@ export async function recordExecution(formData: FormData) {
   after(async () => {
     try {
       await syncMarketData(state.symbol);
+      if (isCompletedRound && brokerConfigured()) await verifyRecordedExecutions(strategyId);
+      revalidatePath('/');
       revalidatePath(`/strategies/${strategyId}`);
+      revalidatePath(`/strategies/${strategyId}/rounds`);
     } catch (error) {
-      console.error(`${state.symbol} OHLC 백그라운드 갱신 실패`, error);
+      console.error(`${state.symbol} 시장 데이터·라운드 현금 백그라운드 갱신 실패`, error);
     }
   });
 
@@ -614,7 +522,7 @@ export async function recordPairedExecution(formData: FormData) {
 export async function cancelLatestExecution(formData: FormData) {
   await requireAppAccess();
   const supabase = supabaseOrThrow();
-  const strategyId = stringValue(formData, 'strategy_id');
+  const strategyId = requireStrategyId(stringValue(formData, 'strategy_id'));
   const executionId = stringValue(formData, 'execution_id');
   if (!strategyId || !executionId) throw new Error('취소할 체결을 찾을 수 없습니다.');
 
@@ -637,7 +545,7 @@ export async function updateCompletedRound(formData: FormData) {
   await requireAppAccess();
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');
-  const strategyId = stringValue(formData, 'strategy_id');
+  const strategyId = requireStrategyId(stringValue(formData, 'strategy_id'));
   const startedAt = stringValue(formData, 'started_at');
   const endedAt = stringValue(formData, 'ended_at');
   const startedPrincipal = numberValue(formData, 'started_principal');
@@ -683,7 +591,7 @@ export async function deleteCompletedRound(formData: FormData) {
   await requireAppAccess();
   const supabase = supabaseOrThrow();
   const id = stringValue(formData, 'id');
-  const strategyId = stringValue(formData, 'strategy_id');
+  const strategyId = requireStrategyId(stringValue(formData, 'strategy_id'));
 
   if (!id || !strategyId) throw new Error('삭제할 완료 기록을 찾을 수 없습니다.');
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ACCESS_COOKIE, verifyAccessToken } from '@/lib/access/token';
+import { STRATEGY_ID } from '@/lib/strategyConfig';
 
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
@@ -11,6 +12,11 @@ export function proxy(request: NextRequest) {
   if (isLogin && !request.headers.has('next-action')) return NextResponse.next();
   const password = process.env.APP_PASSWORD;
   if (!password || verifyAccessToken(request.cookies.get(ACCESS_COOKIE)?.value, password, request.headers.get('host') ?? '')) {
+    const strategyPath = path.match(/^\/strategies\/([^/]+)(?:\/|$)/);
+    if (strategyPath && strategyPath[1] !== STRATEGY_ID) {
+      if (request.method === 'GET' || request.method === 'HEAD') return NextResponse.redirect(new URL('/', request.url));
+      return NextResponse.json({ error: '진행 중인 SOXL 20분할 전략만 사용할 수 있습니다.' }, { status: 400 });
+    }
     return NextResponse.next();
   }
   if (path.startsWith('/api/') || request.method !== 'GET' && request.method !== 'HEAD') {
