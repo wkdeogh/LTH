@@ -7,6 +7,7 @@ export function notificationTime(value: string, seconds = false) {
   return `${p.year}.${p.month}.${p.day} ${p.hour}:${p.minute}${seconds ? `:${p.second}` : ''}`;
 }
 export function notificationMeaning(item: NotificationItem) {
+  if (item.title.includes('주문 없음')) return { type: '주문 조건 확인', meaning: '현금·가격 조건에 맞는 주문이 없어 이번에는 전송하지 않았습니다. 주문 실패나 체결 내역이 아닙니다.', next: '아래 처리 내용과 주문 탭의 제외 사유를 확인해 주세요.' };
   if (item.body.includes('장운영 상태')) return {
     type: '자동주문 확인', meaning: '장운영 상태를 확인하는 단계에서 작업이 중단됐을 때 남긴 기록입니다. 주문 접수 여부를 알려주는 증권사 거절 메시지와는 구분됩니다.',
     next: '주문 탭과 메리츠 주문내역에서 접수 여부를 확인할 수 있습니다. 과거 알림을 열어도 주문을 다시 보내지는 않습니다.',

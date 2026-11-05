@@ -5,7 +5,8 @@ import { toStrategyState } from '@/lib/types';
 import { brokerDb, captureDay, check, linkStrategy, loadStrategy, withBrokerLock, loadBrokerLink } from './store';
 import { accountKey, brokerConfigured, type BrokerRow, type MeritzClient } from './meritz';
 import { closeMinute, initialOrderSession, isTradingDay, manualOrderSession, nyTime, openingWindow, regularSession, shiftDate } from './calendar';
-import { judgeOrder, matchGuideOrder, orderBody, processGuide, validateFunding, validateOrderBounds, type GuidePlan, type ProcessedGuide } from './policy';
+import { judgeOrder, matchGuideOrder, orderBody, processGuide, validateOrderBounds, type GuidePlan, type ProcessedGuide } from './policy';
+import { fitOrderFunding, fundingSummary, orderCash } from './funding';
 import { notify, deliverNotifications, pushConfigured } from './notifications';
 import { brokerSession, buildBrokerCommit, normalizeDetails, recordedFillsMatch, type BrokerFill } from './reconciliation';
 import { matchesTrackedOrder, type TrackedOrder } from './repricing-policy';
@@ -87,16 +88,15 @@ async function prepareWithClient(id: string, source: 'manual' | 'auto', client: 
   const day = await captureDay(strategy, today, true);
   if (day.baseline.version !== strategy.version) throw new Error('당일 전략 상태가 변경됐습니다. 체결·입출금 내역을 확인해 주세요.');
   const guide = day.guide as GuidePlan;
-  const processed = processGuide(guide, price);
+  let processed = processGuide(guide, price);
   check((await db.from('meritz_days').update({ quote_price: price, quote_received_at: new Date().toISOString() }).eq('id', day.id).is('quote_price', null)).error);
-  if (!processed.orders.length) throw new Error('제출할 주문이 없습니다.');
-  const estimate = await client.rows('/trading/v1/overseas/orders/estimate', { intg_marg_iqry_yn: 'N' });
-  const usd = estimate.find(r => r.crcd === 'USD');
+  const cash = processed.orders.some(order => order.side === 'buy')
+    ? orderCash(await client.rows('/trading/v1/overseas/orders/estimate', { intg_marg_iqry_yn: 'N' })) : 0;
   const holdings = await client.rows('/accounts/v1/me/overseas/holdings');
   const holding = holdings.filter(r => symbolOf(r) === strategy.symbol && String(r.rmnd_clcd) === '1');
   const held = holding.reduce((n, r) => n + Number(r.rmnd_dqty), 0);
   if (held !== strategy.position_qty) throw new Error('메리츠 보유수량과 LTH 보유수량이 다릅니다. 먼저 체결·상태를 확인해 주세요.');
-  validateFunding(processed.orders, toStrategyState(strategy), Number(usd?.oder_crnc_oder_able_camt),
+  processed = fitOrderFunding(processed, toStrategyState(strategy), cash,
     holding.reduce((n, r) => n + Number(r.seln_able_dqty), 0));
   const snapshot: Snapshot = { strategy, guide, processed };
   const saved = await db.from('meritz_runs').upsert({ id: prior.data?.id ?? crypto.randomUUID(), strategy_id: id,
@@ -109,26 +109,31 @@ export async function prepareOrders(id: string) {
   return withBrokerLock(async (client, account) => publicPreview(await prepareWithClient(id, 'manual', client, account)));
 }
 
-async function submitWithClient(run: Run, client: MeritzClient, account: string) {
+async function submitWithClient(run: Run, client: MeritzClient, account: string, refreshedOnce = false): Promise<{ ok: boolean; status: string; accepted: number; total: number; message: string }> {
   const db = brokerDb();
   if (run.account_key !== account || run.status !== 'prepared' || new Date(run.expires_at).getTime() < Date.now()) throw new Error('주문 미리보기가 만료됐습니다. 다시 확인해 주세요.');
   if (!(run.source === 'auto' ? initialOrderSession() : manualOrderSession()) || nyTime().date !== run.session_date) throw new Error('주문 가능한 거래 시간이 아닙니다.');
   const strategy = await loadStrategy(run.strategy_id);
   if (strategy.version !== run.snapshot.strategy.version) throw new Error('전략 상태가 변경됐습니다. 다시 확인해 주세요.');
   await client.assertMarketOpen(run.source === 'auto' || !regularSession());
-  const price = await client.currentPrice(strategy.symbol);
+  let price = await client.currentPrice(strategy.symbol);
   const refreshed = await syncStrategyCash(client, account, strategy, price);
   if (refreshed.version !== strategy.version) {
     check((await db.from('meritz_runs').update({ status: 'expired' }).eq('id', run.id)).error);
+    if (run.source === 'auto' && !refreshedOnce) return submitWithClient(await prepareWithClient(run.strategy_id, 'auto', client, account), client, account, true);
     throw new Error('계좌 현금 변동으로 원금과 T값을 갱신했습니다. 새 주문을 확인해 주세요.');
   }
-  if (run.source === 'auto') {
-    const processed = processGuide(run.snapshot.guide, price);
-    if (!processed.orders.length) throw new Error('제출할 주문이 없습니다.');
-    const cash = await client.rows('/trading/v1/overseas/orders/estimate', { intg_marg_iqry_yn: 'N' });
+  {
+    // Manual confirmation may drop newly unaffordable legs, but never adds or
+    // reprices an order beyond the user's approved preview.
+    let processed = run.source === 'auto' ? processGuide(run.snapshot.guide, price) : run.snapshot.processed;
+    const cash = processed.orders.some(order => order.side === 'buy')
+      ? orderCash(await client.rows('/trading/v1/overseas/orders/estimate', { intg_marg_iqry_yn: 'N' })) : 0;
     const holdings = (await client.rows('/accounts/v1/me/overseas/holdings')).filter(r => symbolOf(r) === strategy.symbol && String(r.rmnd_clcd) === '1');
     if (holdings.reduce((n,r) => n + Number(r.rmnd_dqty),0) !== strategy.position_qty) throw new Error('제출 직전 계좌 보유수량이 변경됐습니다.');
-    validateFunding(processed.orders, toStrategyState(strategy), Number(cash.find(r => r.crcd === 'USD')?.oder_crnc_oder_able_camt), holdings.reduce((n,r) => n + Number(r.seln_able_dqty),0));
+    price = await client.currentPrice(strategy.symbol);
+    if (run.source === 'auto') processed = processGuide(run.snapshot.guide, price);
+    processed = fitOrderFunding(processed, toStrategyState(strategy), cash, holdings.reduce((n,r) => n + Number(r.seln_able_dqty),0));
     run = { ...run, snapshot: { ...run.snapshot, processed } };
   }
   const orders = run.snapshot.processed.orders;
@@ -148,13 +153,13 @@ async function submitWithClient(run: Run, client: MeritzClient, account: string)
   const { status, accepted, failure } = await submitOrderBatch(run, strategy, orders, client, account);
   const finished = await db.from('meritz_runs').update({ status }).eq('id', run.id); check(finished.error);
   const buys = orders.filter(o => o.side === 'buy');
-  const message = status === 'accepted' ? `${orders.length}건의 주문이 정상 접수됐습니다. 체결은 장 마감 후 확인합니다.`
-    : `주문 ${accepted}건 접수, 나머지는 확인이 필요합니다. ${failure}`;
+  const message = (status === 'accepted' ? orders.length ? `${orders.length}건의 주문이 정상 접수됐습니다. 체결은 장 마감 후 확인합니다.` : '현금·가격 조건에 맞는 주문이 없어 주문을 보내지 않았습니다.'
+    : `주문 ${accepted}건 접수, 나머지는 확인이 필요합니다. ${failure}`) + fundingSummary(run.snapshot.processed);
   let notificationWarning = '';
   try {
     await notify(`orders:${run.id}:${status}`, run.strategy_id,
-      status === 'accepted' ? `${strategy.symbol} ${buys.length ? '매수 ' : ''}주문 접수 완료` : `${strategy.symbol} 주문 확인 필요`, message,
-      status === 'accepted' ? 'success' : 'warning');
+      status === 'accepted' ? `${strategy.symbol} ${orders.length ? `${buys.length ? '매수 ' : ''}주문 접수 완료` : '주문 없음'}` : `${strategy.symbol} 주문 확인 필요`, message,
+      status === 'accepted' ? orders.length ? 'success' : 'info' : 'warning');
     await deliverNotifications();
   } catch { notificationWarning = ' 알림 전송은 확인이 필요합니다.'; console.error('주문 결과 알림 저장·전송 실패', run.id); }
   return { ok: status === 'accepted', status, accepted, total: orders.length, message: message + notificationWarning };

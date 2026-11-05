@@ -4,7 +4,8 @@ import { brokerConfigured, type BrokerRow } from './meritz';
 import { nyTime, repriceWindow, shiftDate } from './calendar';
 import { brokerDb, check, loadStrategy, withBrokerLock, loadBrokerLink } from './store';
 import { notify, deliverNotifications } from './notifications';
-import { judgeOrder, validateFunding } from './policy';
+import { judgeOrder } from './policy';
+import { buyReservation, fitOrderFunding, fundingSummary, orderCash, waitForOrderFunding } from './funding';
 import { submitOrderBatch, type Run } from './service';
 import { brokerSession } from './reconciliation';
 import { cancelThenReplace, exceedsFivePercent, historyIdentity, planReplacement, type TrackedOrder } from './repricing-policy';
@@ -29,6 +30,10 @@ export async function runRepriceJob(watchdog = false) {
       if (existing.data) { outcomes.push({ strategy: link.strategy_id, status: existing.data.status }); await deliverNotifications(); return { outcomes }; }
       if (!run || run.status !== 'accepted' || run.account_key !== account) throw new Error('접수 완료된 동일 계좌의 1차 주문이 없어 취소·재주문하지 않았습니다.');
       check((await db.from('meritz_reprices').insert({ run_id: run.id, status: 'checking', initial_price: run.submission_price })).error); claimed = true;
+      if (!run.snapshot.processed.orders.length) {
+        check((await db.from('meritz_reprices').update({ status: 'unchanged', finished_at: new Date().toISOString() }).eq('run_id', run.id)).error);
+        await deliverNotifications(); return { outcomes: [{ strategy: link.strategy_id, status: 'unchanged', reason: '1차 주문 없음' }] };
+      }
       const strategy = await loadStrategy(run.strategy_id);
       const guard = async () => {
         const current = await loadStrategy(strategy.id);
@@ -53,7 +58,7 @@ export async function runRepriceJob(watchdog = false) {
       const state = toStrategyState(strategy);
       state.positionQty += replacement.buyQuantity - replacement.sellQuantity;
       state.cashBalance = Math.round((state.cashBalance + replacement.cashChange) * 10000) / 10000;
-      validateFunding(replacement.processed.orders, state, state.cashBalance, state.positionQty);
+      replacement.processed = fitOrderFunding(replacement.processed, state, state.cashBalance, state.positionQty);
       check((await db.from('meritz_reprices').update({ status: 'cancelling', replacement_snapshot: replacement.processed }).eq('run_id', run.id)).error);
       // Store official broker dates before the Korea-local midnight boundary
       // can make a repeated order number point at another generation.
@@ -85,13 +90,19 @@ export async function runRepriceJob(watchdog = false) {
           // remaining guide at the latest quote, rather than leave no orders
           // merely because the old cap/cutoff moved by a few cents meanwhile.
           replacement.processed = planReplacement(run!.snapshot.guide, saved.data ?? [], rows, await client.currentPrice('SOXL')).processed;
+          const funding = await waitForOrderFunding(Math.min(state.cashBalance, buyReservation(replacement.processed.orders)),
+            replacement.processed.orders.filter(order => order.side === 'sell').reduce((sum, order) => sum + order.quantity, 0), async () => {
+              const cash = replacement.processed.orders.some(order => order.side === 'buy')
+                ? orderCash(await client.rows('/trading/v1/overseas/orders/estimate', { intg_marg_iqry_yn: 'N' })) : 0;
+              const holdings = (await client.rows('/accounts/v1/me/overseas/holdings')).filter(r => String(r.ovrs_stck_symb_iscd ?? r.iscd ?? '').split('.')[0] === 'SOXL' && String(r.rmnd_clcd) === '1');
+              if (holdings.reduce((n,r) => n + Number(r.rmnd_dqty),0) !== state.positionQty) throw new Error('기체결 수량과 계좌 보유수량이 달라 재주문을 보류했습니다.');
+              return { cash, sellable: holdings.reduce((n,r) => n + Number(r.seln_able_dqty),0) };
+            });
+          replacement.processed = fitOrderFunding(planReplacement(run!.snapshot.guide, saved.data ?? [], rows,
+            await client.currentPrice('SOXL')).processed, state, funding.cash, funding.sellable);
           const after = await history();
           if (replacement.targets.some(t => !after.some(r => historyIdentity(r) === historyIdentity(t.history) && Number(r.cntg_dqty ?? r.cntg_qty) === 0))) throw new Error('취소 후 원주문의 체결 상태가 달라 재주문을 보류했습니다.');
           if (after.some(r => String(r.oder_rctf_cncl_cls_code) === '0' && !['1','2','4'].includes(String(r.ovrs_stck_oder_stat_cls_code)) && !replacement.identities.has(historyIdentity(r)))) throw new Error('취소 중 다른 SOXL 주문이 추가돼 재주문을 보류했습니다.');
-          const cash = await client.rows('/trading/v1/overseas/orders/estimate', { intg_marg_iqry_yn: 'N' });
-          const holdings = (await client.rows('/accounts/v1/me/overseas/holdings')).filter(r => String(r.ovrs_stck_symb_iscd ?? r.iscd ?? '').split('.')[0] === 'SOXL' && String(r.rmnd_clcd) === '1');
-          if (holdings.reduce((n,r) => n + Number(r.rmnd_dqty),0) !== state.positionQty) throw new Error('기체결 수량과 계좌 보유수량이 달라 재주문을 보류했습니다.');
-          validateFunding(replacement.processed.orders, state, Number(cash.find(r => r.crcd === 'USD')?.oder_crnc_oder_able_camt), holdings.reduce((n,r) => n + Number(r.seln_able_dqty),0));
           await guard();
           check((await db.from('meritz_reprices').update({ status: 'submitting', replacement_snapshot: replacement.processed }).eq('run_id', run!.id)).error);
           return submitOrderBatch(run!, strategy as Strategy, replacement.processed.orders, client, account, 'reprice:');
@@ -100,7 +111,7 @@ export async function runRepriceJob(watchdog = false) {
       check((await db.from('meritz_reprices').update({ status: result.status === 'accepted' ? 'accepted' : 'review', error: result.failure || null, finished_at: new Date().toISOString() }).eq('run_id', run.id)).error);
       try {
         await notify(`reprice:${run.id}:result`, strategy.id, result.status === 'accepted' ? 'SOXL 새벽 3시 재주문 완료' : 'SOXL 새벽 3시 재주문 확인 필요',
-          `1차 기준 $${initial.toFixed(2)} → 3시 기준 $${price.toFixed(2)}. 기존 미체결 ${replacement.targets.length}건 취소 확인, 새 주문 ${result.accepted}건 접수. ${result.failure}`, result.status === 'accepted' ? 'success' : 'warning');
+          `1차 기준 $${initial.toFixed(2)} → 3시 기준 $${price.toFixed(2)}. 기존 미체결 ${replacement.targets.length}건 취소 확인, 새 주문 ${result.accepted}건 접수. ${result.failure}${fundingSummary(replacement.processed)}`, result.status === 'accepted' ? 'success' : 'warning');
       } catch { console.error('재주문 결과 알림 저장 실패', run.id); }
       outcomes.push({ strategy: strategy.id, status: result.status, initial, price, accepted: result.accepted });
     } catch (error) {

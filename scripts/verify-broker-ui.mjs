@@ -52,9 +52,9 @@ try {
         if (body.action === 'preview') {
           previewCount++;
           return route.fulfill({ json: { runId: `fixture-${previewCount}`, token: 'fixture', symbol: 'SOXL', currentPrice: 80,
-            orders: [{ key: 'buy:LOC:96', side: 'buy', orderType: 'LOC', price: 96, quantity: 65 },
+            orders: mode === 'empty' ? [] : [{ key: 'buy:LOC:96', side: 'buy', orderType: 'LOC', price: 96, quantity: 65 },
               ...Array.from({ length: 22 }, (_, i) => ({ key: `supp-${i}`, side: 'buy', orderType: 'LOC', price: 95.45 - i, quantity: 1 }))],
-            skipped: [{ label: '쿼터매도', reason: '현재가 +20% 이상 매도 제외' }] } });
+            skipped: [{ label: '기본매수', reason: '주문가능 현금 부족 · 기본매수 제외' }] } });
         }
         if (body.action === 'confirm') {
           confirmCount++;
@@ -172,6 +172,15 @@ try {
     await page.getByRole('button', { name: '주문 전송', exact: true }).click();
     await page.getByRole('status').filter({ hasText: '정상 접수' }).waitFor();
     assert.equal(confirmCount, 2);
+    mode = 'empty';
+    await api.click(); await page.getByRole('dialog', { name: /API 주문 확인/ }).waitFor();
+    await page.getByText('현금·가격 조건에 맞는 주문이 없습니다.', {exact:true}).waitFor();
+    await expect(page.getByRole('button', {name:'주문 전송',exact:true})).toBeDisabled();
+    await page.locator('.broker-skipped summary').click();
+    await page.getByText('기본매수 · 주문가능 현금 부족 · 기본매수 제외',{exact:true}).waitFor();
+    await page.screenshot({path:new URL(`empty-orders-${width}.png`,output).pathname});
+    await page.getByRole('button',{name:'취소',exact:true}).click();
+    assert.equal(confirmCount,2);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.deepEqual(errors, []);
     results.push({ width, notificationTimestampAndDetail: 'pass', noRepeatedHistoricalToast: 'pass', savedStateFirstRender: 'pass', delayedStatusNavigation: 'pass', stableCardHeight: offHeight, bellInHeader: true, pushSettings: 'pass', fullWidthApiButton: true, togglePlacement: 'pass', lateActivation: 'pass', confirmationRequired: 'pass',

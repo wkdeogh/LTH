@@ -107,10 +107,10 @@ export function ApiOrderButton({ strategyId }: { strategyId: string }) {
       </div>)}</div>
       {!!preview?.skipped.length && <details className="broker-skipped"><summary>제외된 주문 {preview.skipped.length}건</summary>
         {preview.skipped.map((o, i) => <p key={`${o.label}-${i}`}>{o.label} · {o.reason}</p>)}</details>}
-      <p>위 주문을 실계좌로 전송할까요?</p>
+      <p>{preview?.orders.length ? '위 주문을 실계좌로 전송할까요?' : '현금·가격 조건에 맞는 주문이 없습니다.'}</p>
       {feedback && <p className="broker-message error" role="alert">{feedback}</p>}
       <div className="broker-dialog-actions"><button type="button" className="secondary" disabled={sending} onClick={() => dialog.current?.close()}>취소</button>
-        <button type="button" disabled={sending} onClick={confirm}>{sending ? '1초 간격으로 전송 중…' : '주문 전송'}</button></div>
+        <button type="button" disabled={sending || !preview?.orders.length} onClick={confirm}>{sending ? '1초 간격으로 전송 중…' : '주문 전송'}</button></div>
     </dialog>
   </section>;
 }
