@@ -71,27 +71,50 @@ export function cancellableRow(target: CancellationTarget, live: BrokerRow[]) {
     || Number(row.rctf_cnfr_qty) !== 0 || Number(row.oder_able_qty) !== target.quantity || Number(row.ncnt_qty) !== target.quantity) throw new Error('체결·정정 또는 취소 가능 수량이 바뀌어 재주문을 보류했습니다.');
   return row;
 }
-export function isCancellationConfirmed(target: CancellationTarget, live: BrokerRow[]) {
+function hasQuantity(row: BrokerRow, key: string, expected: number) {
+  const value = row[key];
+  return value !== null && value !== undefined && String(value).trim() !== ''
+    && Number.isSafeInteger(Number(value)) && Number(value) === expected;
+}
+export function isCancellationConfirmed(target: CancellationTarget, live: BrokerRow[], cancelNo: string) {
+  if (!/^[1-9]\d*$/.test(cancelNo) || cancelNo === target.order.broker_order_no) return false;
   const rows = live.filter(r => String(r.oder_date) === String(target.history.oder_date) && String(r.oder_no) === target.order.broker_order_no && String(r.oder_rctf_cncl_cls_code) === '0');
-  if (rows.length !== 1) return false;
-  const row = rows[0];
-  return Number(row.odqt) === target.quantity && Number(row.cntg_qty) === 0 && Number(row.rctf_cnfr_qty) === 0
-    && Number(row.cncl_cnfr_qty) === target.quantity && Number(row.ncnt_qty) === 0;
+  const cancellations = live.filter(r => String(r.oder_date) === String(target.history.oder_date)
+    && String(r.oder_no) === cancelNo && String(r.orgl_oder_no) === target.order.broker_order_no
+    && String(r.oder_rctf_cncl_cls_code) === '2');
+  if (rows.length !== 1 || cancellations.length !== 1) return false;
+  const row = rows[0], cancellation = cancellations[0];
+  // Meritz reports confirmed cancellation quantity on the cancellation row;
+  // the original row can keep cncl_cnfr_qty=0 even after full cancellation.
+  return matchesTrackedOrder(target.order, row)
+    && String(cancellation.ovrs_stck_symb_iscd ?? cancellation.iscd ?? '').split('.')[0] === target.order.body.ovrs_stck_symb_iscd
+    && String(cancellation.seln_byov_clcd) === String(row.seln_byov_clcd)
+    && String(cancellation.ovrs_stck_oder_stat_cls_code) === '0'
+    && String(cancellation.rctf_cncl_cls_code) === '3'
+    && hasQuantity(row, 'odqt', target.quantity)
+    && ['cntg_qty','rctf_cnfr_qty','ncnt_qty','oder_able_qty'].every(key => hasQuantity(row, key, 0))
+    && hasQuantity(cancellation, 'odqt', target.quantity)
+    && hasQuantity(cancellation, 'cncl_cnfr_qty', target.quantity)
+    && ['cntg_qty','rctf_cnfr_qty','ncnt_qty','oder_able_qty'].every(key => hasQuantity(cancellation, key, 0));
 }
 // One path owns the cancel -> confirmation -> replacement boundary, so a warning,
 // timeout, partial cancellation or disabled switch can never fall through to buy.
 export async function cancelThenReplace<T>(targets: CancellationTarget[], deps: {
   guard: () => Promise<void>; live: () => Promise<BrokerRow[]>;
-  cancel: (target: CancellationTarget) => Promise<void>; confirmed: (targets: CancellationTarget[]) => Promise<void>;
+  cancel: (target: CancellationTarget) => Promise<string>; confirmed: (targets: CancellationTarget[]) => Promise<void>;
   replace: () => Promise<T>;
 }) {
+  const cancelNumbers = new Map<CancellationTarget, string>(), identities = new Set<string>();
   for (const target of targets) {
-    await deps.guard(); cancellableRow(target, await deps.live()); await deps.cancel(target);
+    await deps.guard(); cancellableRow(target, await deps.live());
+    const cancelNo = await deps.cancel(target), identity = `${target.history.oder_date}:${cancelNo}`;
+    if (!/^[1-9]\d*$/.test(cancelNo) || cancelNo === target.order.broker_order_no || identities.has(identity)) throw new Error('취소 주문번호를 확인하지 못해 새 주문을 보내지 않았습니다.');
+    cancelNumbers.set(target, cancelNo); identities.add(identity);
   }
   let confirmed = !targets.length;
   for (let poll = 0; !confirmed && poll < 3; poll++) {
     const rows = await deps.live();
-    confirmed = targets.every(target => isCancellationConfirmed(target, rows));
+    confirmed = targets.every(target => isCancellationConfirmed(target, rows, cancelNumbers.get(target)!));
   }
   if (!confirmed) throw new Error('취소 확정 수량을 확인하지 못해 새 주문을 보내지 않았습니다.');
   await deps.confirmed(targets); await deps.guard();

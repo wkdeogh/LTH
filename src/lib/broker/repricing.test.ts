@@ -13,7 +13,8 @@ const order: TrackedOrder = {id:'order-1',order_key:apiOrder.key,body:{ovrs_stck
 const history: BrokerRow = {oder_date:'20261103',oder_no:101,orgl_oder_no:0,iscd:'SOXL.AX',oder_rctf_cncl_cls_code:'0',seln_byov_clcd:'2',aspr_type_code:'5',oder_dqty:'60',cntg_dqty:'0',cntg_camt:'0',ovrs_stck_oder_prc:'96.0000',ovrs_stck_oder_stat_cls_code:'0',oder_exec_ymdh:'2026-11-03 22:00:01'};
 const target: CancellationTarget = {order,history,quantity:60};
 const live: BrokerRow = {...history,odqt:60,cntg_qty:0,cncl_cnfr_qty:0,rctf_cnfr_qty:0,oder_able_qty:60,ncnt_qty:60};
-const cancelled: BrokerRow = {...live,cncl_cnfr_qty:60,oder_able_qty:0,ncnt_qty:0};
+const cancelled: BrokerRow = {...live,oder_able_qty:0,ncnt_qty:0};
+const cancellation: BrokerRow = {...cancelled,oder_no:201,orgl_oder_no:101,oder_rctf_cncl_cls_code:'2',cncl_cnfr_qty:60,rctf_cncl_cls_code:'3'};
 const plan: GuidePlan = {kind:'normal',phase:'second_half',oneUnitBudget:6300,starPercent:0,starPrice:105.01,buyPrice:105,targetSellPrice:144,buyOrders:[guideOrder],sellOrders:[],warnings:[],formulas:[]};
 
 test('5%는 유지, 상승·하락 모두 5% 초과부터 교체한다',()=>{
@@ -67,15 +68,15 @@ test('날짜가 바뀌어 번호가 반복돼도 공식 주문일자·시각으�
 });
 test('취소 접수만으로는 새 주문을 보내지 않고 확정 수량을 기다린다',async()=>{
   let sent=0,polls=0;const sequence:string[]=[];
-  await cancelThenReplace([target],{guard:async()=>{},live:async()=>{polls++;return[polls<3?live:cancelled]},cancel:async()=>{sequence.push('cancel')},confirmed:async()=>{sequence.push('confirmed')},replace:async()=>{sent++;sequence.push('replace')}});
+  await cancelThenReplace([target],{guard:async()=>{},live:async()=>{polls++;return polls<3?[live]:[cancelled,cancellation]},cancel:async()=>{sequence.push('cancel');return '201'},confirmed:async()=>{sequence.push('confirmed')},replace:async()=>{sent++;sequence.push('replace')}});
   assert.deepEqual(sequence,['cancel','confirmed','replace']);assert.equal(sent,1);assert.equal(polls,3);
-  assert.equal(isCancellationConfirmed(target,[{...cancelled,cncl_cnfr_qty:59}]),false);
+  assert.equal(isCancellationConfirmed(target,[cancelled,{...cancellation,cncl_cnfr_qty:59}],'201'),false);
   assert.throws(()=>cancellableRow(target,[{...live,cntg_qty:1}]),/수량/);
 });
 test('취소 거절·응답 유실·부분 취소·토글 OFF·취소 중 체결은 재주문으로 이어지지 않는다',async()=>{
   for(const fail of ['reject','timeout','unconfirmed','off','fill']) {
     let sent=0,calls=0;
-    await assert.rejects(cancelThenReplace([target],{guard:async()=>{if(fail==='off')throw Error('OFF')},live:async()=>{calls++;return[fail==='fill'?{...live,cntg_qty:1}:live]},cancel:async()=>{if(fail==='reject'||fail==='timeout')throw Error(fail)},confirmed:async()=>{},replace:async()=>{sent++}}));
+    await assert.rejects(cancelThenReplace([target],{guard:async()=>{if(fail==='off')throw Error('OFF')},live:async()=>{calls++;return[fail==='fill'?{...live,cntg_qty:1}:live]},cancel:async()=>{if(fail==='reject'||fail==='timeout')throw Error(fail);return '201'},confirmed:async()=>{},replace:async()=>{sent++}}));
     assert.equal(sent,0,fail);
   }
 });
@@ -84,11 +85,56 @@ test('여러 원주문 중 하나라도 취소가 확정되지 않으면 전체 
   const requested=new Set<string>(), sequence:string[]=[];let replaced=0;
   await assert.rejects(cancelThenReplace([target,other],{
     guard:async()=>{},
-    live:async()=>[requested.has('101')?cancelled:live,{...live,oder_no:102}],
-    cancel:async t=>{requested.add(t.order.broker_order_no!);sequence.push(t.order.broker_order_no!)},
+    live:async()=>[requested.has('101')?cancelled:live,...(requested.has('101')?[cancellation]:[]),{...live,oder_no:102}],
+    cancel:async t=>{requested.add(t.order.broker_order_no!);sequence.push(t.order.broker_order_no!);return t.order.broker_order_no==='101'?'201':'202'},
     confirmed:async()=>{sequence.push('confirmed')},replace:async()=>{replaced++},
   }),/취소 확정/);
   assert.deepEqual(sequence,['101','102']);assert.equal(replaced,0);
+});
+test('원주문 취소확정 0이어도 응답 번호로 연결된 취소 행의 전량 확정이면 통과한다',()=>{
+  assert.equal(cancelled.cncl_cnfr_qty,0);
+  assert.equal(isCancellationConfirmed(target,[cancelled,cancellation],'201'),true);
+  assert.equal(isCancellationConfirmed(target,[{...cancelled,cncl_cnfr_qty:60}],'201'),false);
+  const patches:BrokerRow[]=[
+    {oder_no:202},{orgl_oder_no:102},{oder_date:'20261104'},
+    {oder_rctf_cncl_cls_code:'1'},{rctf_cncl_cls_code:'1'},
+    {iscd:'TQQQ.OQ'},{seln_byov_clcd:'1'},{ovrs_stck_oder_stat_cls_code:'1'},
+    {odqt:59},{cncl_cnfr_qty:59},{cntg_qty:1},{rctf_cnfr_qty:1},{ncnt_qty:1},{oder_able_qty:1},
+  ];
+  for(const patch of patches) assert.equal(isCancellationConfirmed(target,[cancelled,{...cancellation,...patch}],'201'),false,JSON.stringify(patch));
+  assert.equal(isCancellationConfirmed(target,[cancelled,cancellation,cancellation],'201'),false);
+  assert.equal(isCancellationConfirmed(target,[cancelled,cancellation],''),false);
+});
+test('취소 중 체결·잔량·정정 또는 빠진 수량 필드는 전량 취소 행이 있어도 차단한다',()=>{
+  for(const key of ['cntg_qty','rctf_cnfr_qty','ncnt_qty','oder_able_qty']) {
+    for(const value of [1,null,'']) assert.equal(isCancellationConfirmed(target,[{...cancelled,[key]:value},cancellation],'201'),false,`${key}=${value}`);
+    const missing={...cancelled};delete missing[key];
+    assert.equal(isCancellationConfirmed(target,[missing,cancellation],'201'),false,key);
+  }
+  for(const value of [null,'',NaN]) assert.equal(isCancellationConfirmed(target,[cancelled,{...cancellation,cncl_cnfr_qty:value}],'201'),false);
+});
+test('실제 장애와 같은 32건·125주를 별도 취소 행으로 확인한 뒤 한 번만 재주문한다',async()=>{
+  const targets:CancellationTarget[]=Array.from({length:32},(_,i)=>({...target,quantity:i===0?94:1,
+    order:{...order,id:`order-${i}`,broker_order_no:String(101+i),guide_order:{...apiOrder,quantity:i===0?94:1}},
+    history:{...history,oder_no:101+i,oder_dqty:String(i===0?94:1)}}));
+  const requested=new Set<number>();let replacements=0,confirmed=0;
+  const rows=()=>targets.flatMap((t,i)=>{
+    const original={...live,oder_no:101+i,odqt:t.quantity,oder_dqty:String(t.quantity),...(requested.has(i)?{oder_able_qty:0,ncnt_qty:0}:{oder_able_qty:t.quantity,ncnt_qty:t.quantity})};
+    return requested.has(i)?[original,{...cancellation,oder_no:201+i,orgl_oder_no:101+i,odqt:t.quantity,cncl_cnfr_qty:t.quantity}]:[original];
+  });
+  await cancelThenReplace(targets,{guard:async()=>{},live:async()=>rows(),
+    cancel:async t=>{const i=targets.indexOf(t);requested.add(i);return String(201+i)},
+    confirmed:async ts=>{confirmed=ts.length;assert.equal(requested.size,32)},replace:async()=>{replacements++}});
+  assert.equal(targets.reduce((n,t)=>n+t.quantity,0),125);assert.equal(confirmed,32);assert.equal(replacements,1);
+});
+test('취소 응답 번호 유실·중복은 재주문으로 이어지지 않는다',async()=>{
+  const other:CancellationTarget={...target,order:{...order,id:'order-2',broker_order_no:'102'},history:{...history,oder_no:102}};
+  for(const cancelNo of ['','0','101','201']) {
+    let sent=0;
+    await assert.rejects(cancelThenReplace([target,other],{guard:async()=>{},live:async()=>[live,{...live,oder_no:102}],
+      cancel:async()=>cancelNo,confirmed:async()=>{},replace:async()=>{sent++}}),/취소 주문번호/);
+    assert.equal(sent,0);
+  }
 });
 test('22시 장전 주문은 정규장 상태 API를 조회하지 않고 실제 주문 응답을 확인한다',async()=>{
   let queries=0;

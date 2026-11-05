@@ -70,6 +70,7 @@ export async function runRepriceJob(watchdog = false) {
           const safe = { rsp_cd: response.rsp_cd, rsp_msg: client.clean(response.rsp_msg), rsp_sub_msg: client.clean(response.rsp_sub_msg), warn_cls_code: data?.warn_cls_code, warn_msg: client.clean(data?.warn_msg) };
           check((await db.from('meritz_cancellations').update({ status: status === 'accepted' ? 'requested' : status, broker_cancel_no: data?.oder_no ? String(data.oder_no) : null, response: safe }).eq('order_id', target.order.id)).error);
           if (status !== 'accepted') throw new Error(`취소 요청이 확정되지 않아 새 주문을 보내지 않았습니다. ${safe.rsp_cd ?? ''} ${safe.rsp_msg} ${safe.warn_msg}`);
+          return String(data!.oder_no);
         },
         confirmed: async targets => {
           for (const target of targets) {
