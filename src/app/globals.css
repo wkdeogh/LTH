@@ -2154,6 +2154,32 @@ input[type="date"]::-webkit-date-and-time-value {
   flex: 0 0 auto;
 }
 
+.supplemental-view-switch {
+  background: rgba(21, 94, 239, 0.06);
+  border-radius: 12px;
+  display: flex;
+  gap: 4px;
+  margin: 0 12px 12px;
+  padding: 4px;
+}
+
+.supplemental-view-switch button {
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  color: var(--muted);
+  flex: 1;
+  font-size: 13px;
+  min-height: 44px;
+  padding: 8px;
+}
+
+.supplemental-view-switch button[aria-pressed="true"] {
+  background: white;
+  box-shadow: 0 1px 4px rgba(21, 94, 239, 0.1);
+  color: var(--accent-dark);
+}
+
 .supplemental-order-list {
   border-top: 1px solid rgba(21, 94, 239, 0.12);
   display: grid;
@@ -3576,9 +3602,6 @@ td {
 @media (max-width: 640px) { .market-chart-placeholder { height:360px; } }
 
 .page-transition :is(.strategy-list, .order-list, .records-list, .round-list) > * { animation: none; }
-
-.market-section { min-height:700px; }
-@media (max-width:640px) { .market-section { min-height:756px; } }
 
 .initial-principal-return {
   display: flex;

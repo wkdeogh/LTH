@@ -4,6 +4,7 @@ import type { Strategy, StrategyState, SymbolCode } from '@/lib/types';
 import { toStrategyState } from '@/lib/types';
 import { calculateNormalPlan } from '@/lib/trading/normalMode';
 import { calculateReversePlan } from '@/lib/trading/reverseMode';
+import { groupSupplementalOrders } from './orderGrouping';
 
 export type GuidePlan = NormalPlan | ReversePlan;
 export type ApiOrder = {
@@ -24,7 +25,7 @@ export function processGuide(plan: GuidePlan, currentPrice: number): ProcessedGu
   // Work in cents: buys round down at the cap, supplemental cutoff rounds up.
   const cap = Math.floor((currentPrice * 120 + 1e-8)) / 100;
   const lower = Math.ceil((currentPrice * 90 - 1e-8)) / 100;
-  const result = new Map<string, ApiOrder>();
+  const candidates: ApiOrder[] = [];
   const skipped: ProcessedGuide['skipped'] = [];
   for (const original of [...plan.buyOrders, ...plan.sellOrders]) {
     if (!Number.isSafeInteger(original.quantity) || original.quantity < 0) throw new Error('주문 수량을 확인해 주세요.');
@@ -40,10 +41,14 @@ export function processGuide(plan: GuidePlan, currentPrice: number): ProcessedGu
     }
     const price = original.side === 'buy' && original.price !== null ? Math.min(original.price, cap) : original.price;
     const key = `${original.side}:${original.orderType}:${price === null ? 'market' : Math.round(price * 100)}`;
-    const existing = result.get(key);
-    if (existing) { existing.quantity += original.quantity; existing.sources.push(original); }
-    else result.set(key, { key, side: original.side, orderType: original.orderType, price,
+    candidates.push({ key, side: original.side, orderType: original.orderType, price,
       quantity: original.quantity, sources: [original] });
+  }
+  const result = new Map<string, ApiOrder>();
+  for (const order of groupSupplementalOrders(candidates)) {
+    const existing = result.get(order.key);
+    if (existing) { existing.quantity += order.quantity; existing.sources.push(...order.sources); }
+    else result.set(order.key, { ...order, sources: [...order.sources] });
   }
   const orders = [...result.values()];
   // Selling LIMIT first preserves the existing intraday sell / LOC-buy workflow.

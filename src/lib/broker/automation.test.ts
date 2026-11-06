@@ -24,14 +24,16 @@ function outcomes(result: unknown) {
 }
 
 test('실제 준비·제출 경로: 전날 새벽 이력은 허용하고 당일 수동 주문은 두 단계에서 차단한다', async () => {
-  for (const stage of ['previous','prepare','submit']) {
+  for (const stage of ['previous','prepare','submit','daytime-prepare','daytime-submit']) {
     const h = harness();
     if (stage === 'previous') h.history.push({ ...fill('2026-11-06'), oder_exec_ymdh: '2026-11-06 03:00:01' });
     if (stage === 'prepare') h.history.push(fill('2026-11-06'));
-    if (stage === 'submit') {
+    if (stage === 'daytime-prepare') h.history.push({...fill('2026-11-06'),oder_exec_ymdh:'2026-11-06 10:00:00'});
+    if (stage === 'submit' || stage === 'daytime-submit') {
       const original = h.client.rows.bind(h.client); let reads = 0;
       h.client.rows = async (path, params) => {
-        if (path.endsWith('/history') && ++reads === 2) h.history.push(fill('2026-11-06'));
+        if (path.endsWith('/history') && ++reads === 2) h.history.push({...fill('2026-11-06'),
+          oder_exec_ymdh:stage==='daytime-submit'?'2026-11-06 10:00:00':'2026-11-06 22:00:01'});
         return original(path, params);
       };
     }
@@ -257,4 +259,23 @@ test('취소 후 실패·review 저장 실패에도 취소/접수 건수와 잔�
   assert.match(h.notices.at(-1)!.body, /취소 접수 1건·확정 1건/);
   assert.match(h.notices.at(-1)!.body, /새 주문 0건/);
   assert.match(h.notices.at(-1)!.body, /잔존 주문은 미확인/);
+});
+
+test('취소0건 중 미전송·명확한 거절은 기존 주문 유지, 전송 후 불명은 미확인으로 구분한다',async()=>{
+  for(const mode of ['preflight','not_sent','rejected','uncertain','unknown_response']) {
+    const h=repriceFixture();
+    if(mode==='preflight') h.client.assertTimeRemaining=()=>{throw Error('남은 시간 부족')};
+    else h.client.call=async()=>{
+      if(mode==='rejected')return {rsp_cd:'0002',data:{warn_cls_code:'0'}};
+      if(mode==='unknown_response')return {rsp_cd:'0001',data:{warn_cls_code:'0'}};
+      throw new BrokerRequestError('모의 오류',mode==='uncertain');
+    };
+    await h.reprice().runRepriceJob();
+    const body=h.notices.at(-1)!.body;
+    assert.match(body,/취소 접수 0건·확정 0건/);
+    if(mode==='uncertain'||mode==='unknown_response') {assert.match(body,/잔존 주문은 미확인/);assert.doesNotMatch(body,/기존 주문 유지/);}
+    else {assert.match(body,/기존 주문 유지/);assert.doesNotMatch(body,/잔존 주문은 미확인/);}
+    assert.equal(h.requests.some(path=>path.endsWith('/buy')||path.endsWith('/sell')),false);
+    if(mode==='not_sent')assert.equal(h.tables.meritz_cancellations[0].response.transmission,'not_sent');
+  }
 });

@@ -23,10 +23,10 @@ const base: OrderGuide = { label: '기본', side: 'buy', orderType: 'LOC', price
 
 test('20% 매수 상한과 -10% 보완 하한: 예산 6300의 수량을 중복 없이 합친다', () => {
   const r = processGuide(guideWith([base, ...buildDownsideBuyOrders(6300, 60)]), 80);
-  assert.equal(r.orders[0].price, 96); assert.equal(r.orders[0].quantity, 65);
-  assert.equal(r.orders[0].sources.length, 6);
-  assert.equal(r.orders.length, 23); assert.equal(r.skipped.length, 33);
-  assert.equal(r.orders[1].price, 95.45); assert.equal(r.orders.at(-1)!.price, 72.41);
+  assert.equal(r.orders[0].price, 96); assert.equal(r.orders[0].quantity, 60);
+  assert.equal(r.orders[0].sources.length, 1);
+  assert.equal(r.orders.length, 9); assert.equal(r.skipped.length, 33);
+  assert.equal(r.orders[1].price, 94.02); assert.equal(r.orders[1].quantity, 7); assert.equal(r.orders.at(-1)!.price, 72.41);
   assert.equal(r.orders.reduce((n, o) => n + o.quantity, 0), 87);
 });
 test('현재가81은 97.20 상한, 낮은 기본 매수는 올리지 않는다', () => {

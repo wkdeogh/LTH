@@ -153,6 +153,30 @@ try {
     const apiBox = await api.boundingBox();
     const orderPanel = await page.locator('.broker-order-panel').boundingBox();
     assert.equal(apiBox.width, orderPanel.width);
+    const supplemental = page.locator('.supplemental-orders');
+    if (await supplemental.count()) {
+      const original = supplemental.getByRole('button', {name:'기존',exact:true});
+      const grouped = supplemental.getByRole('button', {name:'묶음 (3%)',exact:true});
+      await expect(grouped).toHaveAttribute('aria-pressed','true');
+      await expect(original).toHaveAttribute('aria-pressed','false');
+      await original.click();
+      while (await supplemental.locator('.supplemental-more-button').count()) await supplemental.locator('.supplemental-more-button').click();
+      const originalCount = await supplemental.locator('.supplemental-order-row').count();
+      const originalQuantity = await supplemental.locator('.supplemental-order-row b').evaluateAll(nodes=>nodes.reduce((sum,node)=>sum+Number(node.textContent.replace('주','')),0));
+      await grouped.click(); await expect(grouped).toHaveAttribute('aria-pressed','true');
+      assert.ok(await supplemental.locator('.supplemental-order-row').count()<=5);
+      await grouped.scrollIntoViewIfNeeded();
+      await supplemental.screenshot({path:new URL(`supplemental-grouped-${width}.png`,output).pathname});
+      while (await supplemental.locator('.supplemental-more-button').count()) await supplemental.locator('.supplemental-more-button').click();
+      const groupedCount=await supplemental.locator('.supplemental-order-row').count();
+      const groupedQuantity=await supplemental.locator('.supplemental-order-row b').evaluateAll(nodes=>nodes.reduce((sum,node)=>sum+Number(node.textContent.replace('주','')),0));
+      assert.ok(groupedCount<=originalCount);assert.equal(groupedQuantity,originalQuantity);
+      await expect(supplemental.locator('.pill')).toHaveText(`LOC · ${groupedCount}건`);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+      await original.click();await expect(original).toHaveAttribute('aria-pressed','true');
+      await expect(supplemental.locator('.pill')).toHaveText(`LOC · ${originalCount}건`);
+      assert.equal(await supplemental.locator('.supplemental-order-row').count(),Math.min(5,originalCount));
+    }
     await api.click();
     await page.getByRole('dialog', { name: /API 주문 확인/ }).waitFor();
     assert.ok(await page.getByText('SOXL API 주문 확인').isVisible());
@@ -183,7 +207,7 @@ try {
     assert.equal(confirmCount,2);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.deepEqual(errors, []);
-    results.push({ width, notificationTimestampAndDetail: 'pass', noRepeatedHistoricalToast: 'pass', savedStateFirstRender: 'pass', delayedStatusNavigation: 'pass', stableCardHeight: offHeight, bellInHeader: true, pushSettings: 'pass', fullWidthApiButton: true, togglePlacement: 'pass', lateActivation: 'pass', confirmationRequired: 'pass',
+    results.push({ width, supplementalViews:'pass', notificationTimestampAndDetail: 'pass', noRepeatedHistoricalToast: 'pass', savedStateFirstRender: 'pass', delayedStatusNavigation: 'pass', stableCardHeight: offHeight, bellInHeader: true, pushSettings: 'pass', fullWidthApiButton: true, togglePlacement: 'pass', lateActivation: 'pass', confirmationRequired: 'pass',
       errorDisplay: 'pass', successDisplay: 'pass', overflow: false, realOrderRequests: 0 });
     await context.close();
   }

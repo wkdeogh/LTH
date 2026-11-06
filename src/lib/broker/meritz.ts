@@ -40,7 +40,7 @@ export class MeritzClient {
     return text;
   }
   private async pacedFetch(path: string, init: RequestInit, onSend?: () => void,
-    beforeSend?: () => void | Promise<void>): Promise<{ status: number; body: BrokerBody }> {
+    beforeSend?: () => void | Promise<void>, stateChanging = false): Promise<{ status: number; body: BrokerBody }> {
     const previous = this.queue;
     let release!: () => void;
     this.queue = new Promise<void>(r => { release = r; });
@@ -50,12 +50,13 @@ export class MeritzClient {
       await (this.options.wait ?? sleep)(Math.max(0, 1000 - (now() - this.lastStart)));
       await this.options.beforeRequest?.();
       await beforeSend?.();
+      if (stateChanging && this.remainingMs() < 15000) throw new Error('응답 대기 15초를 확보하지 못해 요청을 전송하지 않았습니다. 기존 주문내역을 확인해 주세요.');
       this.assertTimeRemaining();
       this.lastStart = now();
       let response: Response;
       try {
         const request: RequestInit = { ...init, cache: 'no-store', redirect: 'error',
-          signal: AbortSignal.timeout(Math.max(1, Math.min(15000, this.remainingMs()))) };
+          signal: AbortSignal.timeout(stateChanging ? 15000 : Math.max(1, Math.min(15000, this.remainingMs()))) };
         onSend?.();
         response = await (this.options.fetcher ?? fetch)(`${BASE}${path}`, request);
       } catch { throw new Error('메리츠 서버 응답을 받지 못했습니다. 주문 전송 후라면 접수 여부 확인이 필요합니다.'); }
@@ -94,7 +95,7 @@ export class MeritzClient {
       const result = await this.pacedFetch(`${path}${query ? `?${query}` : ''}`, {
         method: body ? 'POST' : 'GET', headers: { authorization: `Bearer ${this.token}`, mac_address: mac,
           ...(body ? { 'content-type': 'application/json; charset=utf-8' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}),
-      }, () => { requestSent = true; }, beforeSend);
+      }, () => { requestSent = true; }, beforeSend, body !== undefined);
       if (result.status < 200 || result.status >= 300) throw new Error(this.clean(`메리츠 HTTP ${result.status}: ${result.body.rsp_cd ?? ''} ${result.body.rsp_msg ?? ''}`));
       if (!raw && !OK.has(String(result.body.rsp_cd))) {
         throw new Error(this.clean(`${result.body.rsp_cd ?? 'UNKNOWN'}: ${result.body.rsp_msg ?? ''} ${result.body.rsp_sub_msg ?? ''}`));

@@ -23,6 +23,7 @@ export async function runRepriceJob(watchdog = false) {
     const outcomes: Record<string, unknown>[] = [];
     let run: Run | null = null, claimed = false;
     let cancelRequested = 0, cancelConfirmed = 0, replacementAccepted = 0;
+    let cancelUncertain = false;
     const cancelledOrders: string[] = [];
     try {
       const found = await db.from('meritz_runs').select('*').eq('strategy_id', link.strategy_id).eq('session_date', session).maybeSingle<Run>(); check(found.error); run = found.data;
@@ -84,12 +85,14 @@ export async function runRepriceJob(watchdog = false) {
           try { response = await client.call('/trading/v1/overseas/orders/cancel', {}, body, true); }
           catch (error) {
             const notSent = error instanceof BrokerRequestError && !error.requestSent;
+            if (!notSent) cancelUncertain = true;
             try { check((await db.from('meritz_cancellations').update({ status: notSent ? 'rejected' : 'unknown',
               response: { error: client.clean((error as Error).message), transmission: notSent ? 'not_sent' : 'uncertain' } }).eq('order_id', target.order.id)).error); }
             catch { console.error('취소 실패 상태 저장 실패', target.order.id); }
             throw error;
           }
           const status = judgeOrder(response), data = response.data as BrokerRow | undefined;
+          if (status === 'unknown') cancelUncertain = true;
           if (status === 'accepted') { cancelRequested++; cancelledOrders.push(`${target.history.oder_date}/${target.order.broker_order_no}`); }
           const safe = { rsp_cd: response.rsp_cd, rsp_msg: client.clean(response.rsp_msg), rsp_sub_msg: client.clean(response.rsp_sub_msg), warn_cls_code: data?.warn_cls_code, warn_msg: client.clean(data?.warn_msg) };
           check((await db.from('meritz_cancellations').update({ status: status === 'accepted' ? 'requested' : status, broker_cancel_no: data?.oder_no ? String(data.oder_no) : null, response: safe }).eq('order_id', target.order.id)).error);
@@ -139,7 +142,9 @@ export async function runRepriceJob(watchdog = false) {
       const message = client.clean((error as Error).message)
         + ` 취소 접수 ${cancelRequested}건·확정 ${cancelConfirmed}건, 새 주문 ${replacementAccepted}건 접수.`
         + (cancelledOrders.length ? ` 취소 접수 원주문: ${cancelledOrders.join(', ')}.` : '')
-        + ' 잔존 주문은 미확인입니다. 메리츠 주문내역에서 남은 주문과 수동 주문 필요 여부를 확인해 주세요.';
+        + (cancelRequested === 0 && !cancelUncertain
+          ? ' 기존 주문 유지: 이번 작업에서 취소한 주문이 없습니다. 새 주문을 추가하기 전에 메리츠 주문내역을 확인해 주세요.'
+          : ' 잔존 주문은 미확인입니다. 메리츠 주문내역에서 남은 주문과 수동 주문 필요 여부를 확인해 주세요.');
       if (claimed && run) {
         try { check((await db.from('meritz_reprices').update({ status: 'review', error: message, finished_at: new Date().toISOString() }).eq('run_id', run.id)).error); }
         catch { console.error('재점검 실패 상태 저장 실패', run.id); }

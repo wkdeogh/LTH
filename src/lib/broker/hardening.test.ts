@@ -41,6 +41,24 @@ test('중복 검사는 전날 새벽 주문만 배제하고 당일·예약·휴�
   assert.throws(() => brokerSession({ oder_exec_ymdh: '2026-02-30 22:00:00' }), /잘못/);
 });
 
+test('미국 마감 전의 과거 주문만 무시하며 마감 정각·한국 낮·조기폐장 이후는 계속 차단한다', () => {
+  const row={iscd:'SOXL.AX',oder_rctf_cncl_cls_code:'0',ovrs_stck_oder_stat_cls_code:'0',oder_dqty:1};
+  const cases:[string,string,boolean][]=[
+    ['2026-11-06 03:00:00','2026-11-06',false],
+    ['2026-11-06 05:59:59','2026-11-06',false],
+    ['2026-11-06 06:00:00','2026-11-06',true],
+    ['2026-11-06 10:00:00','2026-11-06',true],
+    ['2026-11-06 18:00:00','2026-11-06',true],
+    ['2026-07-07 04:59:59','2026-07-07',false],
+    ['2026-07-07 05:00:00','2026-07-07',true],
+    ['2026-07-07 10:00:00','2026-07-07',true],
+    ['2026-11-28 02:59:59','2026-11-30',false],
+    ['2026-11-28 03:00:00','2026-11-30',true],
+    ['2026-11-07 10:00:00','2026-11-09',true],
+  ];
+  for(const [stamp,session,blocked] of cases) assert.equal(blocksSessionOrder({...row,oder_exec_ymdh:stamp},'SOXL',session),blocked,stamp);
+});
+
 test('지연 시작·제출·워치독의 허용 경계와 조기폐장 제한을 분리한다', () => {
   assert.equal(openingWindow(new Date('2026-11-06T13:02:59Z')), true);
   assert.equal(openingWindow(new Date('2026-11-06T13:03:00Z')), false);
@@ -84,6 +102,45 @@ test('호출 간격 대기 중 마감된 요청은 fetch 직전 다시 차단한
     fetcher: async url => { if (!String(url).includes('oauth2')) posts++; return new Response(JSON.stringify({ access_token: 't' })); } });
   await assert.rejects(c.call('/trading/v1/overseas/orders/buy', {}, { odqt: 1 }, true), error => error instanceof BrokerRequestError && !error.requestSent);
   assert.equal(posts, 0);
+});
+
+test('매수·매도·취소 모두 남은15초 미만은 미전송, 정확히15초부터는 15초 응답 한도로 보낸다', async t => {
+  const timeouts:number[]=[];
+  t.mock.method(AbortSignal,'timeout',(ms:number)=>{timeouts.push(ms);return new AbortController().signal});
+  for(const path of ['buy','sell','cancel'])for(const remaining of [300,14999,15000,15001]) {
+    const time=clock();let posts=0;
+    const client=new MeritzClient({key:'fixture-key',secret:'fixture-secret',...time,deadline:240000,
+      fetcher:async(url)=>{
+        if(String(url).includes('oauth2'))return new Response(JSON.stringify({access_token:'fixture-token'}));
+        posts++;time.advance(500);
+        return new Response(JSON.stringify({rsp_cd:'0001',data:{warn_cls_code:'0',oder_no:101}}));
+      }});
+    await client.authenticate();time.advance(240000-remaining);timeouts.length=0;
+    const call=client.call(`/trading/v1/overseas/orders/${path}`,{}, {odqt:1},true);
+    if(remaining<15000) {
+      await assert.rejects(call,e=>e instanceof BrokerRequestError&&!e.requestSent&&/15초/.test(e.message));
+      assert.equal(posts,0);assert.deepEqual(timeouts,[]);
+    } else {
+      assert.equal((await call).rsp_cd,'0001');assert.equal(posts,1);assert.deepEqual(timeouts,[15000]);
+    }
+  }
+});
+
+test('송신 직전 검사나 호출 간격 대기로 15초 여유가 사라지면 POST를 보내지 않는다',async()=>{
+  const time=clock();let posts=0;
+  const client=new MeritzClient({key:'k',secret:'s',...time,deadline:240000,fetcher:async url=>{
+    if(!String(url).includes('oauth2'))posts++;
+    return new Response(JSON.stringify({access_token:'fixture-token'}));
+  }});
+  await client.authenticate();time.advance(225000);
+  await assert.rejects(client.call('/trading/v1/overseas/orders/cancel',{}, {odqt:1},true,()=>{time.advance(1)}),e=>e instanceof BrokerRequestError&&!e.requestSent);
+  assert.equal(posts,0);
+  const paced=new MeritzClient({key:'k',secret:'s',...clock(),deadline:15500,fetcher:async url=>{
+    if(!String(url).includes('oauth2'))posts++;
+    return new Response(JSON.stringify({access_token:'fixture-token'}));
+  }});
+  await assert.rejects(paced.call('/trading/v1/overseas/orders/buy',{}, {odqt:1},true),e=>e instanceof BrokerRequestError&&!e.requestSent);
+  assert.equal(posts,0);
 });
 
 test('주문 가능 시각이 호출 간격 대기 중 끝나도 실제 POST는 전송하지 않는다', async () => {

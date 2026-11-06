@@ -1,21 +1,23 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { usd } from '@/components/Format';
-
-type SupplementalOrder = {
-  label: string;
-  price: number | null;
-  quantity: number;
-};
+import type { OrderGuide } from '@/lib/trading/normalMode';
+import { groupSupplementalOrders, SUPPLEMENTAL_GROUP_PERCENT } from '@/lib/broker/orderGrouping';
 
 const PAGE_SIZE = 5;
 
-export function SupplementalOrders({ orders }: { orders: SupplementalOrder[] }) {
+export function SupplementalOrders({ orders }: { orders: OrderGuide[] }) {
+  const [grouped, setGrouped] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const listId = useId();
-  const visibleOrders = orders.slice(0, visibleCount);
-  const remainingCount = Math.max(orders.length - visibleOrders.length, 0);
+  const groupedOrders = useMemo(() => groupSupplementalOrders(orders.map((order,index) => ({
+    key: `supplemental-${index}`, side: order.side, orderType: order.orderType,
+    price: order.price, quantity: order.quantity, sources: [order],
+  }))).map(order => ({ label: order.key, price: order.price, quantity: order.quantity })), [orders]);
+  const displayedOrders = grouped ? groupedOrders : orders;
+  const visibleOrders = displayedOrders.slice(0, visibleCount);
+  const remainingCount = Math.max(displayedOrders.length - visibleOrders.length, 0);
   const nextCount = Math.min(PAGE_SIZE, remainingCount);
 
   return (
@@ -24,7 +26,13 @@ export function SupplementalOrders({ orders }: { orders: SupplementalOrder[] }) 
         <div>
           <strong>하락 보완 매수</strong>
         </div>
-        <span className="pill">LOC · {orders.length}건</span>
+        <span className="pill">LOC · {displayedOrders.length}건</span>
+      </div>
+      <div className="supplemental-view-switch" role="group" aria-label="하락 보완매수 보기">
+        {[false,true].map(value => <button key={String(value)} type="button" aria-pressed={grouped === value}
+          aria-controls={listId} onClick={() => { setGrouped(value); setVisibleCount(PAGE_SIZE); }}>
+          {value ? `묶음 (${SUPPLEMENTAL_GROUP_PERCENT}%)` : '기존'}
+        </button>)}
       </div>
       <div className="supplemental-order-list" id={listId} aria-label="하락 보완 LOC 주문 목록">
         {visibleOrders.map((order, index) => (
@@ -37,11 +45,11 @@ export function SupplementalOrders({ orders }: { orders: SupplementalOrder[] }) 
       </div>
       {remainingCount > 0 && (
         <div className="supplemental-orders-footer">
-          <span>{visibleOrders.length}/{orders.length}개 표시</span>
+          <span>{visibleOrders.length}/{displayedOrders.length}개 표시</span>
           <button
             aria-controls={listId}
             className="supplemental-more-button"
-            onClick={() => setVisibleCount((count) => Math.min(count + PAGE_SIZE, orders.length))}
+            onClick={() => setVisibleCount((count) => Math.min(count + PAGE_SIZE, displayedOrders.length))}
             type="button"
           >
             {nextCount}개 더보기 <span aria-hidden="true">↓</span>
