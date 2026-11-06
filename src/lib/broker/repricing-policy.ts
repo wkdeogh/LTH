@@ -1,6 +1,7 @@
 import type { OrderGuide } from '@/lib/trading/normalMode';
 import type { BrokerRow } from './meritz';
 import { processGuide, type ApiOrder, type GuidePlan } from './policy';
+import { pollRead, type PollOptions } from './polling';
 
 export type TrackedOrder = { id: string; order_key: string; body: Record<string, unknown>; guide_order: ApiOrder;
   status: string; broker_order_no: string | null; broker_order_date: string | null; attempted_at: string };
@@ -97,26 +98,45 @@ export function isCancellationConfirmed(target: CancellationTarget, live: Broker
     && hasQuantity(cancellation, 'cncl_cnfr_qty', target.quantity)
     && ['cntg_qty','rctf_cnfr_qty','ncnt_qty','oder_able_qty'].every(key => hasQuantity(cancellation, key, 0));
 }
+
+// Include growing cancellation rows, DB writes and both bounded polling windows.
+// This is a preflight estimate, not a guarantee about future network latency.
+export function replacementBudgetMs(cancelCount: number, orderCount: number, pages: number, pageSize: number, requestMs: number) {
+  const finalPages = pages + Math.ceil(cancelCount / Math.max(1, pageSize));
+  const requests = cancelCount * (finalPages + 1) + orderCount + finalPages + 8;
+  return Math.ceil(requests * requestMs + (cancelCount + orderCount) * 250 + 45000);
+}
 // One path owns the cancel -> confirmation -> replacement boundary, so a warning,
 // timeout, partial cancellation or disabled switch can never fall through to buy.
 export async function cancelThenReplace<T>(targets: CancellationTarget[], deps: {
   guard: () => Promise<void>; live: () => Promise<BrokerRow[]>;
   cancel: (target: CancellationTarget) => Promise<string>; confirmed: (targets: CancellationTarget[]) => Promise<void>;
   replace: () => Promise<T>;
+  preflight?: (rows: BrokerRow[]) => void | Promise<void>;
+  polling?: PollOptions;
+  onConfirmed?: (count: number) => void;
 }) {
   const cancelNumbers = new Map<CancellationTarget, string>(), identities = new Set<string>();
+  if (targets.length) {
+    await deps.guard();
+    const rows = await deps.live();
+    for (const target of targets) cancellableRow(target, rows);
+    await deps.preflight?.(rows);
+  }
   for (const target of targets) {
     await deps.guard(); cancellableRow(target, await deps.live());
     const cancelNo = await deps.cancel(target), identity = `${target.history.oder_date}:${cancelNo}`;
     if (!/^[1-9]\d*$/.test(cancelNo) || cancelNo === target.order.broker_order_no || identities.has(identity)) throw new Error('취소 주문번호를 확인하지 못해 새 주문을 보내지 않았습니다.');
     cancelNumbers.set(target, cancelNo); identities.add(identity);
   }
-  let confirmed = !targets.length;
-  for (let poll = 0; !confirmed && poll < 3; poll++) {
-    const rows = await deps.live();
-    confirmed = targets.every(target => isCancellationConfirmed(target, rows, cancelNumbers.get(target)!));
+  if (targets.length) {
+    const { matched } = await pollRead(deps.live, rows => {
+      const count = targets.filter(target => isCancellationConfirmed(target, rows, cancelNumbers.get(target)!)).length;
+      deps.onConfirmed?.(count);
+      return count === targets.length;
+    }, deps.polling);
+    if (!matched) throw new Error('취소 확정 수량을 확인하지 못해 새 주문을 보내지 않았습니다.');
   }
-  if (!confirmed) throw new Error('취소 확정 수량을 확인하지 못해 새 주문을 보내지 않았습니다.');
   await deps.confirmed(targets); await deps.guard();
   return deps.replace();
 }

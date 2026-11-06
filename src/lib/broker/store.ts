@@ -78,13 +78,14 @@ export async function withBrokerLock<T>(fn: (client: MeritzClient, account: stri
   if (!lock.data) throw new Error('다른 메리츠 작업이 진행 중입니다. 잠시 후 다시 시도해 주세요.');
   const deadline = Date.now() + 240000;
   let firstCall = true;
-  const client = new MeritzClient({ beforeRequest: async () => {
+  const client = new MeritzClient({ deadline, beforeRequest: async () => {
     if (Date.now() > deadline) throw new Error('처리 시간을 초과했습니다. 주문내역 확인 후 다시 시도해 주세요.');
     // A new server instance waits after taking the account lock. This also
     // covers the gap from the preceding instance's final HTTP call.
     if (firstCall) { firstCall = false; await sleep(1000); }
     const slot = await db.rpc('reserve_meritz_call', { p_account: account, p_owner: owner }); check(slot.error);
     await sleep(Math.max(0, new Date(String(slot.data)).getTime() - Date.now()));
+    if (Date.now() >= deadline) throw new Error('처리 시간을 초과했습니다. 주문내역 확인 후 다시 시도해 주세요.');
   } });
   try { return await fn(client, account); }
   finally { const released = await db.rpc('release_meritz_lock', { p_account: account, p_owner: owner }); if (released.error) console.error('메리츠 작업 잠금 해제 실패', released.error.code); }

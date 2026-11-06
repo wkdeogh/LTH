@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
 import { activationDate, initialOrderSession, manualOrderSession, openingWindow, repriceWindow } from './calendar';
-import { cancelThenReplace, cancellableRow, exceedsFivePercent, isCancellationConfirmed, matchesTrackedOrder, planReplacement, type CancellationTarget, type TrackedOrder } from './repricing-policy';
+import { cancelThenReplace as cancelWithPolling, cancellableRow, exceedsFivePercent, isCancellationConfirmed, matchesTrackedOrder, planReplacement, type CancellationTarget, type TrackedOrder } from './repricing-policy';
 import { MeritzClient, type BrokerRow } from './meritz';
 import { type ApiOrder, type GuidePlan, judgeOrder } from './policy';
+
+const cancelThenReplace: typeof cancelWithPolling = (targets, deps) => cancelWithPolling(targets, { ...deps, polling: { maxAttempts: 3, wait: async () => {} } });
 
 const guideOrder = {label:'별지점',side:'buy' as const,orderType:'LOC' as const,price:105,quantity:60,note:'',completesBuyUnit:true};
 const apiOrder: ApiOrder = {...guideOrder,key:'buy:LOC:9600',price:96,sources:[guideOrder]};

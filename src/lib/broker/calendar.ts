@@ -43,9 +43,11 @@ export function regularSession(now = new Date()) {
   const t = nyTime(now);
   return isTradingDay(t.date) && t.minute >= 570 && t.minute < closeMinute(t.date) - 10;
 }
-export function openingWindow(now = new Date()) {
+export function openingWindow(now = new Date(), watchdog = false) {
   const t = nyTime(now);
-  return isTradingDay(t.date) && now.getUTCHours() === 13 && now.getUTCMinutes() === 0;
+  const minute = now.getUTCMinutes();
+  return isTradingDay(t.date) && now.getUTCHours() === 13
+    && (watchdog ? minute >= 5 && minute < 10 : minute < 3);
 }
 export function initialOrderSession(now = new Date()) {
   return isTradingDay(nyTime(now).date) && now.getUTCHours() === 13 && now.getUTCMinutes() < 5;
@@ -55,7 +57,9 @@ export function manualOrderSession(now = new Date()) {
   return isTradingDay(time.date) && now >= new Date(`${time.date}T13:00:00Z`) && time.minute < closeMinute(time.date) - 10;
 }
 export function repriceWindow(now = new Date(), watchdog = false) {
-  return regularSession(now) && now.getUTCHours() === 18 && now.getUTCMinutes() === (watchdog ? 5 : 0);
+  const minute = now.getUTCMinutes();
+  return regularSession(now) && now.getUTCHours() === 18
+    && (watchdog ? minute >= 5 && minute < 10 : minute < 5);
 }
 export function activationDate(now = new Date()) {
   const t = nyTime(now); const d = new Date(`${t.date}T12:00:00Z`);

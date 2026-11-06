@@ -1,6 +1,7 @@
 import type { StrategyState } from '@/lib/types';
 import type { BrokerRow } from './meritz';
 import { validateFunding, type ApiOrder, type ProcessedGuide } from './policy';
+import { pollRead, type PollOptions } from './polling';
 
 function moneyUnits(value: number) {
   const units = Math.floor(value * 10000 + 1e-7);
@@ -57,14 +58,14 @@ export function fitOrderFunding(processed: ProcessedGuide, state: StrategyState,
 // After confirmed cancellation, read-only polls give released reservations a
 // chance to appear. If cash remains lower, fit the batch instead of aborting it.
 export async function waitForOrderFunding(requiredCash: number, requiredSellable: number,
-  read: () => Promise<{ cash: number; sellable: number }>) {
-  let result = { cash: 0, sellable: 0 };
-  for (let attempt = 0; attempt < 3; attempt++) {
-    result = await read(); moneyUnits(result.cash);
+  read: () => Promise<{ cash: number; sellable: number }>, options: PollOptions = {}) {
+  const { value } = await pollRead(async () => {
+    const result = await read(); moneyUnits(result.cash);
     if (!Number.isSafeInteger(result.sellable) || result.sellable < 0) throw new Error('매도 가능 수량을 확인하지 못했습니다.');
-    if (moneyUnits(result.cash) >= moneyUnits(requiredCash) && result.sellable >= requiredSellable) break;
-  }
-  return result;
+    return result;
+  }, result => moneyUnits(result.cash) >= moneyUnits(requiredCash) && result.sellable >= requiredSellable,
+  { timeoutMs: 15000, ...options });
+  return value;
 }
 export function fundingSummary(processed: ProcessedGuide) {
   const count = processed.skipped.filter(item => item.reason.startsWith('주문가능 현금 부족')).length;

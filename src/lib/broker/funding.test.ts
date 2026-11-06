@@ -3,9 +3,12 @@ import assert from 'node:assert/strict';
 import type { StrategyState } from '@/lib/types';
 import { calculateNormalPlan, type OrderGuide } from '@/lib/trading/normalMode';
 import { processGuide, type ApiOrder, type ProcessedGuide } from './policy';
-import { buyReservation, fitOrderFunding, fundingSummary, orderCash, waitForOrderFunding } from './funding';
-import { cancelThenReplace, type CancellationTarget } from './repricing-policy';
+import { buyReservation, fitOrderFunding, fundingSummary, orderCash, waitForOrderFunding as waitForFunding } from './funding';
+import { cancelThenReplace as cancelWithPolling, type CancellationTarget } from './repricing-policy';
 import type { BrokerRow } from './meritz';
+
+const waitForOrderFunding: typeof waitForFunding = (cash, sellable, read, options) => waitForFunding(cash, sellable, read, { maxAttempts: 3, wait: async () => {}, ...options });
+const cancelThenReplace: typeof cancelWithPolling = (targets, deps) => cancelWithPolling(targets, { ...deps, polling: { maxAttempts: 3, wait: async () => {} } });
 
 const state:StrategyState={id:'test',name:'test',symbol:'SOXL',splitCount:20,principal:20000,cashBalance:1000,positionQty:200,avgPrice:100,tValue:19,mode:'normal',reverseStartedAt:null,reverseFirstSellDone:false};
 const source:OrderGuide={side:'buy',label:'기본매수',orderType:'LOC',price:81.99,quantity:12,note:'',completesBuyUnit:true};
@@ -69,7 +72,7 @@ test('매수 가이드·예수금·매도가능수량의 실제 오류는 여전
   assert.equal(orderCash([{crcd:'KRW',oder_crnc_oder_able_camt:100},{crcd:'USD',oder_crnc_oder_able_camt:'1000.1234'}]),1000.1234);
   for(const rows of [[],[{crcd:'USD'}],[{crcd:'USD',oder_crnc_oder_able_camt:null}],[{crcd:'USD',oder_crnc_oder_able_camt:''}],[{crcd:'USD',oder_crnc_oder_able_camt:NaN}],Array(2).fill({crcd:'USD',oder_crnc_oder_able_camt:0})])assert.throws(()=>orderCash(rows),/현금/);
 });
-test('취소 후 현금·매도가능 반환은 조회만 최대3회 기다리고 남은 현금으로 주문을 맞춘다',async()=>{
+test('취소 후 현금·매도가능 반환을 기다리고 조회 예산 소진 시 남은 현금으로 주문을 맞춘다',async()=>{
   let reads=0;const result=await waitForOrderFunding(1000,200,async()=>({cash:[0,500,1000][reads++],sellable:200}));
   assert.equal(result.cash,1000);assert.equal(reads,3);
   reads=0;assert.equal((await waitForOrderFunding(1000,200,async()=>{reads++;return {cash:900,sellable:200}})).cash,900);assert.equal(reads,3);

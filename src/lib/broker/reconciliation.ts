@@ -7,7 +7,7 @@ import { shouldAutoReturnToNormalMode } from '@/lib/trading/reverseMode';
 import { shouldEnterReverseMode } from '@/lib/trading/mode';
 import type { BrokerRow } from './meritz';
 import type { GuidePlan } from './policy';
-import { nyTime } from './calendar';
+import { isTradingDay, nyTime } from './calendar';
 
 // Meritz order/fill timestamps are Korea-local strings; keep the separate
 // broker order date unchanged for detail lookups and deduplication.
@@ -15,8 +15,20 @@ export function brokerSession(row: BrokerRow) {
   const text = String(row.oder_exec_ymdh ?? '');
   if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(text)) throw new Error('주문 접수 시각을 확인하지 못했습니다.');
   const date = new Date(`${text.replace(' ', 'T')}+09:00`);
-  if (!Number.isFinite(date.getTime())) throw new Error('주문 접수 시각이 잘못되었습니다.');
+  if (!Number.isFinite(date.getTime())
+    || new Date(date.getTime() + 9 * 3600000).toISOString().slice(0,19).replace('T',' ') !== text) throw new Error('주문 접수 시각이 잘못되었습니다.');
   return nyTime(date).date;
+}
+
+export function blocksSessionOrder(row: BrokerRow, symbol: string, session: string) {
+  if (String(row.ovrs_stck_symb_iscd ?? row.iscd ?? '').split('.')[0] !== symbol) return false;
+  const date = brokerSession(row);
+  // Ignore only a proven earlier trading session. Reserved/future/holiday orders
+  // and unparseable SOXL timestamps must not silently bypass duplicate protection.
+  if (date < session && isTradingDay(date)) return false;
+  return String(row.oder_rctf_cncl_cls_code) === '0'
+    && !['1','2','4'].includes(String(row.ovrs_stck_oder_stat_cls_code))
+    && Number(row.oder_dqty ?? row.odqt) > Number(row.cncl_cnfr_qty ?? 0);
 }
 
 export type BrokerFill = { orderDate: string; orderNo: string; fillNo: string; symbol: string;
