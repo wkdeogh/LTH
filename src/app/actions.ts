@@ -129,7 +129,16 @@ export async function switchToReverse(formData: FormData) {
   const id = requireStrategyId(stringValue(formData, 'id'));
   const automatic = stringValue(formData, 'automatic') === '1';
 
-  const { error } = await supabase
+  const { data: strategy, error: strategyError } = await supabase.from('strategies')
+    .select('*').eq('id', id).eq('is_archived', false).single<Strategy>();
+  if (strategyError) throw strategyError;
+  const state = toStrategyState(strategy);
+  if (state.mode === 'reverse' || automatic && !shouldAutoEnterReverseMode({
+    currentMode: state.mode, requestedMode: state.mode,
+    nextTValue: state.tValue, splitCount: state.splitCount,
+  })) redirect(`/strategies/${id}/plan`);
+
+  const { data: updated, error } = await supabase
     .from('strategies')
     .update({
       mode: 'reverse',
@@ -137,11 +146,14 @@ export async function switchToReverse(formData: FormData) {
       reverse_first_sell_done: false,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', id);
+    .eq('id', id).eq('version', strategy.version).eq('mode', state.mode)
+    .select('id').maybeSingle();
 
   if (error) throw error;
+  if (!updated) redirect(`/strategies/${id}/plan`);
 
   revalidatePath(`/strategies/${id}`);
+  revalidatePath(`/strategies/${id}/plan`);
   redirect(withNotice(`/strategies/${id}/plan`, automatic ? 'reverse-auto-started' : 'reverse-started'));
 }
 
@@ -151,13 +163,21 @@ export async function switchToNormal(formData: FormData) {
   const id = requireStrategyId(stringValue(formData, 'id'));
   const automatic = stringValue(formData, 'automatic') === '1';
 
+  const { data: strategy, error: strategyError } = await supabase.from('strategies')
+    .select('*').eq('id', id).eq('is_archived', false).single<Strategy>();
+  if (strategyError) throw strategyError;
+  const state = toStrategyState(strategy);
+  if (state.mode === 'normal') redirect(`/strategies/${id}/plan`);
+
   if (automatic) {
+    const references = await loadStrategyReferences(supabase, id, state.symbol);
+    if (!shouldAutoReturnToNormalMode(state, references[0]?.price)) redirect(`/strategies/${id}/plan`);
     const pending = await supabase.from('meritz_days').select('id').eq('strategy_id', id).in('status', ['pending', 'review']).limit(1);
     if (pending.error && !['PGRST205', '42P01'].includes(pending.error.code)) throw pending.error;
     if (pending.data?.length) redirect(`/strategies/${id}`);
   }
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from('strategies')
     .update({
       mode: 'normal',
@@ -165,11 +185,14 @@ export async function switchToNormal(formData: FormData) {
       reverse_first_sell_done: false,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', id);
+    .eq('id', id).eq('version', strategy.version).eq('mode', state.mode)
+    .select('id').maybeSingle();
 
   if (error) throw error;
+  if (!updated) redirect(`/strategies/${id}/plan`);
 
   revalidatePath(`/strategies/${id}`);
+  revalidatePath(`/strategies/${id}/plan`);
   redirect(withNotice(`/strategies/${id}/plan`, automatic ? 'normal-auto-restored' : 'normal-restored'));
 }
 
@@ -373,6 +396,7 @@ export async function recordExecution(formData: FormData) {
       mode: state.mode,
       symbol: state.symbol,
       avgPrice: finalAvgPrice,
+      reverseFirstSellDone,
     }, latestClose);
   const autoEnteredReverse = !isCompletedRound && shouldAutoEnterReverseMode({
     currentMode: state.mode,

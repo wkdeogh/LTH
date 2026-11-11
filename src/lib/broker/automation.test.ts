@@ -14,6 +14,20 @@ function fill(date: string, side: 'buy' | 'sell' = 'buy', quantity = 10, no = 10
 }
 const api: ApiOrder = { key: 'buy', side: 'buy', orderType: 'LOC', quantity: 1, price: 10,
   sources: [{ label: '기본', side: 'buy', orderType: 'LOC', quantity: 1, price: 10, note: '' }] };
+
+test('첫 매도가 미체결이면 종가가 복귀 기준 위여도 리버스를 유지하고 매도 완료 후에는 복귀한다', async () => {
+  for (const firstSellDone of [false, true]) {
+    const h = harness();
+    Object.assign(h.strategy(), { mode: 'reverse', t_value: firstSellDone ? 17.8 : 19.7734375,
+      reverse_started_at: '2026-11-05', reverse_first_sell_done: firstSellDone });
+    const day = h.addDay('2026-11-05');
+    h.setNow('2026-11-06T12:00:00Z');
+    await h.service().reconcileBroker();
+    assert.equal(day.status, 'empty');
+    assert.equal(h.strategy().mode, firstSellDone ? 'normal' : 'reverse');
+    assert.equal(h.requests.some(path => path.endsWith('/buy') || path.endsWith('/sell')), false);
+  }
+});
 function batchRun(h: ReturnType<typeof harness>) {
   return { id: 'run', strategy_id: h.strategy().id, source: 'auto', session_date: '2026-11-06' } as Run;
 }

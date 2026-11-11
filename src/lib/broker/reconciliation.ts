@@ -129,7 +129,8 @@ export function buildBrokerCommit(strategy: Strategy, plan: GuidePlan, fills: Br
   });
   const completed = !buy && qty === 0 && state.positionQty > 0;
   const t = applyTEffect(state.tValue, effect!, state.splitCount);
-  const returned = !completed && state.mode === 'reverse' && shouldAutoReturnToNormalMode({ ...state, avgPrice: avg }, close);
+  const reverseFirstSellDone = state.reverseFirstSellDone || state.mode === 'reverse' && effect === 'reverse_sell';
+  const returned = !completed && shouldAutoReturnToNormalMode({ ...state, avgPrice: avg, reverseFirstSellDone }, close);
   const mode = completed || returned ? 'normal' : state.mode === 'normal' && shouldEnterReverseMode({ ...state, tValue: t }) ? 'reverse' : state.mode;
   const final = { principal: completed && strategy.compounding_type === 'compound' ? cash : state.principal,
     cash_balance: cash, position_qty: qty, avg_price: completed ? 0 : avg, t_value: completed ? 0 : t,

@@ -135,6 +135,21 @@ test('리버스 체결 후 평단으로 복귀 판단하며 첫날 MOC 의미를
   assert.equal(r.final.mode, 'normal'); assert.equal(r.final.reverse_first_sell_done, false);
 });
 
+test('리버스 첫날 MOC 체결과 T 감소를 반영한 뒤 같은 날 종가로 일반모드에 복귀한다', () => {
+  const s = { ...strategy, mode: 'reverse' as const, t_value: 19.7734375,
+    reverse_started_at: '2026-11-02', reverse_first_sell_done: false };
+  const plan = strategyGuide(s, 100);
+  assert.equal(plan.kind, 'reverse');
+  assert.equal(plan.sellOrders[0].orderType, 'MOC');
+  const r = buildBrokerCommit(s, plan, [{ ...fill, side: 'sell', orderType: 'MOC',
+    quantity: 10, amount: 1000, price: 100, limitPrice: 0 }], '2026-11-02', 100);
+  assert.equal(r.executions[0].t_effect, 'reverse_sell');
+  assert.equal(r.final.position_qty, 90);
+  assert.equal(r.final.t_value, 17.79609375);
+  assert.equal(r.final.mode, 'normal');
+  assert.equal(r.final.reverse_first_sell_done, false);
+});
+
 test('격리 DB: 권한·계좌 잠금·교차 작업 1초 간격·체결과 전략의 원자적 중복 방지', async () => {
   const db = new PGlite();
   try {

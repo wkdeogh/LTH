@@ -228,10 +228,10 @@ test('리버스 5일 평균, 매도수량, 복귀 경계를 정확히 계산한�
   assert.equal(shouldReturnToNormalMode(state({ symbol: 'SOXL', avgPrice: 40 }), 32.01), true);
 });
 
-test('리버스모드에서는 첫날 매도 여부와 관계없이 일반모드 복귀를 판단한다', () => {
+test('리버스 첫 매도 전에는 복귀하지 않고 매도 반영 후 종가로 복귀를 판단한다', () => {
   assert.equal(shouldAutoReturnToNormalMode(state({
     mode: 'reverse', avgPrice: 40, reverseFirstSellDone: false,
-  }), 34.01), true);
+  }), 34.01), false);
   assert.equal(shouldAutoReturnToNormalMode(state({
     mode: 'reverse', avgPrice: 40, reverseFirstSellDone: true,
   }), 34.01), true);
@@ -244,6 +244,18 @@ test('리버스모드에서는 첫날 매도 여부와 관계없이 일반모드
   assert.equal(shouldAutoReturnToNormalMode(state({
     mode: 'reverse', symbol: 'SOXL', avgPrice: 40, reverseFirstSellDone: true,
   }), 32.01), true);
+});
+
+test('T=19.77에서 주문화면을 반복 계산해도 첫 매도 가이드와 리버스모드를 유지한다', () => {
+  const current = state({ mode: 'reverse', tValue: 19.7734375, avgPrice: 40, positionQty: 200 });
+  for (let visit = 0; visit < 5; visit++) {
+    const plan = calculateReversePlan(current, [], 34.01);
+    assert.equal(plan.returnToNormal, false);
+    assert.equal(plan.isFirstDay, true);
+    assert.equal(plan.buyOrders.length, 0);
+    assert.equal(plan.sellOrders[0].orderType, 'MOC');
+    assert.equal(plan.sellOrders[0].quantity, 20);
+  }
 });
 
 test('매수 여력이 있는 리버스 주문은 첫날 MOC이고 둘째 날부터 LOC다', () => {
