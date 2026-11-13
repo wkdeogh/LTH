@@ -237,7 +237,8 @@ test('22:02:59 시작에서 복구 지연을 포함해 제출하고 22:05 이후
 
 function repriceFixture() {
   const h = harness(); h.setNow('2026-11-06T18:00:00Z');
-  h.client.currentPrice = async () => 55;
+  // 50 -> 40 moves the +20% buy cap to 48, so the 49.99 LOC buy really changes.
+  h.client.currentPrice = async () => 40;
   const source = { ...api.sources[0], price: 49.99, quantity: 10, completesBuyUnit: true };
   const processed = { orders: [{ ...api, price: 49.99, quantity: 10, sources: [source] }], currentPrice: 50, skipped: [] };
   const guide = { kind: 'normal', phase: 'second_half', buyOrders: [source], sellOrders: [], warnings: [], formulas: [] };
@@ -258,6 +259,15 @@ test('실제 재주문 경로는 공식 날짜를 메모리에도 반영해 취�
   assert.equal(h.requests.filter(r => r.endsWith('/buy')).length, 1);
   await h.reprice().runRepriceJob();
   assert.equal(h.requests.filter(r => r.endsWith('/buy')).length, 1);
+});
+
+test('5% 초과여도 재주문 내용이 기존 주문과 같으면 취소·재주문하지 않는다', async () => {
+  const h = repriceFixture();
+  h.client.currentPrice = async () => 55;
+  const result = await h.reprice().runRepriceJob();
+  assert.equal(outcomes(result)[0].status, 'unchanged');
+  assert.equal(h.tables.meritz_reprices[0].status, 'unchanged');
+  assert.equal(h.requests.some(r => r.endsWith('/cancel') || r.endsWith('/buy') || r.endsWith('/sell')), false);
 });
 
 test('취소 후 실패·review 저장 실패에도 취소/접수 건수와 잔존 주문 미확인 알림은 남는다', async () => {

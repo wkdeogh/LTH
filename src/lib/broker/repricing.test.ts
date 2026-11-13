@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
 import { activationDate, initialOrderSession, manualOrderSession, openingWindow, repriceWindow } from './calendar';
-import { cancelThenReplace as cancelWithPolling, cancellableRow, exceedsFivePercent, isCancellationConfirmed, matchesTrackedOrder, planReplacement, type CancellationTarget, type TrackedOrder } from './repricing-policy';
+import { cancelThenReplace as cancelWithPolling, cancellableRow, exceedsFivePercent, isCancellationConfirmed, matchesTrackedOrder, planReplacement, sameAsOpenOrders, type CancellationTarget, type TrackedOrder } from './repricing-policy';
 import { MeritzClient, type BrokerRow } from './meritz';
 import { type ApiOrder, type GuidePlan, judgeOrder } from './policy';
 
@@ -23,6 +23,15 @@ test('5%는 유지, 상승·하락 모두 5% 초과부터 교체한다',()=>{
   for(const p of [80,84,76]) assert.equal(exceedsFivePercent(80,p),false);
   for(const p of [84.0001,75.9999,90,60]) assert.equal(exceedsFivePercent(80,p),true);
   assert.throws(()=>exceedsFivePercent(0,80)); assert.throws(()=>exceedsFivePercent(80,NaN));
+});
+test('재주문 내용이 기존 미체결 주문과 같을 때만 같다고 본다',()=>{
+  assert.equal(sameAsOpenOrders([target],[apiOrder]),true);
+  assert.equal(sameAsOpenOrders([target],[{...apiOrder,price:95.99}]),false);
+  assert.equal(sameAsOpenOrders([target],[{...apiOrder,quantity:59}]),false);
+  assert.equal(sameAsOpenOrders([target],[{...apiOrder,orderType:'LIMIT'}]),false);
+  assert.equal(sameAsOpenOrders([target],[apiOrder,{...apiOrder,price:90}]),false);
+  assert.equal(sameAsOpenOrders([target],[]),false);
+  assert.equal(sameAsOpenOrders([],[]),true);
 });
 test('한국 22시와 03시: 서머타임·표준시·휴일·조기폐장·늦은 ON',()=>{
   for(const date of ['2026-07-06','2026-11-03']) {

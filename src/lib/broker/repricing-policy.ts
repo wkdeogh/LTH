@@ -12,6 +12,15 @@ export function exceedsFivePercent(initial: number, current: number) {
   return (a > b ? a - b : b - a) * BigInt(100) > a * BigInt(5);
 }
 export function historyIdentity(row: BrokerRow) { return `${row.oder_date}:${row.oder_no}`; }
+// True when the replacement would resend exactly the open orders: same side,
+// order type, cent price and quantity for every order, with nothing added or dropped.
+export function sameAsOpenOrders(targets: CancellationTarget[], orders: ApiOrder[]) {
+  const key = (side: string, type: string, price: number | null, qty: number) =>
+    `${side}:${type}:${type === 'MOC' || price === null ? 'market' : Math.round(price * 100)}:${qty}`;
+  const open = targets.map(t => key(t.order.guide_order.side, t.order.guide_order.orderType, t.order.guide_order.price, t.quantity)).sort();
+  const next = orders.map(o => key(o.side, o.orderType, o.price, o.quantity)).sort();
+  return open.length === next.length && open.every((k, i) => k === next[i]);
+}
 export function matchesTrackedOrder(order: TrackedOrder, row: BrokerRow, recoverNumber = false) {
   if (String(row.oder_rctf_cncl_cls_code) !== '0') return false;
   if (!recoverNumber && String(row.oder_no) !== order.broker_order_no) return false;

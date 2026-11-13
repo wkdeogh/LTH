@@ -8,7 +8,7 @@ import { judgeOrder } from './policy';
 import { buyReservation, fitOrderFunding, fundingSummary, orderCash, waitForOrderFunding } from './funding';
 import { submitOrderBatch, type Run } from './service';
 import { brokerSession } from './reconciliation';
-import { cancelThenReplace, exceedsFivePercent, historyIdentity, planReplacement, replacementBudgetMs, type TrackedOrder } from './repricing-policy';
+import { cancelThenReplace, exceedsFivePercent, historyIdentity, planReplacement, replacementBudgetMs, sameAsOpenOrders, type TrackedOrder } from './repricing-policy';
 import { reportBrokerFailure, runBrokerWatchdog } from './watchdog';
 
 export async function runRepriceJob(watchdog = false) {
@@ -60,6 +60,10 @@ export async function runRepriceJob(watchdog = false) {
       state.positionQty += replacement.buyQuantity - replacement.sellQuantity;
       state.cashBalance = Math.round((state.cashBalance + replacement.cashChange) * 10000) / 10000;
       replacement.processed = fitOrderFunding(replacement.processed, state, state.cashBalance, state.positionQty);
+      if (sameAsOpenOrders(replacement.targets, replacement.processed.orders)) {
+        check((await db.from('meritz_reprices').update({ status: 'unchanged', replacement_snapshot: replacement.processed, finished_at: new Date().toISOString() }).eq('run_id', run.id)).error);
+        outcomes.push({ strategy: strategy.id, status: 'unchanged', reason: '재주문 내용이 기존 주문과 같음', initial, price }); await deliverNotifications(); return { outcomes };
+      }
       check((await db.from('meritz_reprices').update({ status: 'cancelling', replacement_snapshot: replacement.processed }).eq('run_id', run.id)).error);
       // Store official broker dates before the Korea-local midnight boundary
       // can make a repeated order number point at another generation.
