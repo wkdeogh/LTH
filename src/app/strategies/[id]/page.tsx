@@ -23,6 +23,7 @@ import {
   calculatePositionPerformance,
   calculateReferenceAverage,
   calculateStarPercent,
+  calculateStarPrice,
   modeLabel,
   referenceSourceLabel,
 } from '@/lib/trading';
@@ -94,6 +95,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
   const currentStarPercent = strategy.mode === 'normal'
     ? calculateStarPercent(toNumber(strategy.t_value)) * 100
     : null;
+  const currentStarPrice = calculateStarPrice(toNumber(strategy.avg_price), toNumber(strategy.t_value));
   return (
     <div className="stack page-stack">
       <section className="hero compact-hero">
@@ -136,9 +138,9 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
             <div className="turn-progress-title">
               <span>T 진행도</span>
               {currentStarPercent === null ? (
-                <small className="reverse">리버스 · 별지점 기준</small>
+                <small className="reverse">리버스 · 별지점 {currentStarPrice ? usd(currentStarPrice) : '-'}</small>
               ) : (
-                <small>별% {signedValue(currentStarPercent, '%')}</small>
+                <small>별% {signedValue(currentStarPercent, '%')}{currentStarPrice ? ` · 별지점 ${usd(currentStarPrice)}` : ''}</small>
               )}
             </div>
             <strong>{compact(strategy.t_value)} / {strategy.split_count}</strong>

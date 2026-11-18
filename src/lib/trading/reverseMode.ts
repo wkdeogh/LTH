@@ -1,6 +1,6 @@
 import type { StrategyState } from '@/lib/types';
 import { floorShares, roundMoney, roundPrice } from '@/lib/trading/rounding';
-import { calculateStarPercent, type OrderGuide } from '@/lib/trading/normalMode';
+import { calculateStarPrice, type OrderGuide } from '@/lib/trading/normalMode';
 
 export type ReversePlan = {
   kind: 'reverse';
@@ -42,8 +42,7 @@ export function shouldAutoReturnToNormalMode(
 }
 
 export function calculateReversePlan(state: StrategyState, _recentCloses: number[], closePrice?: number): ReversePlan {
-  const starPrice = roundPrice(state.avgPrice * (1 + calculateStarPercent(state.tValue)));
-  const referencePrice = starPrice > 0 ? starPrice : null;
+  const referencePrice = calculateStarPrice(state.avgPrice, state.tValue);
   const buyPrice = referencePrice ? roundPrice(referencePrice - 0.01) : null;
   const isFirstDay = !state.reverseFirstSellDone;
   const warnings: string[] = [];

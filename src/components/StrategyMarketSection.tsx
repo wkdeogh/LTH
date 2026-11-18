@@ -2,7 +2,7 @@ import { refreshMarketChart } from '@/app/actions';
 import { LazyMarketChart } from '@/components/LazyMarketChart';
 import { latestClosedMarketDate } from '@/lib/date';
 import { createSupabaseReadClient } from '@/lib/supabase/read';
-import { calculateNormalPlan } from '@/lib/trading';
+import { calculateNormalPlan, calculateStarPrice } from '@/lib/trading';
 import { toNumber, type Execution, type MarketCandle, type Strategy } from '@/lib/types';
 
 export async function loadStrategyChart(strategy: Strategy) {
@@ -49,6 +49,10 @@ export async function StrategyMarketSection({ strategy, data, referencePrice }: 
       reverseFirstSellDone: strategy.reverse_first_sell_done,
     }, referencePrice)
     : null;
+  // 리버스모드도 별지점(평단 × (1 + 별%))을 매수·매도 기준으로 쓰므로 차트에 함께 표시한다.
+  const starPrice = strategy.mode === 'normal'
+    ? chartPlan?.starPrice ?? null
+    : calculateStarPrice(toNumber(strategy.avg_price), toNumber(strategy.t_value));
 
   return (
       <section className="panel chart-panel market-section" id="market-chart">
@@ -69,7 +73,7 @@ export async function StrategyMarketSection({ strategy, data, referencePrice }: 
           candles={candleResult.data ?? []}
           executions={chartExecutionResult.data ?? []}
           averagePrice={toNumber(strategy.avg_price)}
-          starPrice={chartPlan?.starPrice ?? null}
+          starPrice={starPrice}
           fullSellPrice={chartPlan?.targetSellPrice ?? null}
         />
       </section>

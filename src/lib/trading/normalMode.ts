@@ -33,6 +33,12 @@ export function calculateStarPercent(tValue: number) {
   return (20 - 2 * tValue) / 100;
 }
 
+export function calculateStarPrice(avgPrice: number, tValue: number) {
+  if (avgPrice <= 0) return null;
+  const starPrice = roundPrice(avgPrice * (1 + calculateStarPercent(tValue)));
+  return starPrice > 0 ? starPrice : null;
+}
+
 export function calculateOneUnitBudget(state: StrategyState) {
   const remainingTurns = state.splitCount - state.tValue;
   if (remainingTurns <= 0) return 0;
