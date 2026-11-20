@@ -8,6 +8,7 @@ import * as meritz from '../meritz';
 import * as repricing from '../repricing-policy';
 import { pollRead } from '../polling';
 import { strategyGuide } from '../policy';
+import type { MarketReference } from '@/lib/trading/marketReference';
 
 // Execute the actual server modules against an in-memory Data API and a fake
 // brokerage. No environment file, production DB, network or real timer is used.
@@ -23,6 +24,7 @@ export function harness() {
       active_from: '2026-11-01', sync_from: '2026-11-01' }],
   };
   const history: Row[] = [], notices: Row[] = [], writes: Row[] = [], rpcCalls: Row[] = [], requests: string[] = [];
+  const references: MarketReference[] = [{ date: '2026-11-05', price: 50, source: 'market_close' }];
   const faults = { lock: false, reviewSave: false, acceptedSave: false, cancelNumber: 0, candles: false, notificationMs: 0 };
   let cancelCalls = 0, acceptedSaves = 0, refreshes = 0;
   const clone = <T>(value: T): T => structuredClone(value);
@@ -117,7 +119,7 @@ export function harness() {
     const overrides: Record<string, unknown> = {
       'server-only': {}, './meritz': { ...meritz, brokerConfigured: () => true, accountKey: () => 'account' },
       '@/lib/supabase/server': { createSupabaseServerClient: () => db },
-      '@/lib/marketData/references': { loadStrategyReferences: async () => [{ price: 50 }] },
+      '@/lib/marketData/references': { loadStrategyReferences: async () => clone(references) },
       './calendar': { ...calendar,
         nyTime: (date = new Date(now)) => calendar.nyTime(date),
         openingWindow: (date = new Date(now), watchdog = false) => calendar.openingWindow(date, watchdog),
@@ -158,7 +160,7 @@ export function harness() {
       baseline: clone(strategy()), guide: strategyGuide(strategy() as any, 50) };
     (tables.meritz_days ??= []).push(day); return day;
   };
-  return { tables, history, notices, writes, rpcCalls, requests, faults, client, time, strategy, addDay,
+  return { tables, history, notices, writes, rpcCalls, requests, references, faults, client, time, strategy, addDay,
     setNow: (value: string) => { now = Date.parse(value); }, refreshes: () => refreshes,
     service: () => load('service') as typeof import('../service'),
     watchdog: () => load('watchdog') as typeof import('../watchdog'),

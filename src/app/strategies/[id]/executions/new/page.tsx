@@ -16,6 +16,7 @@ import {
   calculateReversePlan,
   inferExecutionDefaultsFromClose,
   modeLabel,
+  previousTradingClose,
 } from '@/lib/trading';
 
 export default async function NewExecutionPage({ params }: { params: Promise<{ id: string }> }) {
@@ -41,11 +42,12 @@ export default async function NewExecutionPage({ params }: { params: Promise<{ i
   if (dateQueryError) throw dateQueryError;
   const earliestDate = [lastDatedExecution?.executed_at, correctionResult.data?.effective_date, flowResult.data?.requested_date].filter(Boolean).sort().at(-1) ?? null;
   const state = toStrategyState(strategy);
-  const latestClose = references[0]?.price;
-  const recentCloses = references.slice(0, 5).map(reference => reference.price);
+  const latestReference = references[0];
+  const latestClose = latestReference?.price;
+  const previousClose = latestReference && previousTradingClose(references, latestReference.date);
   const plan = state.mode === 'normal'
     ? calculateNormalPlan(state, latestClose)
-    : calculateReversePlan(state, recentCloses, latestClose);
+    : calculateReversePlan(state, previousClose, latestClose);
   const executionDefaults = inferExecutionDefaultsFromClose(plan, latestClose);
   const pairedFinalSell = plan.kind === 'normal'
     ? plan.sellOrders.find((order) => order.orderType === 'LIMIT')

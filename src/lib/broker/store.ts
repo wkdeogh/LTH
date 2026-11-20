@@ -6,6 +6,7 @@ import { accountKey, MeritzClient } from './meritz';
 import { activationDate, nyTime } from './calendar';
 import { strategyGuide } from './policy';
 import { loadStrategyReferences } from '@/lib/marketData/references';
+import { previousTradingClose } from '@/lib/trading/marketReference';
 import { STRATEGY_ID, requireStrategyId } from '@/lib/strategyConfig';
 
 export function brokerDb() {
@@ -47,13 +48,20 @@ export async function loadBrokerLink(account: string) {
 export async function captureDay(strategy: Strategy, date = nyTime().date, refreshUnsubmitted = false) {
   const db = brokerDb();
   const refs = await loadStrategyReferences(db, strategy.id, strategy.symbol);
-  const guide = strategyGuide(strategy, refs[0]?.price);
+  const referencePrice = strategy.mode === 'reverse' ? previousTradingClose(refs, date) : refs[0]?.price;
+  const guide = strategyGuide(strategy, referencePrice);
   const r = await db.from('meritz_days').upsert({ strategy_id: strategy.id, session_date: date,
     baseline: strategy, guide }, { onConflict: 'strategy_id,session_date', ignoreDuplicates: true });
   check(r.error);
   let day = await db.from('meritz_days').select('*').eq('strategy_id', strategy.id).eq('session_date', date).single();
   check(day.error);
-  if (refreshUnsubmitted && day.data!.status === 'pending' && day.data!.baseline.version !== strategy.version) {
+  const savedGuide = day.data!.guide;
+  const reverseOrdersChanged = guide.kind === 'reverse' && (
+    savedGuide.buyOrders[0]?.price !== guide.buyOrders[0]?.price
+    || savedGuide.sellOrders[0]?.orderType !== guide.sellOrders[0]?.orderType
+  );
+  if (refreshUnsubmitted && day.data!.status === 'pending'
+    && (day.data!.baseline.version !== strategy.version || reverseOrdersChanged)) {
     const [run, executions] = await Promise.all([
       db.from('meritz_runs').select('status').eq('strategy_id', strategy.id).eq('session_date', date).maybeSingle(),
       db.from('executions').select('id').eq('strategy_id', strategy.id).eq('executed_at', date).limit(1),

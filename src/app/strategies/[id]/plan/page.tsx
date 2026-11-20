@@ -8,6 +8,8 @@ import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
 import { SupplementalOrders } from '@/components/SupplementalOrders';
 import { hasSupabaseEnv } from '@/lib/env';
+import { shiftDate } from '@/lib/broker/calendar';
+import { latestClosedMarketDate } from '@/lib/date';
 import { createSupabaseReadClient } from '@/lib/supabase/read';
 import type { Strategy } from '@/lib/types';
 import { toStrategyState } from '@/lib/types';
@@ -18,6 +20,7 @@ import {
   calculateReversePlan,
   modeLabel,
   phaseLabel,
+  previousTradingClose,
   referenceSourceLabel,
 } from '@/lib/trading';
 import type { OrderGuide } from '@/lib/trading';
@@ -66,10 +69,11 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
   const recentCloses = references.slice(0, 5).map((reference) => reference.price);
   const recentAverage = calculateReferenceAverage(references);
   const currentReference = references[0];
+  const previousClose = previousTradingClose(references, shiftDate(latestClosedMarketDate(), 1));
   const performance = calculatePositionPerformance(state.positionQty, state.avgPrice, currentReference?.price);
   const plan = state.mode === 'normal'
     ? calculateNormalPlan(state, currentReference?.price)
-    : calculateReversePlan(state, recentCloses, currentReference?.price);
+    : calculateReversePlan(state, previousClose, currentReference?.price);
 
   return (
     <div className="stack page-stack">
@@ -124,7 +128,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
             <div className="stat"><span>첫날 여부</span><strong>{plan.isFirstDay ? '첫날' : '둘째 날 이후'}</strong></div>
             <div className="stat"><span>별지점</span><strong>{plan.referencePrice ? usd(plan.referencePrice) : '-'}</strong></div>
             <div className="stat"><span>매수금</span><strong>{usd(plan.buyBudget)}</strong></div>
-            <div className="stat"><span>현재 기준가</span><strong>{currentReference ? usd(currentReference.price) : '-'}</strong></div>
+            <div className="stat"><span>전 거래일 종가</span><strong>{previousClose ? usd(previousClose) : '-'}</strong></div>
             <div className="stat"><span>복귀 조건</span><strong>{plan.returnToNormal ? '충족' : '미충족'}</strong></div>
           </div>
           {plan.returnToNormal && <AutoNormalTransition strategyId={id} />}

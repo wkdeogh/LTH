@@ -70,3 +70,9 @@ export function activationDate(now = new Date()) {
 export function shiftDate(date: string, days: number) {
   const d = new Date(`${date}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + days); return dateString(d);
 }
+
+export function previousTradingDay(date: string) {
+  let previous = shiftDate(date, -1);
+  while (!isTradingDay(previous)) previous = shiftDate(previous, -1);
+  return previous;
+}

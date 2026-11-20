@@ -1,6 +1,7 @@
 import type { DailyPrice, MarketCandle } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 import { roundMoney, roundRate } from '@/lib/trading/rounding';
+import { previousTradingDay } from '@/lib/broker/calendar';
 
 export type ReferenceSource = 'saved_close' | 'market_close';
 
@@ -9,6 +10,11 @@ export type MarketReference = {
   price: number;
   source: ReferenceSource;
 };
+
+export function previousTradingClose(references: MarketReference[], sessionDate: string) {
+  const date = previousTradingDay(sessionDate);
+  return references.find((reference) => reference.date === date)?.price;
+}
 
 type DailyPriceInput = Pick<DailyPrice, 'trade_date' | 'close_price'>;
 type MarketCandleInput = Pick<MarketCandle, 'trade_date' | 'close_price'>;

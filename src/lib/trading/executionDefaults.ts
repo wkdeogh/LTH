@@ -30,12 +30,13 @@ export function inferExecutionDefaultsFromClose(
       return fromOrder(plan.sellOrders[0], 'reverse_sell');
     }
 
-    if (!plan.referencePrice) return null;
-    if (closePrice > plan.referencePrice) {
-      return fromOrder(plan.sellOrders[0], 'reverse_sell');
+    const sellOrder = plan.sellOrders[0];
+    if (sellOrder?.price && closePrice > sellOrder.price) {
+      return fromOrder(sellOrder, 'reverse_sell');
     }
-    if (closePrice < plan.referencePrice) {
-      return fromOrder(plan.buyOrders[0], 'reverse_buy');
+    const buyOrder = plan.buyOrders[0];
+    if (buyOrder?.price && closePrice <= buyOrder.price) {
+      return fromOrder(buyOrder, 'reverse_buy');
     }
     return null;
   }

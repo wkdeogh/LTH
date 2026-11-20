@@ -49,7 +49,7 @@ export async function StrategyMarketSection({ strategy, data, referencePrice }: 
       reverseFirstSellDone: strategy.reverse_first_sell_done,
     }, referencePrice)
     : null;
-  // 리버스모드도 별지점(평단 × (1 + 별%))을 매수·매도 기준으로 쓰므로 차트에 함께 표시한다.
+  // 리버스모드에서도 별지점이 주문 계산에 쓰이므로 차트에 표시한다.
   const starPrice = strategy.mode === 'normal'
     ? chartPlan?.starPrice ?? null
     : calculateStarPrice(toNumber(strategy.avg_price), toNumber(strategy.t_value));

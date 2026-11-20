@@ -16,7 +16,7 @@ export type ProcessedGuide = { orders: ApiOrder[]; skipped: { label: string; rea
 export function strategyGuide(strategy: Strategy, referencePrice?: number): GuidePlan {
   const state = toStrategyState(strategy);
   return state.mode === 'normal' ? calculateNormalPlan(state, referencePrice)
-    : calculateReversePlan(state, [], referencePrice);
+    : calculateReversePlan(state, referencePrice, referencePrice);
 }
 
 export function processGuide(plan: GuidePlan, currentPrice: number): ProcessedGuide {

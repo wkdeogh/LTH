@@ -249,7 +249,7 @@ test('리버스 첫 매도 전에는 복귀하지 않고 매도 반영 후 종�
 test('T=19.77에서 주문화면을 반복 계산해도 첫 매도 가이드와 리버스모드를 유지한다', () => {
   const current = state({ mode: 'reverse', tValue: 19.7734375, avgPrice: 40, positionQty: 200 });
   for (let visit = 0; visit < 5; visit++) {
-    const plan = calculateReversePlan(current, [], 34.01);
+    const plan = calculateReversePlan(current, 35, 34.01);
     assert.equal(plan.returnToNormal, false);
     assert.equal(plan.isFirstDay, true);
     assert.equal(plan.buyOrders.length, 0);
@@ -261,14 +261,14 @@ test('T=19.77에서 주문화면을 반복 계산해도 첫 매도 가이드와 
 test('매수 여력이 있는 리버스 주문은 첫날 MOC이고 둘째 날부터 LOC다', () => {
   const firstDayPlan = calculateReversePlan(
     state({ mode: 'reverse', positionQty: 200, reverseFirstSellDone: false }),
-    [40, 39, 38, 37, 36],
+    40,
   );
   assert.equal(firstDayPlan.sellOrders[0]?.orderType, 'MOC');
   assert.equal(firstDayPlan.buyOrders.length, 0);
 
   const laterPlan = calculateReversePlan(
     state({ mode: 'reverse', positionQty: 200, avgPrice: 40, reverseFirstSellDone: true }),
-    [40, 39, 38, 37, 36],
+    40,
   );
   assert.equal(laterPlan.buyOrders[0]?.orderType, 'LOC');
   assert.equal(laterPlan.sellOrders[0]?.orderType, 'LOC');
@@ -301,27 +301,36 @@ test('일반모드 체결 입력 기본값을 종가와 주문 가이드로 자�
   });
 });
 
-test('리버스모드 체결 입력 기본값을 첫날과 별지점 기준으로 자동 결정한다', () => {
+test('리버스모드 체결 기본값은 실제 매수 한도가와 별지점으로 판단한다', () => {
   const reverseState = state({
     mode: 'reverse', splitCount: 20, cashBalance: 4_000, positionQty: 200, avgPrice: 40, tValue: 19.5,
   });
-  const firstDayPlan = calculateReversePlan(reverseState, [40, 39, 38, 37, 36], 37);
+  const firstDayPlan = calculateReversePlan(reverseState, 30, 37);
   assert.deepEqual(inferExecutionDefaultsFromClose(firstDayPlan, 37), {
     side: 'sell', orderType: 'MOC', quantity: 20, tEffect: 'reverse_sell',
   });
 
   const laterPlan = calculateReversePlan(
     { ...reverseState, reverseFirstSellDone: true },
-    [40, 39, 38, 37, 36],
+    30,
     37,
   );
-  assert.deepEqual(inferExecutionDefaultsFromClose(laterPlan, 32), {
-    side: 'buy', orderType: 'LOC', quantity: 30, tEffect: 'reverse_buy',
+  assert.deepEqual(inferExecutionDefaultsFromClose(laterPlan, 29.99), {
+    side: 'buy', orderType: 'LOC', quantity: 33, tEffect: 'reverse_buy',
   });
   assert.deepEqual(inferExecutionDefaultsFromClose(laterPlan, 39), {
     side: 'sell', orderType: 'LOC', quantity: 20, tEffect: 'reverse_sell',
   });
   assert.equal(inferExecutionDefaultsFromClose(laterPlan, 32.4), null);
+  assert.equal(inferExecutionDefaultsFromClose(laterPlan, 30), null);
+  assert.equal(inferExecutionDefaultsFromClose(laterPlan, 30.01), null);
+
+  for (const previousClose of [32.4, 35]) {
+    const plan = calculateReversePlan({ ...reverseState, reverseFirstSellDone: true }, previousClose);
+    assert.equal(plan.buyOrders[0].price, 32.39);
+    assert.equal(inferExecutionDefaultsFromClose(plan, 32.39)?.side, 'buy');
+    assert.equal(inferExecutionDefaultsFromClose(plan, 32.41)?.side, 'sell');
+  }
 });
 
 test('차트 종가를 사용하고 같은 날짜의 직접 입력 종가를 우선한다', () => {
@@ -410,21 +419,21 @@ test('자산과 종가를 첫 거래일의 0%에서 같은 비율 축으로 비�
   assert.equal(buildAssetComparison([points[0], point('2026-05-01', 11000, null), points[2]])[2].marketChangePercent, -20);
 });
 
-test('리버스는 T 기준 초과 후에도 별지점 아래에서 쿼터매수를 계속한다', () => {
+test('리버스는 T 기준 초과 후에도 전 거래일 종가 기준 쿼터매수를 계속한다', () => {
   for (const splitCount of [20] as const) {
     const plan = calculateReversePlan(state({
       symbol: 'SOXL', splitCount, tValue: splitCount - 0.5,
       mode: 'reverse', reverseFirstSellDone: true,
       avgPrice: 100, positionQty: 200, cashBalance: 1_000,
-    }), []);
+    }), 75.004);
     const star = 81;
     assert.equal(plan.referencePrice, star);
-    assert.equal(plan.buyOrders[0].price, star - 0.01);
+    assert.equal(plan.buyOrders[0].price, 75);
     assert.equal(plan.buyOrders[0].quantity, 3);
     assert.equal(plan.sellOrders[0].price, star);
     assert.equal(plan.sellOrders[0].orderType, 'LOC');
     assert.equal(inferExecutionDefaultsFromClose(plan, star), null);
-    assert.equal(inferExecutionDefaultsFromClose(plan, star - 0.01)?.side, 'buy');
+    assert.equal(inferExecutionDefaultsFromClose(plan, 75)?.side, 'buy');
     assert.equal(inferExecutionDefaultsFromClose(plan, star + 0.01)?.side, 'sell');
   }
 });
@@ -433,7 +442,7 @@ test('쿼터매수로 1주를 살 수 있는 경계와 소진 후 MOC 기본값�
   const base = state({ symbol: 'SOXL', mode: 'reverse', reverseFirstSellDone: true,
     splitCount: 20, tValue: 20, avgPrice: 50, positionQty: 200 });
   for (const cashBalance of [0, 159.95, 159.96, 160]) {
-    const plan = calculateReversePlan({ ...base, cashBalance }, []);
+    const plan = calculateReversePlan({ ...base, cashBalance }, 40);
     assert.equal(plan.referencePrice, 40);
     if (cashBalance < 159.96) {
       assert.deepEqual(plan.buyOrders, []);
