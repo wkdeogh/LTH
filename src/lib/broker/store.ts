@@ -6,7 +6,7 @@ import { accountKey, MeritzClient } from './meritz';
 import { activationDate, nyTime } from './calendar';
 import { strategyGuide } from './policy';
 import { loadStrategyReferences } from '@/lib/marketData/references';
-import { previousTradingClose } from '@/lib/trading/marketReference';
+import { previousFiveTradingCloses } from '@/lib/trading/marketReference';
 import { STRATEGY_ID, requireStrategyId } from '@/lib/strategyConfig';
 
 export function brokerDb() {
@@ -48,8 +48,7 @@ export async function loadBrokerLink(account: string) {
 export async function captureDay(strategy: Strategy, date = nyTime().date, refreshUnsubmitted = false) {
   const db = brokerDb();
   const refs = await loadStrategyReferences(db, strategy.id, strategy.symbol);
-  const referencePrice = strategy.mode === 'reverse' ? previousTradingClose(refs, date) : refs[0]?.price;
-  const guide = strategyGuide(strategy, referencePrice);
+  const guide = strategyGuide(strategy, refs[0]?.price, previousFiveTradingCloses(refs, date));
   const r = await db.from('meritz_days').upsert({ strategy_id: strategy.id, session_date: date,
     baseline: strategy, guide }, { onConflict: 'strategy_id,session_date', ignoreDuplicates: true });
   check(r.error);
@@ -57,7 +56,8 @@ export async function captureDay(strategy: Strategy, date = nyTime().date, refre
   check(day.error);
   const savedGuide = day.data!.guide;
   const reverseOrdersChanged = guide.kind === 'reverse' && (
-    savedGuide.buyOrders[0]?.price !== guide.buyOrders[0]?.price
+    savedGuide.referencePrice !== guide.referencePrice
+    || savedGuide.buyOrders[0]?.price !== guide.buyOrders[0]?.price
     || savedGuide.sellOrders[0]?.orderType !== guide.sellOrders[0]?.orderType
   );
   if (refreshUnsubmitted && day.data!.status === 'pending'

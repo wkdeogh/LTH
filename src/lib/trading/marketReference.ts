@@ -11,9 +11,16 @@ export type MarketReference = {
   source: ReferenceSource;
 };
 
-export function previousTradingClose(references: MarketReference[], sessionDate: string) {
-  const date = previousTradingDay(sessionDate);
-  return references.find((reference) => reference.date === date)?.price;
+export function previousFiveTradingCloses(references: MarketReference[], sessionDate: string) {
+  const closes: number[] = [];
+  let date = sessionDate;
+  for (let index = 0; index < 5; index++) {
+    date = previousTradingDay(date);
+    const reference = references.find((item) => item.date === date);
+    if (!reference) break;
+    closes.push(reference.price);
+  }
+  return closes;
 }
 
 type DailyPriceInput = Pick<DailyPrice, 'trade_date' | 'close_price'>;

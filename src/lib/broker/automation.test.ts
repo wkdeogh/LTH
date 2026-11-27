@@ -4,7 +4,7 @@ import { harness } from './__tests__/harness';
 import { BrokerRequestError, type MeritzClient } from './meritz';
 import type { Strategy } from '@/lib/types';
 import type { Run } from './service';
-import type { ApiOrder } from './policy';
+import { strategyGuide, type ApiOrder } from './policy';
 
 function fill(date: string, side: 'buy' | 'sell' = 'buy', quantity = 10, no = 101) {
   return { oder_date: date.replaceAll('-',''), oder_no: no, oder_rctf_cncl_cls_code: '0',
@@ -37,32 +37,39 @@ function outcomes(result: unknown) {
   return (result as { outcomes: Record<string, unknown>[] }).outcomes;
 }
 
-test('리버스 주문은 휴장일을 건너뛴 전 거래일 종가를 쓰고 오래된 미제출 가이드를 갱신한다', async () => {
+test('리버스 자동주문은 휴장일과 당일 종가를 제외하며 매도 별지점만 바뀌어도 미제출 가이드를 갱신한다', async () => {
   const h = harness();
   h.setNow('2026-11-27T13:00:00Z');
   Object.assign(h.strategy(), { mode: 'reverse', avg_price: 60, t_value: 19.5, reverse_first_sell_done: true });
   const day = h.addDay('2026-11-27');
+  day.guide = strategyGuide(h.strategy() as Strategy, 45, [45, 49, 49, 50, 50]);
+  assert.equal(day.guide.buyOrders[0].price, 44.99);
+  assert.equal(day.guide.sellOrders[0].price, 48.6);
   h.references.unshift(
     { date: '2026-11-27', price: 53, source: 'market_close' },
     { date: '2026-11-25', price: 45, source: 'market_close' },
+    { date: '2026-11-24', price: 47, source: 'market_close' },
+    { date: '2026-11-23', price: 46, source: 'market_close' },
+    { date: '2026-11-20', price: 48, source: 'market_close' },
+    { date: '2026-11-19', price: 49, source: 'market_close' },
   );
   const result = await h.service().runOpeningJob();
   assert.equal(outcomes(result)[0].status, 'accepted');
   assert.equal(day.baseline.version, 1);
   const orders = h.tables.meritz_orders;
   assert.equal(orders.find(order => order.guide_order.side === 'buy')?.body.ovrs_stck_oder_prc, '44.9900');
-  assert.equal(orders.find(order => order.guide_order.side === 'sell')?.body.ovrs_stck_oder_prc, '48.6000');
+  assert.equal(orders.find(order => order.guide_order.side === 'sell')?.body.ovrs_stck_oder_prc, '47.0000');
 });
 
-test('리버스 주문은 직전 거래일 종가가 없으면 과거 종가를 쓰지 않고 별지점 매도만 준비한다', async () => {
+test('직전 5거래일 중 종가가 빠지면 과거 종가로 대체하지 않고 리버스 자동주문을 보류한다', async () => {
   const h = harness();
   Object.assign(h.strategy(), { mode: 'reverse', t_value: 19.5, reverse_first_sell_done: true });
-  h.references[0].date = '2026-11-04';
+  for (const date of ['2026-11-04', '2026-11-02', '2026-10-30', '2026-10-29']) {
+    h.references.push({ date, price: 45, source: 'market_close' });
+  }
   const result = await h.service().runOpeningJob();
-  assert.equal(outcomes(result)[0].status, 'accepted');
-  assert.equal(h.tables.meritz_orders.length, 1);
-  assert.equal(h.tables.meritz_orders[0].guide_order.side, 'sell');
-  assert.equal(h.tables.meritz_orders[0].body.ovrs_stck_oder_prc, '40.5000');
+  assert.match(String(outcomes(result)[0].error), /직전 5거래일 종가/);
+  assert.equal(h.requests.some(path => path.endsWith('/buy') || path.endsWith('/sell')), false);
 });
 
 test('실제 준비·제출 경로: 전날 새벽 이력은 허용하고 당일 수동 주문은 두 단계에서 차단한다', async () => {

@@ -13,18 +13,21 @@ import { addDailyPrice, switchToNormal, switchToReverse } from '@/app/actions';
 import { compact, usd } from '@/components/Format';
 import { SetupNotice } from '@/components/SetupNotice';
 import { StrategyTabs } from '@/components/StrategyTabs';
-import { inclusiveDateCount, koreaDate } from '@/lib/date';
+import { inclusiveDateCount, koreaDate, latestClosedMarketDate } from '@/lib/date';
+import { shiftDate } from '@/lib/broker/calendar';
 import { hasSupabaseEnv } from '@/lib/env';
 import { createSupabaseReadClient } from '@/lib/supabase/read';
 import type { Strategy, CashFlow } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 import {
   calculateAccountPerformance,
+  calculateFiveDayAverage,
   calculatePositionPerformance,
   calculateReferenceAverage,
   calculateStarPercent,
   calculateStarPrice,
   modeLabel,
+  previousFiveTradingCloses,
   referenceSourceLabel,
 } from '@/lib/trading';
 
@@ -95,7 +98,12 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
   const currentStarPercent = strategy.mode === 'normal'
     ? calculateStarPercent(toNumber(strategy.t_value)) * 100
     : null;
-  const currentStarPrice = calculateStarPrice(toNumber(strategy.avg_price), toNumber(strategy.t_value));
+  const reverseStarPrice = strategy.mode === 'reverse'
+    ? calculateFiveDayAverage(previousFiveTradingCloses(references, shiftDate(latestClosedMarketDate(), 1)))
+    : null;
+  const currentStarPrice = strategy.mode === 'reverse'
+    ? reverseStarPrice
+    : calculateStarPrice(toNumber(strategy.avg_price), toNumber(strategy.t_value));
   return (
     <div className="stack page-stack">
       <section className="hero compact-hero">
@@ -199,7 +207,7 @@ export default async function StrategyPage({ params }: { params: Promise<{ id: s
       <CashFlowForm key={strategy.version} strategy={strategy} referencePrice={reference?.price} earliestDate={earliestCashFlowDate} cashFlows={cashFlowResult.data ?? []} />
 
       <Suspense fallback={<MarketSectionSkeleton symbol={strategy.symbol} />}>
-        <StrategyMarketSection strategy={strategy} data={chartData} referencePrice={reference?.price} />
+        <StrategyMarketSection strategy={strategy} data={chartData} referencePrice={reference?.price} reverseStarPrice={reverseStarPrice} />
       </Suspense>
 
       <section className="panel">

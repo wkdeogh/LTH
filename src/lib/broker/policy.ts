@@ -13,15 +13,18 @@ export type ApiOrder = {
 };
 export type ProcessedGuide = { orders: ApiOrder[]; skipped: { label: string; reason: string }[]; currentPrice: number };
 
-export function strategyGuide(strategy: Strategy, referencePrice?: number): GuidePlan {
+export function strategyGuide(strategy: Strategy, referencePrice?: number, recentCloses: number[] = []): GuidePlan {
   const state = toStrategyState(strategy);
   return state.mode === 'normal' ? calculateNormalPlan(state, referencePrice)
-    : calculateReversePlan(state, referencePrice, referencePrice);
+    : calculateReversePlan(state, recentCloses, recentCloses[0]);
 }
 
 export function processGuide(plan: GuidePlan, currentPrice: number): ProcessedGuide {
   if (!Number.isFinite(currentPrice) || currentPrice <= 0) throw new Error('유효한 현재가가 없습니다.');
   if (plan.kind === 'normal' && plan.phase === 'reverse_required') throw new Error('리버스모드 전환 후 주문을 다시 확인해 주세요.');
+  if (plan.kind === 'reverse' && !plan.isFirstDay && plan.referencePrice === null) {
+    throw new Error('직전 5거래일 종가가 모두 있어야 리버스 LOC 주문을 계산할 수 있습니다.');
+  }
   // Work in cents: buys round down at the cap, supplemental cutoff rounds up.
   const cap = Math.floor((currentPrice * 120 + 1e-8)) / 100;
   const lower = Math.ceil((currentPrice * 90 - 1e-8)) / 100;

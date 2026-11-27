@@ -2,7 +2,7 @@ import { refreshMarketChart } from '@/app/actions';
 import { LazyMarketChart } from '@/components/LazyMarketChart';
 import { latestClosedMarketDate } from '@/lib/date';
 import { createSupabaseReadClient } from '@/lib/supabase/read';
-import { calculateNormalPlan, calculateStarPrice } from '@/lib/trading';
+import { calculateNormalPlan } from '@/lib/trading';
 import { toNumber, type Execution, type MarketCandle, type Strategy } from '@/lib/types';
 
 export async function loadStrategyChart(strategy: Strategy) {
@@ -25,8 +25,8 @@ export function MarketSectionSkeleton({ symbol }: { symbol: string }) {
   </section>;
 }
 
-export async function StrategyMarketSection({ strategy, data, referencePrice }: {
-  strategy: Strategy; data: ReturnType<typeof loadStrategyChart>; referencePrice?: number;
+export async function StrategyMarketSection({ strategy, data, referencePrice, reverseStarPrice }: {
+  strategy: Strategy; data: ReturnType<typeof loadStrategyChart>; referencePrice?: number; reverseStarPrice: number | null;
 }) {
   const resolved = await data;
   const [candleResult, chartExecutionResult] = await resolved.chart;
@@ -49,10 +49,9 @@ export async function StrategyMarketSection({ strategy, data, referencePrice }: 
       reverseFirstSellDone: strategy.reverse_first_sell_done,
     }, referencePrice)
     : null;
-  // 리버스모드에서도 별지점이 주문 계산에 쓰이므로 차트에 표시한다.
   const starPrice = strategy.mode === 'normal'
     ? chartPlan?.starPrice ?? null
-    : calculateStarPrice(toNumber(strategy.avg_price), toNumber(strategy.t_value));
+    : reverseStarPrice;
 
   return (
       <section className="panel chart-panel market-section" id="market-chart">

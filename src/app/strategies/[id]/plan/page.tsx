@@ -20,7 +20,7 @@ import {
   calculateReversePlan,
   modeLabel,
   phaseLabel,
-  previousTradingClose,
+  previousFiveTradingCloses,
   referenceSourceLabel,
 } from '@/lib/trading';
 import type { OrderGuide } from '@/lib/trading';
@@ -69,11 +69,11 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
   const recentCloses = references.slice(0, 5).map((reference) => reference.price);
   const recentAverage = calculateReferenceAverage(references);
   const currentReference = references[0];
-  const previousClose = previousTradingClose(references, shiftDate(latestClosedMarketDate(), 1));
+  const reverseCloses = previousFiveTradingCloses(references, shiftDate(latestClosedMarketDate(), 1));
   const performance = calculatePositionPerformance(state.positionQty, state.avgPrice, currentReference?.price);
   const plan = state.mode === 'normal'
     ? calculateNormalPlan(state, currentReference?.price)
-    : calculateReversePlan(state, previousClose, currentReference?.price);
+    : calculateReversePlan(state, reverseCloses, currentReference?.price);
 
   return (
     <div className="stack page-stack">
@@ -104,7 +104,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
           <div className="stat"><span>최근 기준가 5일 평균</span><strong>{recentAverage === null ? '-' : usd(recentAverage)}</strong><small>{recentCloses.length}/5개 기준</small></div>
           <div className="stat"><span>현재 수익률</span><strong className={performance.profitRate !== null && performance.profitRate < 0 ? 'profit-negative' : 'profit-positive'}>{performance.profitRate === null ? '-' : `${performance.profitRate >= 0 ? '+' : ''}${compact(performance.profitRate, 2)}%`}</strong></div>
           {state.mode === 'reverse' && (
-            <div className="stat"><span>5일 기준가 데이터</span><strong>{recentCloses.length}/5개</strong></div>
+            <div className="stat"><span>직전 5거래일 종가 데이터</span><strong>{reverseCloses.length}/5개</strong></div>
           )}
         </div>
       </section>
@@ -128,7 +128,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
             <div className="stat"><span>첫날 여부</span><strong>{plan.isFirstDay ? '첫날' : '둘째 날 이후'}</strong></div>
             <div className="stat"><span>별지점</span><strong>{plan.referencePrice ? usd(plan.referencePrice) : '-'}</strong></div>
             <div className="stat"><span>매수금</span><strong>{usd(plan.buyBudget)}</strong></div>
-            <div className="stat"><span>전 거래일 종가</span><strong>{previousClose ? usd(previousClose) : '-'}</strong></div>
+            <div className="stat"><span>전 거래일 종가</span><strong>{reverseCloses[0] ? usd(reverseCloses[0]) : '-'}</strong></div>
             <div className="stat"><span>복귀 조건</span><strong>{plan.returnToNormal ? '충족' : '미충족'}</strong></div>
           </div>
           {plan.returnToNormal && <AutoNormalTransition strategyId={id} />}

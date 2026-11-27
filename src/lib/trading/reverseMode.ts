@@ -1,6 +1,6 @@
 import type { StrategyState } from '@/lib/types';
 import { floorShares, roundMoney, roundPrice } from '@/lib/trading/rounding';
-import { calculateStarPrice, type OrderGuide } from '@/lib/trading/normalMode';
+import type { OrderGuide } from '@/lib/trading/normalMode';
 
 export type ReversePlan = {
   kind: 'reverse';
@@ -17,6 +17,7 @@ export type ReversePlan = {
 export function calculateFiveDayAverage(closes: number[]) {
   if (closes.length < 5) return null;
   const latestFive = closes.slice(0, 5);
+  if (latestFive.some((close) => !Number.isFinite(close) || close <= 0)) return null;
   return roundPrice(latestFive.reduce((sum, close) => sum + close, 0) / 5);
 }
 
@@ -41,10 +42,9 @@ export function shouldAutoReturnToNormalMode(
     && shouldReturnToNormalMode(state, closePrice);
 }
 
-export function calculateReversePlan(state: StrategyState, previousClose?: number, closePrice?: number): ReversePlan {
-  const referencePrice = calculateStarPrice(state.avgPrice, state.tValue);
-  const hasPreviousClose = previousClose !== undefined && Number.isFinite(previousClose) && previousClose > 0.01;
-  const buyReference = hasPreviousClose && referencePrice ? Math.min(previousClose, referencePrice) : null;
+export function calculateReversePlan(state: StrategyState, recentCloses: number[], closePrice?: number): ReversePlan {
+  const referencePrice = calculateFiveDayAverage(recentCloses);
+  const buyReference = referencePrice === null ? null : Math.min(recentCloses[0], referencePrice);
   // LOC can fill at the limit. Keep the buy limit strictly below both references.
   const buyPrice = buyReference && buyReference > 0.01
     ? (Math.ceil(buyReference * 100 - 1e-9) - 1) / 100
@@ -59,12 +59,10 @@ export function calculateReversePlan(state: StrategyState, previousClose?: numbe
   const returnToNormal = shouldAutoReturnToNormalMode(state, closePrice);
 
   if (!referencePrice && !isFirstDay) {
-    warnings.push('리버스 주문을 계산할 수 있는 별지점이 없습니다.');
-  }
-  if (!hasPreviousClose && !isFirstDay) {
-    warnings.push('리버스 매수 주문을 계산할 수 있는 전 거래일 종가가 없습니다.');
+    warnings.push('직전 5거래일 종가가 모두 있어야 리버스 LOC 주문을 계산할 수 있습니다.');
   }
 
+  formulas.push('리버스 별지점 = 직전 5거래일 종가의 평균');
   formulas.push('리버스 매도수량 = floor(보유수량 / 10)');
   formulas.push('리버스 매수금 = 현재 현금 × 0.25');
   formulas.push('리버스 매수 수량 = floor(매수금 / 매수 한도가)');
@@ -108,7 +106,7 @@ export function calculateReversePlan(state: StrategyState, previousClose?: numbe
         note: '전 거래일 종가와 별지점 중 낮은 가격 바로 아래에 현금의 1/4로 LOC 매수합니다.',
       },
     ] : [],
-    sellOrders: [
+    sellOrders: referencePrice ? [
       {
         label: '리버스모드 매도',
         side: 'sell',
@@ -117,7 +115,7 @@ export function calculateReversePlan(state: StrategyState, previousClose?: numbe
         quantity: sellQty,
         note: '종가가 별지점보다 높을 때 일부 수량을 LOC 매도합니다.',
       },
-    ],
+    ] : [],
     returnToNormal,
     warnings,
     formulas,

@@ -130,7 +130,7 @@ test('전반전 수동 별지점 반회만 주문했다면 낮은 종가라도 T
 });
 test('리버스 체결 후 평단으로 복귀 판단하며 첫날 MOC 의미를 보존한다', () => {
   const s = { ...strategy, mode: 'reverse' as const, t_value: 20, reverse_started_at: '2026-10-30', reverse_first_sell_done: true };
-  const p = strategyGuide(s, 80);
+  const p = strategyGuide(s, 80, [80, 81, 82, 83, 84]);
   const r = buildBrokerCommit(s, p, [fill], '2026-11-02', 90);
   assert.equal(r.final.mode, 'normal'); assert.equal(r.final.reverse_first_sell_done, false);
 });
