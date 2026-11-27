@@ -315,20 +315,15 @@ test('리버스모드 체결 기본값은 실제 매수 한도가와 별지점�
     [30, 32, 34, 33, 33],
     37,
   );
-  assert.deepEqual(inferExecutionDefaultsFromClose(laterPlan, 29.99), {
-    side: 'buy', orderType: 'LOC', quantity: 33, tEffect: 'reverse_buy',
+  assert.equal(laterPlan.buyOrders[0].price, 32.39);
+  assert.deepEqual(inferExecutionDefaultsFromClose(laterPlan, 30.01), {
+    side: 'buy', orderType: 'LOC', quantity: 30, tEffect: 'reverse_buy',
   });
   assert.deepEqual(inferExecutionDefaultsFromClose(laterPlan, 39), {
     side: 'sell', orderType: 'LOC', quantity: 20, tEffect: 'reverse_sell',
   });
   assert.equal(inferExecutionDefaultsFromClose(laterPlan, 32.4), null);
-  assert.equal(inferExecutionDefaultsFromClose(laterPlan, 30), null);
-  assert.equal(inferExecutionDefaultsFromClose(laterPlan, 30.01), null);
-
-  const starBasedPlan = calculateReversePlan({ ...reverseState, reverseFirstSellDone: true }, [35, 30, 32, 32, 33]);
-  assert.equal(starBasedPlan.buyOrders[0].price, 32.39);
-  assert.equal(inferExecutionDefaultsFromClose(starBasedPlan, 32.39)?.side, 'buy');
-  assert.equal(inferExecutionDefaultsFromClose(starBasedPlan, 32.41)?.side, 'sell');
+  assert.equal(inferExecutionDefaultsFromClose(laterPlan, 32.39)?.side, 'buy');
 });
 
 test('차트 종가를 사용하고 같은 날짜의 직접 입력 종가를 우선한다', () => {
@@ -417,7 +412,7 @@ test('자산과 종가를 첫 거래일의 0%에서 같은 비율 축으로 비�
   assert.equal(buildAssetComparison([points[0], point('2026-05-01', 11000, null), points[2]])[2].marketChangePercent, -20);
 });
 
-test('리버스는 T 기준 초과 후에도 전 거래일 종가 기준 쿼터매수를 계속한다', () => {
+test('리버스는 T 기준 초과 후에도 5거래일 평균 별지점 기준 쿼터매수를 계속한다', () => {
   for (const splitCount of [20] as const) {
     const plan = calculateReversePlan(state({
       symbol: 'SOXL', splitCount, tValue: splitCount - 0.5,
@@ -426,12 +421,12 @@ test('리버스는 T 기준 초과 후에도 전 거래일 종가 기준 쿼터�
     }), [75.004, 77, 78, 79, 80]);
     const star = 77.8;
     assert.equal(plan.referencePrice, star);
-    assert.equal(plan.buyOrders[0].price, 75);
+    assert.equal(plan.buyOrders[0].price, 77.79);
     assert.equal(plan.buyOrders[0].quantity, 3);
     assert.equal(plan.sellOrders[0].price, star);
     assert.equal(plan.sellOrders[0].orderType, 'LOC');
     assert.equal(inferExecutionDefaultsFromClose(plan, star), null);
-    assert.equal(inferExecutionDefaultsFromClose(plan, 75)?.side, 'buy');
+    assert.equal(inferExecutionDefaultsFromClose(plan, 77.79)?.side, 'buy');
     assert.equal(inferExecutionDefaultsFromClose(plan, star + 0.01)?.side, 'sell');
   }
 });

@@ -37,14 +37,13 @@ function outcomes(result: unknown) {
   return (result as { outcomes: Record<string, unknown>[] }).outcomes;
 }
 
-test('리버스 자동주문은 휴장일과 당일 종가를 제외하며 매도 별지점만 바뀌어도 미제출 가이드를 갱신한다', async () => {
+test('리버스 자동주문은 이전 전일 종가 매수 한도가를 5거래일 평균 기준으로 갱신한다', async () => {
   const h = harness();
   h.setNow('2026-11-27T13:00:00Z');
   Object.assign(h.strategy(), { mode: 'reverse', avg_price: 60, t_value: 19.5, reverse_first_sell_done: true });
   const day = h.addDay('2026-11-27');
-  day.guide = strategyGuide(h.strategy() as Strategy, 45, [45, 49, 49, 50, 50]);
-  assert.equal(day.guide.buyOrders[0].price, 44.99);
-  assert.equal(day.guide.sellOrders[0].price, 48.6);
+  day.guide = strategyGuide(h.strategy() as Strategy, 45, [45, 47, 46, 48, 49]);
+  Object.assign(day.guide.buyOrders[0], { price: 44.99, quantity: 27 });
   h.references.unshift(
     { date: '2026-11-27', price: 53, source: 'market_close' },
     { date: '2026-11-25', price: 45, source: 'market_close' },
@@ -57,7 +56,9 @@ test('리버스 자동주문은 휴장일과 당일 종가를 제외하며 매�
   assert.equal(outcomes(result)[0].status, 'accepted');
   assert.equal(day.baseline.version, 1);
   const orders = h.tables.meritz_orders;
-  assert.equal(orders.find(order => order.guide_order.side === 'buy')?.body.ovrs_stck_oder_prc, '44.9900');
+  const buy = orders.find(order => order.guide_order.side === 'buy');
+  assert.equal(buy?.body.ovrs_stck_oder_prc, '46.9900');
+  assert.equal(buy?.body.odqt, 26);
   assert.equal(orders.find(order => order.guide_order.side === 'sell')?.body.ovrs_stck_oder_prc, '47.0000');
 });
 

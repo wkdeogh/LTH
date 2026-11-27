@@ -44,10 +44,8 @@ export function shouldAutoReturnToNormalMode(
 
 export function calculateReversePlan(state: StrategyState, recentCloses: number[], closePrice?: number): ReversePlan {
   const referencePrice = calculateFiveDayAverage(recentCloses);
-  const buyReference = referencePrice === null ? null : Math.min(recentCloses[0], referencePrice);
-  // LOC can fill at the limit. Keep the buy limit strictly below both references.
-  const buyPrice = buyReference && buyReference > 0.01
-    ? (Math.ceil(buyReference * 100 - 1e-9) - 1) / 100
+  const buyPrice = referencePrice !== null && referencePrice > 0.01
+    ? roundPrice(referencePrice - 0.01)
     : null;
   const isFirstDay = !state.reverseFirstSellDone;
   const warnings: string[] = [];
@@ -65,7 +63,7 @@ export function calculateReversePlan(state: StrategyState, recentCloses: number[
   formulas.push('리버스 별지점 = 직전 5거래일 종가의 평균');
   formulas.push('리버스 매도수량 = floor(보유수량 / 10)');
   formulas.push('리버스 매수금 = 현재 현금 × 0.25');
-  formulas.push('리버스 매수 수량 = floor(매수금 / 매수 한도가)');
+  formulas.push('리버스 매수 수량 = floor(매수금 / (별지점 − 0.01))');
 
   if (isFirstDay || isExhausted) {
     return {
@@ -103,7 +101,7 @@ export function calculateReversePlan(state: StrategyState, recentCloses: number[
         price: buyPrice,
         quantity: buyQuantity,
         amount: buyBudget,
-        note: '전 거래일 종가와 별지점 중 낮은 가격 바로 아래에 현금의 1/4로 LOC 매수합니다.',
+        note: '별지점 − $0.01에 현금의 1/4로 LOC 매수합니다.',
       },
     ] : [],
     sellOrders: referencePrice ? [
