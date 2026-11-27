@@ -8,6 +8,7 @@ import {
   LineStyle,
   createChart,
   createSeriesMarkers,
+  type AutoscaleInfoProvider,
   type CandlestickData,
   type MouseEventParams,
   type SeriesMarker,
@@ -17,6 +18,7 @@ import type { Execution, MarketCandle, SymbolCode } from '@/lib/types';
 import { toNumber } from '@/lib/types';
 
 type RangeKey = '3M' | '6M' | '1Y' | '2Y' | '3Y';
+const reverseReturnColor = '#a23b72';
 
 type HoverData = {
   date: string;
@@ -49,6 +51,7 @@ export type MarketChartProps = {
   averagePrice: number;
   starPrice: number | null;
   fullSellPrice: number | null;
+  reverseReturnPrice: number | null;
 };
 
 export function MarketChart({
@@ -58,6 +61,7 @@ export function MarketChart({
   averagePrice,
   starPrice,
   fullSellPrice,
+  reverseReturnPrice,
 }: MarketChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [range, setRange] = useState<RangeKey>('3M');
@@ -107,6 +111,17 @@ export function MarketChart({
       handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true },
     });
 
+    const includeReverseReturnPrice: AutoscaleInfoProvider | undefined = reverseReturnPrice === null ? undefined : (original) => {
+      const info = original();
+      if (!info?.priceRange) return info;
+      return {
+        ...info,
+        priceRange: {
+          minValue: Math.min(info.priceRange.minValue, reverseReturnPrice),
+          maxValue: Math.max(info.priceRange.maxValue, reverseReturnPrice),
+        },
+      };
+    };
     const series = chart.addSeries(CandlestickSeries, {
       upColor: '#c33b4a',
       downColor: '#155eef',
@@ -116,6 +131,7 @@ export function MarketChart({
       wickDownColor: '#155eef',
       priceLineVisible: false,
       priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+      autoscaleInfoProvider: includeReverseReturnPrice,
     });
     series.setData(chartData);
 
@@ -162,6 +178,16 @@ export function MarketChart({
         title: '전량매도',
       });
     }
+    if (reverseReturnPrice !== null) {
+      series.createPriceLine({
+        price: reverseReturnPrice,
+        color: reverseReturnColor,
+        lineWidth: 2,
+        lineStyle: LineStyle.Dotted,
+        axisLabelVisible: true,
+        title: '복귀 기준',
+      });
+    }
 
     const showRange = () => {
       const lastDate = candles.at(-1)!.trade_date;
@@ -203,7 +229,7 @@ export function MarketChart({
       chart.unsubscribeCrosshairMove(handleCrosshairMove);
       chart.remove();
     };
-  }, [averagePrice, candles, chartData, executions, executionsByDate, fullSellPrice, range, starPrice]);
+  }, [averagePrice, candles, chartData, executions, executionsByDate, fullSellPrice, range, reverseReturnPrice, starPrice]);
 
   const latest = candles.at(-1);
   const displayed = hover ?? (latest ? {
@@ -265,6 +291,7 @@ export function MarketChart({
         {averagePrice > 0 && <span><i className="average-price-line" />평균단가 {averagePrice.toFixed(2)}</span>}
         {starPrice && <span><i className="star-line" />별지점 {starPrice.toFixed(2)}</span>}
         {fullSellPrice && <span><i className="full-sell-line" />전량매도 {fullSellPrice.toFixed(2)}</span>}
+        {reverseReturnPrice !== null && <span><i className="reverse-return-line" />복귀 기준 {reverseReturnPrice.toFixed(2)}</span>}
       </div>
     </div>
   );

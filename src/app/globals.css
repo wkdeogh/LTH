@@ -1435,7 +1435,8 @@ button.is-pending > span {
 
 .average-price-line,
 .star-line,
-.full-sell-line {
+.full-sell-line,
+.reverse-return-line {
   border-top: 2px dashed var(--warning);
   width: 16px;
 }
@@ -1447,6 +1448,10 @@ button.is-pending > span {
 
 .full-sell-line {
   border-top-color: #6538a6;
+}
+
+.reverse-return-line {
+  border-top: 2px dotted #a23b72;
 }
 
 .chart-empty {

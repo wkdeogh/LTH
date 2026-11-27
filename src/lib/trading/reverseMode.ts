@@ -25,12 +25,16 @@ export function reverseSellQuantity(state: StrategyState) {
   return floorShares(state.positionQty / 10);
 }
 
+export function calculateReverseReturnPrice(avgPrice: number) {
+  return Number.isFinite(avgPrice) && avgPrice > 0 ? avgPrice * 0.8 : null;
+}
+
 export function shouldReturnToNormalMode(
   state: Pick<StrategyState, 'symbol' | 'avgPrice'>,
   closePrice?: number,
 ) {
-  if (!closePrice || state.avgPrice <= 0) return false;
-  return closePrice > state.avgPrice * 0.8;
+  const returnPrice = calculateReverseReturnPrice(state.avgPrice);
+  return Boolean(closePrice && returnPrice !== null && closePrice > returnPrice);
 }
 
 export function shouldAutoReturnToNormalMode(

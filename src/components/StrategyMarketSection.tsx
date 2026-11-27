@@ -2,7 +2,7 @@ import { refreshMarketChart } from '@/app/actions';
 import { LazyMarketChart } from '@/components/LazyMarketChart';
 import { latestClosedMarketDate } from '@/lib/date';
 import { createSupabaseReadClient } from '@/lib/supabase/read';
-import { calculateNormalPlan } from '@/lib/trading';
+import { calculateNormalPlan, calculateReverseReturnPrice } from '@/lib/trading';
 import { toNumber, type Execution, type MarketCandle, type Strategy } from '@/lib/types';
 
 export async function loadStrategyChart(strategy: Strategy) {
@@ -33,6 +33,7 @@ export async function StrategyMarketSection({ strategy, data, referencePrice, re
   if (candleResult.error || chartExecutionResult.error) {
     return <section className="panel"><h2>{strategy.symbol} 차트</h2><p className="danger-text">차트를 불러오지 못했습니다. 새로고침해 주세요.</p></section>;
   }
+  const averagePrice = toNumber(strategy.avg_price);
   const chartPlan = strategy.mode === 'normal'
     ? calculateNormalPlan({
       id: strategy.id,
@@ -42,7 +43,7 @@ export async function StrategyMarketSection({ strategy, data, referencePrice, re
       principal: toNumber(strategy.principal),
       cashBalance: toNumber(strategy.cash_balance),
       positionQty: strategy.position_qty,
-      avgPrice: toNumber(strategy.avg_price),
+      avgPrice: averagePrice,
       tValue: toNumber(strategy.t_value),
       mode: strategy.mode,
       reverseStartedAt: strategy.reverse_started_at,
@@ -71,9 +72,10 @@ export async function StrategyMarketSection({ strategy, data, referencePrice, re
           symbol={strategy.symbol}
           candles={candleResult.data ?? []}
           executions={chartExecutionResult.data ?? []}
-          averagePrice={toNumber(strategy.avg_price)}
+          averagePrice={averagePrice}
           starPrice={starPrice}
           fullSellPrice={chartPlan?.targetSellPrice ?? null}
+          reverseReturnPrice={strategy.mode === 'reverse' ? calculateReverseReturnPrice(averagePrice) : null}
         />
       </section>
   );
